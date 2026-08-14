@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 void allstar_audio_init(AllStarAudioEngine *audio) {
     if (!audio) return;
     memset(audio, 0, sizeof(AllStarAudioEngine));
@@ -12,8 +16,38 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
 
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
     if (!audio || !audio->enabled) return;
+
+#ifdef _WIN32
+    /* Trigger authentic Game Boy tone frequencies */
+    switch (sfx) {
+        case ALLSTAR_SFX_MENU_MOVE:
+            Beep(880, 20);
+            break;
+        case ALLSTAR_SFX_MENU_SELECT:
+            Beep(659, 30);
+            Beep(880, 50);
+            break;
+        case ALLSTAR_SFX_DRIBBLE:
+            Beep(130, 25);
+            break;
+        case ALLSTAR_SFX_SHOOT:
+            Beep(523, 40);
+            break;
+        case ALLSTAR_SFX_SWISH:
+            Beep(1046, 50);
+            break;
+        case ALLSTAR_SFX_RIM_CLANK:
+            Beep(220, 60);
+            break;
+        case ALLSTAR_SFX_BUZZER:
+            Beep(180, 350);
+            break;
+        default:
+            break;
+    }
+#else
     (void)sfx;
-    /* Hook to sound synthesis backend or blargg Gb_Apu */
+#endif
 }
 
 void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {

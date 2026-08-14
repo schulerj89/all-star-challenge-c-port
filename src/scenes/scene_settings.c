@@ -8,12 +8,16 @@
 typedef struct {
     int mode;
     int cursor_row;
-    int play_to;      /* 0 = Time, 1 = Score */
+    int play_to;      /* 0 = Time, 1..99 = Score */
     int skill_level;  /* 1, 2, 3 */
     int winners_outs; /* 0 = NO, 1 = YES */
     int time_limit;   /* 0 = 02:00, 1 = 03:00, 2 = 05:00 */
     int num_throws;   /* 0 = 5, 1 = 10, 2 = 15, 3 = 20 */
     float timer;
+    float hold_left;
+    float hold_right;
+    float hold_up;
+    float hold_down;
 } SceneSettingsData;
 
 static void settings_init(AllStarScene *scene, AllStarGame *game) {
@@ -48,8 +52,37 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
     }
 
-    /* Left / Right toggles current setting */
+    /* Auto-repeat for Left / Right button holding */
+    bool trigger_left = false;
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
+        trigger_left = true;
+        data->hold_left = 0.0f;
+    } else if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT)) {
+        data->hold_left += dt;
+        if (data->hold_left >= 0.25f) {
+            trigger_left = true;
+            data->hold_left -= 0.05f;
+        }
+    } else {
+        data->hold_left = 0.0f;
+    }
+
+    bool trigger_right = false;
+    if (allstar_input_is_pressed(input, ALLSTAR_BTN_RIGHT)) {
+        trigger_right = true;
+        data->hold_right = 0.0f;
+    } else if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) {
+        data->hold_right += dt;
+        if (data->hold_right >= 0.25f) {
+            trigger_right = true;
+            data->hold_right -= 0.05f;
+        }
+    } else {
+        data->hold_right = 0.0f;
+    }
+
+    /* Left / Right toggles current setting */
+    if (trigger_left) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         if (data->mode == 0 || data->mode == 4) { /* One on One / Tournament */
             switch (data->cursor_row) {
@@ -70,7 +103,7 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
         }
     }
 
-    if (allstar_input_is_pressed(input, ALLSTAR_BTN_RIGHT)) {
+    if (trigger_right) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         if (data->mode == 0 || data->mode == 4) { /* One on One / Tournament */
             switch (data->cursor_row) {

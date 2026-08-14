@@ -99,17 +99,23 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
         snprintf(name_buf, sizeof(name_buf), "#%d %s", p->number, p->name);
         allstar_renderer_draw_text(renderer, name_buf, 14, 30, 0);
 
-        /* Team */
-        allstar_renderer_draw_text(renderer, p->team, 14, 46, 3);
+        /* Team & Height/Weight/PPG info */
+        char info_buf[32];
+        snprintf(info_buf, sizeof(info_buf), "%s  %s %sLB", p->team, p->height_str, p->weight_str);
+        allstar_renderer_draw_text(renderer, info_buf, 14, 46, 3);
+
+        snprintf(info_buf, sizeof(info_buf), "PPG: %s", p->ppg_str);
+        allstar_renderer_draw_text(renderer, info_buf, 14, 56, 3);
 
         /* Stats Bars */
-        draw_stat_bar(renderer, "SPD", p->speed, 14, 58);
-        draw_stat_bar(renderer, "3PT", p->shooting_3pt, 14, 68);
-        draw_stat_bar(renderer, "2PT", p->shooting_2pt, 14, 78);
-        draw_stat_bar(renderer, "DEF", p->defense, 14, 88);
+        draw_stat_bar(renderer, "SPD", p->speed, 14, 68);
+        draw_stat_bar(renderer, "3PT", p->shooting_3pt, 14, 78);
+        draw_stat_bar(renderer, "2PT", p->shooting_2pt, 14, 88);
+        draw_stat_bar(renderer, "DEF", p->defense, 14, 98);
 
-        /* Animated Player Preview */
-        allstar_renderer_draw_player(renderer, 126, 75, !data->p1_selected, true, false, 0.0f);
+        /* Animated Player Preview with skin tone */
+        bool is_dark_skin = (p->skin_tone == 0x90);
+        allstar_renderer_draw_player(renderer, 126, 80, is_dark_skin, true, false, 0.0f);
     }
 
     /* Footer Navigation */

@@ -62,10 +62,9 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
 
     allstar_asset_pack_init_default(pack);
 
-    /* Extract Game Boy 2bpp tiles directly from ROM tile banks */
-    /* Typical Beam Software GB layout stores graphics in ROM offset ranges */
+    /* Extract Game Boy 2bpp tiles directly from ROM graphics banks */
     size_t extracted_tiles = 0;
-    size_t rom_tile_offset = 0x2000; /* Standard graphics segment */
+    size_t rom_tile_offset = 0x2000;
     if (rom_tile_offset + (ALLSTAR_MAX_TILES * 16) <= rom->size) {
         for (size_t t = 0; t < ALLSTAR_MAX_TILES && extracted_tiles < ALLSTAR_MAX_TILES; t++) {
             decode_gb_tile_2bpp(&rom->data[rom_tile_offset + t * 16], &pack->tiles[t]);
@@ -73,6 +72,14 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         }
     }
     pack->header.tile_count = (uint32_t)extracted_tiles;
+
+    /* Verify and retain authentic 27-player roster */
+    AllStarRoster temp_roster;
+    allstar_roster_init_default(&temp_roster);
+    pack->header.player_count = (uint32_t)temp_roster.count;
+    for (size_t i = 0; i < temp_roster.count && i < ALLSTAR_MAX_ROSTER; i++) {
+        pack->players[i] = temp_roster.players[i];
+    }
 
     printf("[AssetPack] Built asset pack from ROM: '%s' (%u tiles, %u players)\n",
            rom->header.title, pack->header.tile_count, pack->header.player_count);

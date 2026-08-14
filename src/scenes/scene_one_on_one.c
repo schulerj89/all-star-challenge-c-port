@@ -69,19 +69,67 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         data->p1.has_ball = false;
         data->p1.is_shooting = true;
-        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f, 26.0f, 45.0f, 1, 2);
+
+        float dist = sqrtf((data->p1.x - 80.0f) * (data->p1.x - 80.0f) + (data->p1.y - 26.0f) * (data->p1.y - 26.0f));
+        int pt_val = (dist > 52.0f) ? 3 : 2;
+
+        const AllStarPlayerStats *p1_stats = allstar_roster_get_player(&game->roster, game->selected_player_1);
+        int rating = (pt_val == 3) ? (p1_stats ? p1_stats->shooting_3pt : 75) : (p1_stats ? p1_stats->shooting_2pt : 85);
+
+        /* Accuracy jitter: high rating shoots straight to basket */
+        float target_offset = ((float)(rand() % 100) > (float)rating) ? ((float)(rand() % 14) - 7.0f) : 0.0f;
+        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f + target_offset, 26.0f, 48.0f, 1, pt_val);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
     }
 
     /* CPU AI update */
     allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball, dt);
 
-    /* Ball physics */
+    /* Ball physics & collision */
     allstar_physics_update_ball(&data->ball, dt);
+
+    if (!data->ball.in_flight && !data->p1.has_ball && !data->p2.has_ball) {
+        /* Loose ball recovery */
+        float d1 = sqrtf((data->p1.x - data->ball.x) * (data->p1.x - data->ball.x) + (data->p1.y - data->ball.y) * (data->p1.y - data->ball.y));
+        float d2 = sqrtf((data->p2.x - data->ball.x) * (data->p2.x - data->ball.x) + (data->p2.y - data->ball.y) * (data->p2.y - data->ball.y));
+
+        if (d1 < 10.0f) {
+            data->p1.has_ball = true;
+            data->p1.is_shooting = false;
+            allstar_physics_init_ball(&data->ball);
+        } else if (d2 < 10.0f) {
+            data->p2.has_ball = true;
+            data->p2.is_shooting = false;
+            allstar_physics_init_ball(&data->ball);
+        }
+    }
+
     if (allstar_physics_check_basket(&data->ball, 80.0f, 26.0f, 16.0f)) {
         data->ball.made_basket = true;
-        if (data->ball.shooter_id == 1) data->p1_score += data->ball.point_value;
-        else data->p2_score += data->ball.point_value;
+        if (data->ball.shooter_id == 1) {
+            data->p1_score += data->ball.point_value;
+            /* Switch possession to P2 */
+            data->p2.x = 80.0f;
+            data->p2.y = 95.0f;
+            data->p2.has_ball = true;
+            data->p2.is_shooting = false;
+            data->p1.x = 80.0f;
+            data->p1.y = 65.0f;
+            data->p1.has_ball = false;
+            data->p1.is_shooting = false;
+        } else {
+            data->p2_score += data->ball.point_value;
+            /* Switch possession to P1 */
+            data->p1.x = 80.0f;
+            data->p1.y = 95.0f;
+            data->p1.has_ball = true;
+            data->p1.is_shooting = false;
+            data->p2.x = 80.0f;
+            data->p2.y = 65.0f;
+            data->p2.has_ball = false;
+            data->p2.is_shooting = false;
+        }
+        allstar_physics_init_ball(&data->ball);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
     }
 }

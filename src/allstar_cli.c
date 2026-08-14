@@ -129,12 +129,18 @@ int allstar_cli_test_roster(void) {
     }
 
     const AllStarPlayerStats *p0 = allstar_roster_get_player(&roster, 0);
-    if (!p0 || strcmp(p0->name, "M. JORDAN") != 0 || p0->number != 23) {
-        fprintf(stderr, "[Test] Player 0 mismatch\n");
+    if (!p0 || strcmp(p0->name, "DANNY AINGE") != 0 || p0->number != 7) {
+        fprintf(stderr, "[Test] Player 0 mismatch: %s #%d\n", p0 ? p0->name : "null", p0 ? p0->number : 0);
         return 1;
     }
 
-    printf("[Test] PASSED: Roster data verification (%zu players)\n", roster.count);
+    const AllStarPlayerStats *pj = allstar_roster_get_player(&roster, 13);
+    if (!pj || strcmp(pj->name, "MICHAEL JORDAN") != 0 || pj->number != 23) {
+        fprintf(stderr, "[Test] Jordan mismatch: %s #%d\n", pj ? pj->name : "null", pj ? pj->number : 0);
+        return 1;
+    }
+
+    printf("[Test] PASSED: Roster data verification (%zu authentic NBA All-Star players)\n", roster.count);
     return 0;
 }
 

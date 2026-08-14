@@ -11,14 +11,20 @@
 #define ALLSTAR_MAX_ROSTER 30
 
 typedef struct {
-    char name[20];
+    char name[24];
+    char first_name[16];
+    char last_name[16];
     char team[20];
+    char height_str[8];
+    char weight_str[8];
+    char ppg_str[8];
     uint8_t number;
     uint8_t speed;
     uint8_t shooting_3pt;
     uint8_t shooting_2pt;
     uint8_t free_throw;
     uint8_t defense;
+    uint8_t skin_tone; /* 0x90: Dark, 0x91: Light */
     uint8_t portrait_tile_offset;
 } AllStarPlayerStats;
 

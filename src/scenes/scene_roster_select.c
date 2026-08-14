@@ -101,7 +101,7 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
         /* Authentic Player Face Portrait (top-left: 32x32) */
         for (int py = 0; py < 32; py++) {
             for (int px = 0; px < 32; px++) {
-                uint8_t shade = ALLSTAR_FACE_PORTRAIT_SAMPLE[py * 32 + px];
+                uint8_t shade = ALLSTAR_PLAYER_PORTRAITS[active_cursor % 27][py * 32 + px];
                 allstar_renderer_set_pixel(renderer, 32 + px, 14 + py, shade);
             }
         }
@@ -109,7 +109,7 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
         /* Authentic Team Basketball Logo (top-right: 32x32) */
         for (int py = 0; py < 32; py++) {
             for (int px = 0; px < 32; px++) {
-                uint8_t shade = ALLSTAR_TEAM_LOGO_SAMPLE[py * 32 + px];
+                uint8_t shade = ALLSTAR_PLAYER_LOGOS[active_cursor % 27][py * 32 + px];
                 allstar_renderer_set_pixel(renderer, 96 + px, 14 + py, shade);
             }
         }

@@ -45,32 +45,26 @@ static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInp
     }
 }
 
+#include "allstar_menu_art.h"
+
 static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
     (void)game;
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Header Bar */
-    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 20, 3);
-    allstar_renderer_draw_text(renderer, "SELECT MODE", 36, 6, 0);
-
-    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        int y = 30 + i * 20;
-        if (i == data->selected_index) {
-            /* Highlight Card */
-            allstar_renderer_draw_rect_fill(renderer, 10, y - 2, 140, 16, 2);
-            allstar_renderer_draw_rect_outline(renderer, 10, y - 2, 140, 16, 3);
-            /* Basketball icon */
-            allstar_renderer_draw_ball(renderer, 20, y + 5, 0);
-            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 32, y + 2, 0);
-        } else {
-            allstar_renderer_draw_rect_fill(renderer, 14, y - 2, 132, 16, 1);
-            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 32, y + 2, 3);
+    /* Render Authentic Select Game Background */
+    for (int y = 0; y < 144; y++) {
+        for (int x = 0; x < 160; x++) {
+            uint8_t shade = ALLSTAR_MENU_BACKGROUND[y * 160 + x];
+            allstar_renderer_set_pixel(renderer, x, y, shade);
         }
     }
 
-    /* Footer Hint */
-    allstar_renderer_draw_text(renderer, "PRESS A TO SELECT", 12, 132, 2);
+    /* Moving Basketball Cursor:
+       Options at y: 42 (One On One), 52 (Free Throws), 62 (Horse), 72 (Accuracy Shootout), 82 (Tournament) */
+    static const int OPTION_Y[5] = { 42, 52, 62, 72, 82 };
+    int cur_y = OPTION_Y[data->selected_index % 5];
+    allstar_renderer_draw_ball(renderer, 6, cur_y, 0);
 }
 
 static void menu_destroy(AllStarScene *scene) {

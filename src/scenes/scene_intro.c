@@ -73,8 +73,8 @@ static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *
             }
         }
 
-        /* Basketball Cursor at ROM Table 0x2AC4 Coordinates: 1P at x=43, 2P at x=96 */
-        int cursor_x = (data->selected_option == 0) ? 43 : 96;
+        /* Basketball Cursor at ROM Table 0x2AC4 Coordinates: 1P at x=43, 2P at x=99, y=124 */
+        int cursor_x = (data->selected_option == 0) ? 43 : 99;
         allstar_renderer_draw_cursor(renderer, cursor_x, 124);
     }
 }

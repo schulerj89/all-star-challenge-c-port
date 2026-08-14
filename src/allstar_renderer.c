@@ -385,8 +385,8 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    /* Select Animated 24x40 Sprite Frame */
-    const uint8_t (*frame_data)[24] = ALLSTAR_ANIM_DRIBBLE[0];
+    /* Select Animated 32x48 Sprite Frame */
+    const uint8_t (*frame_data)[32] = ALLSTAR_ANIM_DRIBBLE[0];
     int jump_y = 0;
 
     if (is_shooting) {
@@ -403,17 +403,17 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         frame_data = ALLSTAR_ANIM_DRIBBLE[f];
     }
 
-    int top_x = x - 12;
-    int top_y = y - 38 + jump_y;
+    int top_x = x - 16;
+    int top_y = y - 44 + jump_y;
 
-    /* Render 24x40 Frame */
-    for (int r = 0; r < 40; r++) {
+    /* Render 32x48 Frame */
+    for (int r = 0; r < 48; r++) {
         int ry = top_y + r;
         if (ry < 0 || ry >= 144) continue;
-        for (int c = 0; c < 24; c++) {
+        for (int c = 0; c < 32; c++) {
             int rx = top_x + c;
             if (rx < 0 || rx >= 160) continue;
-            int src_c = facing_left ? (23 - c) : c;
+            int src_c = facing_left ? (31 - c) : c;
             uint8_t raw = frame_data[r][src_c];
             if (raw == 0) continue; /* Transparent */
 

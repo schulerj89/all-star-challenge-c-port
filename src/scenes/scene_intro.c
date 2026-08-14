@@ -31,8 +31,8 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
         allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
-        /* 1 Player transitions directly to Player Select */
-        allstar_game_change_scene(game, ALLSTAR_SCENE_ROSTER_SELECT);
+        /* Go to authentic Select Game Menu */
+        allstar_game_change_scene(game, ALLSTAR_SCENE_MENU);
     }
 }
 
@@ -43,30 +43,18 @@ static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    if (data->timer < 1.0f) {
-        /* Authentic Beam Software Copyright Screen */
-        allstar_renderer_draw_text(renderer, "(C)1990 NBA", 36, 20, 3);
-        allstar_renderer_draw_text(renderer, "PROPERTIES INC.", 20, 32, 3);
-
-        allstar_renderer_draw_text(renderer, "(C)1990 LJN. LTD", 16, 56, 3);
-        allstar_renderer_draw_text(renderer, "LICENSED BY NINTENDO", 4, 76, 3);
-
-        allstar_renderer_draw_text(renderer, "PROGRAMMED BY", 28, 106, 3);
-        allstar_renderer_draw_text(renderer, "BEAM SOFTWARE.", 24, 120, 3);
-    } else {
-        /* Authentic NBA All-Star Challenge Title Screen Extracted from ROM */
-        for (int y = 0; y < 144; y++) {
-            for (int x = 0; x < 160; x++) {
-                uint8_t shade = ALLSTAR_TITLE_BITMAP[y * 160 + x];
-                allstar_renderer_set_pixel(renderer, x, y, shade);
-            }
+    /* Render Authentic NBA All-Star Challenge Title Screen Extracted from ROM */
+    for (int y = 0; y < 144; y++) {
+        for (int x = 0; x < 160; x++) {
+            uint8_t shade = ALLSTAR_TITLE_BITMAP[y * 160 + x];
+            allstar_renderer_set_pixel(renderer, x, y, shade);
         }
+    }
 
-        /* Pulsing "PRESS START" and Animated Cursor */
-        int cursor_x = (data->selected_option == 0) ? 46 : 108;
-        if ((int)(data->timer * 3.0f) % 2 == 0) {
-            allstar_renderer_draw_ball(renderer, cursor_x, 128, 0);
-        }
+    /* Pulsing "PRESS START" and Animated Cursor */
+    int cursor_x = (data->selected_option == 0) ? 46 : 108;
+    if ((int)(data->timer * 3.0f) % 2 == 0) {
+        allstar_renderer_draw_ball(renderer, cursor_x, 128, 0);
     }
 }
 

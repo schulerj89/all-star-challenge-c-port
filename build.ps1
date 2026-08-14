@@ -28,6 +28,7 @@ $CommonSources = @(
     "src\allstar_cli.c",
     "src\allstar_rom.c",
     "src\allstar_asset_pack.c",
+    "src\allstar_font.c",
     "src\allstar_renderer.c",
     "src\allstar_controls.c",
     "src\allstar_roster.c",
@@ -70,3 +71,11 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Build complete:" -ForegroundColor Green
 Write-Host "  CLI:  $ConsoleExePath"
 Write-Host "  Game: $GameExePath"
+
+$DefaultAssetPack = Join-Path $BuildDir "allstar.assetpack"
+if (!(Test-Path -LiteralPath $DefaultAssetPack)) {
+    Write-Host "Initializing default asset pack..."
+    & $ConsoleExePath --test-all | Out-Null
+    # Also save a default asset pack container if needed
+}
+

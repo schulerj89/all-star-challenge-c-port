@@ -38,7 +38,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             game->selected_player_1 = (uint32_t)data->p1_cursor;
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         }
-    } else if (!data->p2_selected && game->selected_mode == 0) { /* 1 on 1 requires P2 */
+    } else if (!data->p2_selected && game->selected_mode == 0) {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
             data->p2_cursor = (int)((data->p2_cursor + count - 1) % count);
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
@@ -66,35 +66,54 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
     }
 }
 
+static void draw_stat_bar(AllStarRenderer *renderer, const char *label, int val, int x, int y) {
+    allstar_renderer_draw_text(renderer, label, x, y, 3);
+    /* Bar background */
+    allstar_renderer_draw_rect_fill(renderer, x + 36, y + 1, 40, 6, 1);
+    allstar_renderer_draw_rect_outline(renderer, x + 36, y + 1, 40, 6, 3);
+    /* Filled segment */
+    int fill_w = (val * 38) / 100;
+    if (fill_w > 0) {
+        allstar_renderer_draw_rect_fill(renderer, x + 37, y + 2, fill_w, 4, 3);
+    }
+}
+
 static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    allstar_renderer_draw_text(renderer, "PLAYER SELECT", 28, 8, 3);
+    /* Header */
+    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 18, 3);
+    allstar_renderer_draw_text(renderer, data->p1_selected ? "SELECT OPPONENT" : "SELECT PLAYER", 24, 5, 0);
 
-    const AllStarPlayerStats *p1 = allstar_roster_get_player(&game->roster, data->p1_cursor);
-    if (p1) {
-        allstar_renderer_draw_text(renderer, "1P:", 8, 32, 3);
-        allstar_renderer_draw_text(renderer, p1->name, 36, 32, 3);
-        allstar_renderer_draw_text(renderer, p1->team, 36, 44, 2);
+    int active_cursor = data->p1_selected ? data->p2_cursor : data->p1_cursor;
+    const AllStarPlayerStats *p = allstar_roster_get_player(&game->roster, active_cursor);
+    if (p) {
+        /* Player Card Box */
+        allstar_renderer_draw_rect_fill(renderer, 8, 24, 144, 98, 1);
+        allstar_renderer_draw_rect_outline(renderer, 8, 24, 144, 98, 3);
 
-        char stats_buf[32];
-        snprintf(stats_buf, sizeof(stats_buf), "SPD:%d 3PT:%d", p1->speed, p1->shooting_3pt);
-        allstar_renderer_draw_text(renderer, stats_buf, 16, 60, 2);
-        snprintf(stats_buf, sizeof(stats_buf), "DEF:%d 2PT:%d", p1->defense, p1->shooting_2pt);
-        allstar_renderer_draw_text(renderer, stats_buf, 16, 72, 2);
+        /* Player Name Banner */
+        allstar_renderer_draw_rect_fill(renderer, 10, 26, 140, 16, 2);
+        char name_buf[32];
+        snprintf(name_buf, sizeof(name_buf), "#%d %s", p->number, p->name);
+        allstar_renderer_draw_text(renderer, name_buf, 14, 30, 0);
+
+        /* Team */
+        allstar_renderer_draw_text(renderer, p->team, 14, 46, 3);
+
+        /* Stats Bars */
+        draw_stat_bar(renderer, "SPD", p->speed, 14, 58);
+        draw_stat_bar(renderer, "3PT", p->shooting_3pt, 14, 68);
+        draw_stat_bar(renderer, "2PT", p->shooting_2pt, 14, 78);
+        draw_stat_bar(renderer, "DEF", p->defense, 14, 88);
+
+        /* Animated Player Preview */
+        allstar_renderer_draw_player(renderer, 126, 75, !data->p1_selected, true, false, 0.0f);
     }
 
-    if (game->selected_mode == 0) {
-        const AllStarPlayerStats *p2 = allstar_roster_get_player(&game->roster, data->p2_cursor);
-        if (p2) {
-            allstar_renderer_draw_text(renderer, "2P:", 8, 92, 3);
-            allstar_renderer_draw_text(renderer, p2->name, 36, 92, 3);
-            allstar_renderer_draw_text(renderer, p2->team, 36, 104, 2);
-        }
-    }
-
-    allstar_renderer_draw_text(renderer, "PRESS A TO PICK", 20, 128, 1);
+    /* Footer Navigation */
+    allstar_renderer_draw_text(renderer, "< LEFT/RIGHT > PICK", 8, 128, 2);
 }
 
 static void roster_select_destroy(AllStarScene *scene) {

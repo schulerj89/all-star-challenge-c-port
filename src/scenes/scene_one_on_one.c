@@ -4,6 +4,7 @@
 #include "allstar_ai.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 typedef struct {
     AllStarPlayerState p1;
@@ -14,17 +15,20 @@ typedef struct {
     int p2_score;
     float game_timer;
     float shot_clock;
+    float anim_timer;
 } SceneOneOnOneData;
 
 static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     data->p1.x = 80.0f;
-    data->p1.y = 80.0f;
+    data->p1.y = 90.0f;
     data->p1.has_ball = true;
+    data->p1.is_shooting = false;
 
     data->p2.x = 80.0f;
-    data->p2.y = 50.0f;
+    data->p2.y = 55.0f;
     data->p2.has_ball = false;
+    data->p2.is_shooting = false;
 
     allstar_physics_init_ball(&data->ball);
     const AllStarPlayerStats *cpu_stats = allstar_roster_get_player(&game->roster, game->selected_player_2);
@@ -34,31 +38,38 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     data->p2_score = 0;
     data->game_timer = 120.0f;
     data->shot_clock = 24.0f;
+    data->anim_timer = 0.0f;
 }
 
 static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
-
+    data->anim_timer += dt;
     data->game_timer -= dt;
     data->shot_clock -= dt;
 
     /* Human Player (P1) Movement */
-    float speed = 70.0f;
-    if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT))  data->p1.x -= speed * dt;
-    if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) data->p1.x += speed * dt;
-    if (allstar_input_is_held(input, ALLSTAR_BTN_UP))    data->p1.y -= speed * dt;
-    if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN))  data->p1.y += speed * dt;
+    float speed = 75.0f;
+    bool moved = false;
+    if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT))  { data->p1.x -= speed * dt; moved = true; }
+    if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) { data->p1.x += speed * dt; moved = true; }
+    if (allstar_input_is_held(input, ALLSTAR_BTN_UP))    { data->p1.y -= speed * dt; moved = true; }
+    if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN))  { data->p1.y += speed * dt; moved = true; }
+
+    if (moved && data->p1.has_ball && (int)(data->anim_timer * 4.0f) % 2 == 0) {
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
+    }
 
     /* Court Bounds Clamping (160x144 half-court) */
     if (data->p1.x < 16.0f) data->p1.x = 16.0f;
     if (data->p1.x > 144.0f) data->p1.x = 144.0f;
-    if (data->p1.y < 30.0f) data->p1.y = 30.0f;
-    if (data->p1.y > 130.0f) data->p1.y = 130.0f;
+    if (data->p1.y < 34.0f) data->p1.y = 34.0f;
+    if (data->p1.y > 132.0f) data->p1.y = 132.0f;
 
     /* Shooting mechanics */
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         data->p1.has_ball = false;
-        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f, 24.0f, 40.0f, 1, 2);
+        data->p1.is_shooting = true;
+        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f, 26.0f, 45.0f, 1, 2);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
     }
 
@@ -67,7 +78,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 
     /* Ball physics */
     allstar_physics_update_ball(&data->ball, dt);
-    if (allstar_physics_check_basket(&data->ball, 80.0f, 24.0f, 20.0f)) {
+    if (allstar_physics_check_basket(&data->ball, 80.0f, 26.0f, 16.0f)) {
         data->ball.made_basket = true;
         if (data->ball.shooter_id == 1) data->p1_score += data->ball.point_value;
         else data->p2_score += data->ball.point_value;
@@ -80,49 +91,58 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Draw Half-Court Lines */
-    for (int x = 20; x <= 140; x++) {
-        allstar_renderer_set_pixel(renderer, x, 24, 2);  /* Baseline */
-        allstar_renderer_set_pixel(renderer, x, 134, 2); /* Half-court */
-    }
-    for (int y = 24; y <= 134; y++) {
-        allstar_renderer_set_pixel(renderer, 20, y, 2);  /* Left sideline */
-        allstar_renderer_set_pixel(renderer, 140, y, 2); /* Right sideline */
+    /* Top Scoreboard Bar */
+    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
+    char hud_buf[32];
+    snprintf(hud_buf, sizeof(hud_buf), "1P %02d  %02d:%02d  %02d 2P",
+             data->p1_score, (int)data->game_timer / 60, (int)data->game_timer % 60, data->p2_score);
+    allstar_renderer_draw_text(renderer, hud_buf, 10, 4, 0);
+
+    /* Half-Court Floor (Light Shade) */
+    allstar_renderer_draw_rect_fill(renderer, 10, 20, 140, 118, 0);
+
+    /* Court Perimeter Outline */
+    allstar_renderer_draw_rect_outline(renderer, 10, 20, 140, 118, 2);
+    allstar_renderer_draw_line(renderer, 10, 137, 150, 137, 3); /* Half court line */
+
+    /* The Key / Paint */
+    allstar_renderer_draw_rect_fill(renderer, 60, 20, 40, 45, 1);
+    allstar_renderer_draw_rect_outline(renderer, 60, 20, 40, 45, 2);
+
+    /* Free Throw Circle */
+    for (int deg = 0; deg < 180; deg += 10) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 20.0f);
+        int cy = 65 + (int)(sinf(rad) * 12.0f);
+        allstar_renderer_set_pixel(renderer, cx, cy, 2);
     }
 
-    /* Hoop / Rim */
-    for (int x = 76; x <= 84; x++) allstar_renderer_set_pixel(renderer, x, 24, 3);
-
-    /* Draw P1 */
-    allstar_renderer_draw_text(renderer, "1P", (int32_t)data->p1.x - 6, (int32_t)data->p1.y - 12, 3);
-    for (int dx = -3; dx <= 3; dx++) {
-        for (int dy = -3; dy <= 3; dy++) {
-            allstar_renderer_set_pixel(renderer, (int32_t)data->p1.x + dx, (int32_t)data->p1.y + dy, 3);
+    /* 3-Point Arc */
+    for (int deg = 0; deg < 180; deg += 4) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 55.0f);
+        int cy = 20 + (int)(sinf(rad) * 50.0f);
+        if (cx >= 12 && cx <= 148 && cy <= 136) {
+            allstar_renderer_set_pixel(renderer, cx, cy, 2);
         }
     }
 
-    /* Draw P2 (CPU) */
-    allstar_renderer_draw_text(renderer, "2P", (int32_t)data->p2.x - 6, (int32_t)data->p2.y - 12, 2);
-    for (int dx = -3; dx <= 3; dx++) {
-        for (int dy = -3; dy <= 3; dy++) {
-            allstar_renderer_set_pixel(renderer, (int32_t)data->p2.x + dx, (int32_t)data->p2.y + dy, 2);
-        }
-    }
+    /* Backboard, Rim & Net */
+    allstar_renderer_draw_line(renderer, 70, 22, 90, 22, 3); /* Backboard */
+    allstar_renderer_draw_line(renderer, 76, 26, 84, 26, 3); /* Rim */
+    allstar_renderer_draw_line(renderer, 77, 27, 83, 30, 2); /* Net */
+    allstar_renderer_draw_line(renderer, 83, 27, 77, 30, 2);
+
+    /* Draw CPU Player (P2) */
+    allstar_renderer_draw_player(renderer, (int32_t)data->p2.x, (int32_t)data->p2.y, false, data->p2.has_ball, data->p2.is_shooting, data->anim_timer);
+
+    /* Draw Human Player (P1) */
+    allstar_renderer_draw_player(renderer, (int32_t)data->p1.x, (int32_t)data->p1.y, true, data->p1.has_ball, data->p1.is_shooting, data->anim_timer);
 
     /* Draw Ball */
     if (data->ball.in_flight) {
-        int bx = (int)data->ball.x;
-        int by = (int)(data->ball.y - data->ball.z * 0.5f);
-        allstar_renderer_set_pixel(renderer, bx, by, 3);
-        allstar_renderer_set_pixel(renderer, bx + 1, by, 3);
-        allstar_renderer_set_pixel(renderer, bx, by + 1, 3);
-        allstar_renderer_set_pixel(renderer, bx + 1, by + 1, 3);
+        allstar_renderer_draw_ball(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y, (int32_t)data->ball.z);
     }
-
-    /* HUD */
-    char hud_buf[32];
-    snprintf(hud_buf, sizeof(hud_buf), "%02d - %02d", data->p1_score, data->p2_score);
-    allstar_renderer_draw_text(renderer, hud_buf, 56, 4, 3);
 }
 
 static void one_on_one_destroy(AllStarScene *scene) {

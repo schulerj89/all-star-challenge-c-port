@@ -7,6 +7,50 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool save_bmp_file(const char *filepath, const AllStarColor *pixels, int width, int height) {
+    FILE *f = fopen(filepath, "wb");
+    if (!f) return false;
+
+    uint32_t row_size = ((width * 3 + 3) / 4) * 4;
+    uint32_t image_size = row_size * height;
+    uint32_t file_size = 54 + image_size;
+
+    uint8_t header[54] = {
+        'B', 'M',
+        (uint8_t)(file_size & 0xFF), (uint8_t)((file_size >> 8) & 0xFF), (uint8_t)((file_size >> 16) & 0xFF), (uint8_t)((file_size >> 24) & 0xFF),
+        0, 0, 0, 0,
+        54, 0, 0, 0,
+        40, 0, 0, 0,
+        (uint8_t)(width & 0xFF), (uint8_t)((width >> 8) & 0xFF), (uint8_t)((width >> 16) & 0xFF), (uint8_t)((width >> 24) & 0xFF),
+        (uint8_t)(height & 0xFF), (uint8_t)((height >> 8) & 0xFF), (uint8_t)((height >> 16) & 0xFF), (uint8_t)((height >> 24) & 0xFF),
+        1, 0,
+        24, 0,
+        0, 0, 0, 0,
+        (uint8_t)(image_size & 0xFF), (uint8_t)((image_size >> 8) & 0xFF), (uint8_t)((image_size >> 16) & 0xFF), (uint8_t)((image_size >> 24) & 0xFF),
+        0x13, 0x0B, 0, 0,
+        0x13, 0x0B, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+    };
+
+    fwrite(header, 1, 54, f);
+    uint8_t *row_buf = (uint8_t*)calloc(1, row_size);
+
+    for (int y = height - 1; y >= 0; y--) {
+        for (int x = 0; x < width; x++) {
+            AllStarColor c = pixels[y * width + x];
+            row_buf[x * 3 + 0] = (uint8_t)(c & 0xFF);         /* B */
+            row_buf[x * 3 + 1] = (uint8_t)((c >> 8) & 0xFF);  /* G */
+            row_buf[x * 3 + 2] = (uint8_t)((c >> 16) & 0xFF); /* R */
+        }
+        fwrite(row_buf, 1, row_size, f);
+    }
+
+    free(row_buf);
+    fclose(f);
+    return true;
+}
+
 static void print_usage(const char *prog_name) {
     printf("NBA All-Star Challenge (Game Boy) - Native C Port CLI\n\n");
     printf("Usage: %s [options]\n\n", prog_name);
@@ -14,6 +58,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
+    printf("  --dump-screenshots <out_dir>       Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
@@ -161,6 +206,50 @@ int allstar_cli_test_headless_frames(void) {
     return 0;
 }
 
+int allstar_cli_dump_screenshots(const char *out_dir) {
+    printf("[Screenshots] Exporting scene screenshots to: %s\n", out_dir);
+    AllStarGame game;
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Screenshots] Failed initializing game\n");
+        return 1;
+    }
+
+    char path[512];
+
+    /* 1. Intro */
+    for (int i = 0; i < 30; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\01_intro.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 2. Menu */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_MENU);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\02_menu.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 3. Roster Select */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\03_roster.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4. One on One */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\04_one_on_one.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 5. Three Point */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\05_three_point.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    allstar_game_shutdown(&game);
+    printf("[Screenshots] Successfully exported screenshots.\n");
+    return 0;
+}
+
 int allstar_cli_test_all(void) {
     int failed = 0;
     failed += allstar_cli_test_roster();
@@ -201,6 +290,12 @@ int allstar_cli_main(int argc, char **argv) {
             return 1;
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
+    } else if (strcmp(cmd, "--dump-screenshots") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");
+            return 1;
+        }
+        return allstar_cli_dump_screenshots(argv[2]);
     } else if (strcmp(cmd, "--test-roster") == 0) {
         return allstar_cli_test_roster();
     } else if (strcmp(cmd, "--test-physics") == 0) {

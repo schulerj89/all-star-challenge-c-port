@@ -12,6 +12,7 @@ set(ALLSTAR_SOURCES
     src/allstar_cli.c
     src/allstar_rom.c
     src/allstar_asset_pack.c
+    src/allstar_font.c
     src/allstar_renderer.c
     src/allstar_controls.c
     src/allstar_roster.c

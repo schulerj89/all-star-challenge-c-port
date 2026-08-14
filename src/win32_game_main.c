@@ -18,13 +18,14 @@ typedef struct {
 static Win32Framebuffer g_framebuffer;
 static bool g_is_running = true;
 static uint8_t g_raw_input_buttons = 0;
+static AllStarGame g_game;
 
 static void win32_init_framebuffer(Win32Framebuffer *fb, int width, int height) {
     fb->width = width;
     fb->height = height;
     fb->info.bmiHeader.biSize = sizeof(fb->info.bmiHeader);
     fb->info.bmiHeader.biWidth = width;
-    fb->info.bmiHeader.biHeight = -height; /* Top-down */
+    fb->info.bmiHeader.biHeight = -height; /* Top-down DIB */
     fb->info.bmiHeader.biPlanes = 1;
     fb->info.bmiHeader.biBitCount = 32;
     fb->info.bmiHeader.biCompression = BI_RGB;
@@ -54,6 +55,18 @@ static void win32_handle_key(WPARAM key, bool is_down) {
         case VK_RETURN: mask = ALLSTAR_BTN_START; break;
         case VK_SPACE:
         case VK_SHIFT:  mask = ALLSTAR_BTN_SELECT; break;
+        case '1':
+            if (is_down && g_game.renderer) allstar_renderer_set_palette_style(g_game.renderer, ALLSTAR_PALETTE_DMG_ORIGINAL);
+            break;
+        case '2':
+            if (is_down && g_game.renderer) allstar_renderer_set_palette_style(g_game.renderer, ALLSTAR_PALETTE_POCKET_BW);
+            break;
+        case '3':
+            if (is_down && g_game.renderer) allstar_renderer_set_palette_style(g_game.renderer, ALLSTAR_PALETTE_MODERN_VIBRANT);
+            break;
+        case 'P':
+            if (is_down && g_game.renderer) allstar_renderer_cycle_palette(g_game.renderer);
+            break;
         default: break;
     }
 
@@ -70,6 +83,8 @@ static LRESULT CALLBACK win32_wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
             g_is_running = false;
             PostQuitMessage(0);
             return 0;
+        case WM_ERASEBKGND:
+            return 1; /* Prevent window background flicker */
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
             win32_handle_key(wparam, true);
@@ -104,10 +119,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     (void)lpCmdLine;
 
     WNDCLASSA wc = {0};
+    wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     wc.lpfnWndProc = win32_wnd_proc;
     wc.hInstance = hInstance;
     wc.lpszClassName = "AllStarGameBoyPortWindowClass";
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hCursor = LoadCursorA(NULL, IDC_ARROW);
     wc.hIcon = (HICON)LoadImageA(NULL, "assets\\nba_allstar_challenge.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
 
     if (!RegisterClassA(&wc)) {
@@ -116,13 +132,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     RECT wr = {0, 0, CLIENT_WIDTH, CLIENT_HEIGHT};
-    AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX, FALSE);
+    DWORD style = (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX) | WS_VISIBLE;
+    AdjustWindowRect(&wr, style, FALSE);
 
     HWND hwnd = CreateWindowExA(
         0,
         wc.lpszClassName,
         "NBA All-Star Challenge (Game Boy Native C Port)",
-        (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX) | WS_VISIBLE,
+        style,
         CW_USEDEFAULT, CW_USEDEFAULT,
         wr.right - wr.left, wr.bottom - wr.top,
         NULL, NULL, hInstance, NULL
@@ -138,10 +155,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     win32_init_framebuffer(&g_framebuffer, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    AllStarGame game;
-    allstar_game_init(&game, "build\\allstar.assetpack");
+    char exe_dir[MAX_PATH];
+    GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+    char *last_slash = strrchr(exe_dir, '\\');
+    if (last_slash) *last_slash = '\0';
 
-    /* Pacing timer setup (60 Hz target) */
+    char asset_path[MAX_PATH];
+    snprintf(asset_path, sizeof(asset_path), "%s\\allstar.assetpack", exe_dir);
+
+    FILE *f_check = fopen(asset_path, "rb");
+    if (f_check) {
+        fclose(f_check);
+        allstar_game_init(&g_game, asset_path);
+    } else {
+        snprintf(asset_path, sizeof(asset_path), "build\\allstar.assetpack");
+        f_check = fopen(asset_path, "rb");
+        if (f_check) {
+            fclose(f_check);
+            allstar_game_init(&g_game, asset_path);
+        } else {
+            allstar_game_init(&g_game, NULL);
+        }
+    }
+
+    /* Pacing timer setup (59.7275 Hz Game Boy target) */
     LARGE_INTEGER perf_freq, last_time, current_time;
     QueryPerformanceFrequency(&perf_freq);
     QueryPerformanceCounter(&last_time);
@@ -162,15 +199,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (!g_is_running) break;
 
         /* Update game input and step */
-        allstar_input_update(&game.input, g_raw_input_buttons);
-        allstar_game_tick(&game, (float)target_frame_time);
+        allstar_input_update(&g_game.input, g_raw_input_buttons);
+        allstar_game_tick(&g_game, (float)target_frame_time);
 
-        /* Copy renderer pixels to framebuffer */
-        if (game.renderer && game.renderer->pixels && g_framebuffer.pixels) {
-            memcpy(g_framebuffer.pixels, game.renderer->pixels, ALLSTAR_GB_WIDTH * ALLSTAR_GB_HEIGHT * sizeof(uint32_t));
+        /* Copy renderer pixels to backbuffer */
+        if (g_game.renderer && g_game.renderer->pixels && g_framebuffer.pixels) {
+            memcpy(g_framebuffer.pixels, g_game.renderer->pixels, ALLSTAR_GB_WIDTH * ALLSTAR_GB_HEIGHT * sizeof(uint32_t));
         }
 
-        /* Present to screen */
+        /* Present to window using DC */
         HDC hdc = GetDC(hwnd);
         RECT rect;
         GetClientRect(hwnd, &rect);
@@ -195,7 +232,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         } while (1);
     }
 
-    allstar_game_shutdown(&game);
+    allstar_game_shutdown(&g_game);
     win32_free_framebuffer(&g_framebuffer);
 
     return 0;

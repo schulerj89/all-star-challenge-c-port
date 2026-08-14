@@ -92,35 +92,75 @@ static void three_point_draw(AllStarScene *scene, AllStarGame *game, AllStarRend
     SceneThreePointData *data = (SceneThreePointData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    allstar_renderer_draw_text(renderer, "3 POINT SHOOTOUT", 16, 4, 3);
+    /* Top HUD Bar */
+    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "3-PT  PTS:%02d  TIME:%02d", data->score, (int)data->time_remaining);
+    allstar_renderer_draw_text(renderer, buf, 6, 4, 0);
 
-    /* Draw 3-point Arc */
+    /* Court Key & 3-Point Arc */
+    allstar_renderer_draw_rect_fill(renderer, 64, 18, 32, 40, 1);
+    allstar_renderer_draw_rect_outline(renderer, 64, 18, 32, 40, 2);
+
+    /* 3-Point Arc */
+    for (int deg = 0; deg < 180; deg += 4) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 55.0f);
+        int cy = 20 + (int)(sinf(rad) * 50.0f);
+        if (cx >= 12 && cx <= 148 && cy <= 110) {
+            allstar_renderer_set_pixel(renderer, cx, cy, 2);
+        }
+    }
+
+    /* Hoop & Backboard */
+    allstar_renderer_draw_line(renderer, 72, 20, 88, 20, 3);
+    allstar_renderer_draw_line(renderer, 76, 24, 84, 24, 3);
+    allstar_renderer_draw_line(renderer, 78, 25, 82, 28, 2);
+
+    /* 5 Ball Racks */
     for (int r = 0; r < RACK_COUNT; r++) {
         AllStarVec2 pos = RACK_POSITIONS[r];
-        uint8_t shade = (r == data->current_rack) ? 3 : 1;
-        allstar_renderer_set_pixel(renderer, (int)pos.x, (int)pos.y, shade);
-        allstar_renderer_set_pixel(renderer, (int)pos.x + 1, (int)pos.y, shade);
-    }
+        int rx = (int)pos.x;
+        int ry = (int)pos.y;
 
-    /* Draw Shot Meter */
-    if (data->meter_active) {
-        allstar_renderer_draw_text(renderer, "TIMING", 16, 120, 2);
-        for (int x = 0; x < 50; x++) {
-            allstar_renderer_set_pixel(renderer, 60 + x, 122, 1);
-            allstar_renderer_set_pixel(renderer, 60 + x, 123, 1);
+        /* Rack Box */
+        allstar_renderer_draw_rect_fill(renderer, rx - 6, ry - 3, 12, 6, 1);
+        allstar_renderer_draw_rect_outline(renderer, rx - 6, ry - 3, 12, 6, 3);
+
+        /* Balls in Rack */
+        int balls_left = (r == data->current_rack) ? (BALLS_PER_RACK - data->ball_in_rack) : (r > data->current_rack ? 5 : 0);
+        for (int b = 0; b < balls_left && b < 4; b++) {
+            allstar_renderer_set_pixel(renderer, rx - 4 + b * 2, ry - 1, (b == 4 || (r == data->current_rack && data->ball_in_rack == 4)) ? 3 : 2);
         }
-        int cur_x = 60 + (int)(data->meter_val * 0.5f);
-        allstar_renderer_set_pixel(renderer, cur_x, 120, 3);
-        allstar_renderer_set_pixel(renderer, cur_x, 121, 3);
-        allstar_renderer_set_pixel(renderer, cur_x, 122, 3);
-        allstar_renderer_set_pixel(renderer, cur_x, 123, 3);
-        allstar_renderer_set_pixel(renderer, cur_x, 124, 3);
     }
 
-    /* HUD */
-    char buf[32];
-    snprintf(buf, sizeof(buf), "PTS:%02d TIME:%02d", data->score, (int)data->time_remaining);
-    allstar_renderer_draw_text(renderer, buf, 16, 20, 3);
+    /* Active Shooter */
+    if (data->current_rack < RACK_COUNT) {
+        AllStarVec2 cur_pos = RACK_POSITIONS[data->current_rack];
+        allstar_renderer_draw_player(renderer, (int)cur_pos.x + 8, (int)cur_pos.y + 4, true, data->meter_active, false, 0.0f);
+    }
+
+    /* Active Ball in flight */
+    if (data->active_ball.in_flight) {
+        allstar_renderer_draw_ball(renderer, (int)data->active_ball.x, (int)data->active_ball.y, (int)data->active_ball.z);
+    }
+
+    /* Timing Meter Box */
+    allstar_renderer_draw_rect_fill(renderer, 0, 116, 160, 28, 1);
+    allstar_renderer_draw_line(renderer, 0, 116, 160, 116, 3);
+    allstar_renderer_draw_text(renderer, "SHOT TIMING", 8, 120, 3);
+
+    /* Meter Track */
+    allstar_renderer_draw_rect_fill(renderer, 10, 130, 140, 8, 0);
+    allstar_renderer_draw_rect_outline(renderer, 10, 130, 140, 8, 3);
+
+    /* Sweet Spot (Green Target Zone) */
+    allstar_renderer_draw_rect_fill(renderer, 66, 131, 28, 6, 2);
+
+    /* Moving Needle */
+    int needle_x = 10 + (int)(data->meter_val * 1.36f);
+    allstar_renderer_draw_line(renderer, needle_x, 128, needle_x, 139, 3);
+    allstar_renderer_draw_line(renderer, needle_x - 1, 130, needle_x + 1, 130, 3);
 }
 
 static void three_point_destroy(AllStarScene *scene) {

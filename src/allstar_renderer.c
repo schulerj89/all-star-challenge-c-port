@@ -1,11 +1,13 @@
 #include "allstar_renderer.h"
+#include "allstar_font.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 /* Built-in Palette Presets */
 static const AllStarPalette PALETTES[ALLSTAR_PALETTE_COUNT] = {
-    /* ALLSTAR_PALETTE_DMG_ORIGINAL (Original Green Dot Matrix LCD) */
+    /* ALLSTAR_PALETTE_DMG_ORIGINAL (Authentic Green Dot Matrix LCD) */
     {
         {
             0xFF9BBC0F, /* 0: Lightest green */
@@ -23,7 +25,7 @@ static const AllStarPalette PALETTES[ALLSTAR_PALETTE_COUNT] = {
             0xFF000000  /* 3: Black */
         }
     },
-    /* ALLSTAR_PALETTE_MODERN_VIBRANT (Modern LCD) */
+    /* ALLSTAR_PALETTE_MODERN_VIBRANT (Modern High Contrast) */
     {
         {
             0xFFE0F8D0, /* 0: Pale Yellow-Green */
@@ -66,6 +68,12 @@ void allstar_renderer_set_palette_style(AllStarRenderer *renderer, AllStarPalett
     renderer->current_palette = PALETTES[style];
 }
 
+void allstar_renderer_cycle_palette(AllStarRenderer *renderer) {
+    if (!renderer) return;
+    AllStarPaletteStyle next_style = (AllStarPaletteStyle)((renderer->palette_style + 1) % ALLSTAR_PALETTE_COUNT);
+    allstar_renderer_set_palette_style(renderer, next_style);
+}
+
 void allstar_renderer_clear(AllStarRenderer *renderer, uint8_t shade_index) {
     if (!renderer || !renderer->pixels) return;
     AllStarColor color = renderer->current_palette.shades[shade_index & 3];
@@ -80,6 +88,39 @@ void allstar_renderer_set_pixel(AllStarRenderer *renderer, int32_t x, int32_t y,
     if (!renderer || !renderer->pixels) return;
     if (x < 0 || (uint32_t)x >= renderer->width || y < 0 || (uint32_t)y >= renderer->height) return;
     renderer->pixels[y * renderer->width + x] = renderer->current_palette.shades[shade_index & 3];
+}
+
+void allstar_renderer_draw_line(AllStarRenderer *renderer, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t shade) {
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy, e2;
+
+    while (1) {
+        allstar_renderer_set_pixel(renderer, x0, y0, shade);
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+void allstar_renderer_draw_rect_fill(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t shade) {
+    for (int cy = y; cy < y + h; cy++) {
+        for (int cx = x; cx < x + w; cx++) {
+            allstar_renderer_set_pixel(renderer, cx, cy, shade);
+        }
+    }
+}
+
+void allstar_renderer_draw_rect_outline(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t shade) {
+    for (int cx = x; cx < x + w; cx++) {
+        allstar_renderer_set_pixel(renderer, cx, y, shade);
+        allstar_renderer_set_pixel(renderer, cx, y + h - 1, shade);
+    }
+    for (int cy = y; cy < y + h; cy++) {
+        allstar_renderer_set_pixel(renderer, x, cy, shade);
+        allstar_renderer_set_pixel(renderer, x + w - 1, cy, shade);
+    }
 }
 
 void allstar_renderer_draw_tile(AllStarRenderer *renderer, const AllStarTile *tile, int32_t px, int32_t py, bool flip_x, bool flip_y) {
@@ -136,23 +177,12 @@ void allstar_renderer_draw_text(AllStarRenderer *renderer, const char *text, int
             continue;
         }
 
-        /* Draw basic 5x7 character bitmap on 8x8 cell */
-        for (int r = 0; r < 8; r++) {
-            for (int col = 0; col < 6; col++) {
-                if (c >= 'A' && c <= 'Z') {
-                    if (r == 0 || r == 3 || col == 0 || col == 4) {
-                        allstar_renderer_set_pixel(renderer, cx + col, cy + r, shade);
-                    }
-                } else if (c >= '0' && c <= '9') {
-                    if (r == 0 || r == 7 || col == 0 || col == 4 || (r == 3 && c != '0')) {
-                        allstar_renderer_set_pixel(renderer, cx + col, cy + r, shade);
-                    }
-                } else if (c == '-') {
-                    if (r == 3 && col >= 1 && col <= 4) {
-                        allstar_renderer_set_pixel(renderer, cx + col, cy + r, shade);
-                    }
-                } else if (c == ':') {
-                    if ((r == 2 || r == 5) && (col == 2)) {
+        if (c >= 32 && c <= 126) {
+            const uint8_t *glyph = ALLSTAR_FONT_8X8[c - 32];
+            for (int r = 0; r < 8; r++) {
+                uint8_t row_bits = glyph[r];
+                for (int col = 0; col < 8; col++) {
+                    if ((row_bits >> (7 - col)) & 1) {
                         allstar_renderer_set_pixel(renderer, cx + col, cy + r, shade);
                     }
                 }
@@ -160,6 +190,16 @@ void allstar_renderer_draw_text(AllStarRenderer *renderer, const char *text, int
         }
         cx += 8;
     }
+}
+
+void allstar_renderer_draw_text_box(AllStarRenderer *renderer, const char *text, int32_t x, int32_t y, uint8_t text_shade, uint8_t bg_shade, uint8_t border_shade) {
+    size_t len = strlen(text);
+    int box_w = (int)len * 8 + 6;
+    int box_h = 14;
+
+    allstar_renderer_draw_rect_fill(renderer, x - 3, y - 3, box_w, box_h, bg_shade);
+    allstar_renderer_draw_rect_outline(renderer, x - 3, y - 3, box_w, box_h, border_shade);
+    allstar_renderer_draw_text(renderer, text, x, y, text_shade);
 }
 
 void allstar_renderer_draw_sprite(AllStarRenderer *renderer, const AllStarTile *tile_bank, const AllStarSprite *sprite) {
@@ -179,14 +219,87 @@ void allstar_renderer_draw_sprite(AllStarRenderer *renderer, const AllStarTile *
             int src_x = flip_x ? (7 - tx) : tx;
 
             uint8_t shade = tile->pixels[src_y * 8 + src_x];
-            if (shade != 0) { /* Color 0 is transparent on Game Boy sprites */
+            if (shade != 0) {
                 allstar_renderer_set_pixel(renderer, target_x, target_y, shade);
             }
         }
     }
 }
 
+void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
+    int draw_y = y - (int)(z * 0.45f);
+
+    /* Ball Shadow on floor */
+    if (z > 2) {
+        allstar_renderer_set_pixel(renderer, x - 1, y, 1);
+        allstar_renderer_set_pixel(renderer, x, y, 2);
+        allstar_renderer_set_pixel(renderer, x + 1, y, 1);
+    }
+
+    /* 6x6 Round Basketball Sprite */
+    static const uint8_t BALL_SPRITE[6][6] = {
+        {0, 2, 3, 3, 2, 0},
+        {2, 3, 2, 2, 3, 2},
+        {3, 2, 3, 3, 2, 3},
+        {3, 2, 3, 3, 2, 3},
+        {2, 3, 2, 2, 3, 2},
+        {0, 2, 3, 3, 2, 0}
+    };
+
+    for (int r = 0; r < 6; r++) {
+        for (int c = 0; c < 6; c++) {
+            uint8_t shade = BALL_SPRITE[r][c];
+            if (shade) {
+                allstar_renderer_set_pixel(renderer, x - 3 + c, draw_y - 3 + r, shade);
+            }
+        }
+    }
+}
+
+void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
+    (void)anim_time;
+    uint8_t skin_shade = 2;
+    uint8_t jersey_shade = is_p1 ? 3 : 1;
+    uint8_t outline_shade = 3;
+
+    /* Shadow */
+    allstar_renderer_set_pixel(renderer, x - 3, y + 8, 1);
+    allstar_renderer_set_pixel(renderer, x - 2, y + 8, 2);
+    allstar_renderer_set_pixel(renderer, x - 1, y + 8, 2);
+    allstar_renderer_set_pixel(renderer, x, y + 8, 2);
+    allstar_renderer_set_pixel(renderer, x + 1, y + 8, 2);
+    allstar_renderer_set_pixel(renderer, x + 2, y + 8, 2);
+    allstar_renderer_set_pixel(renderer, x + 3, y + 8, 1);
+
+    /* Head */
+    allstar_renderer_draw_rect_fill(renderer, x - 2, y - 10, 5, 5, skin_shade);
+    allstar_renderer_draw_rect_outline(renderer, x - 2, y - 10, 5, 5, outline_shade);
+
+    /* Torso / Jersey */
+    allstar_renderer_draw_rect_fill(renderer, x - 3, y - 5, 7, 7, jersey_shade);
+    allstar_renderer_draw_rect_outline(renderer, x - 3, y - 5, 7, 7, outline_shade);
+
+    /* Legs / Shorts */
+    allstar_renderer_draw_rect_fill(renderer, x - 3, y + 2, 3, 5, is_p1 ? 3 : 2);
+    allstar_renderer_draw_rect_fill(renderer, x + 1, y + 2, 3, 5, is_p1 ? 3 : 2);
+
+    /* Arms holding ball or defending */
+    if (has_ball) {
+        if (is_shooting) {
+            allstar_renderer_draw_rect_fill(renderer, x - 1, y - 14, 3, 3, skin_shade);
+            allstar_renderer_draw_ball(renderer, x, y - 16, 0);
+        } else {
+            allstar_renderer_draw_ball(renderer, x + 5, y - 2, 0);
+        }
+    } else {
+        /* Defensive stance arms */
+        allstar_renderer_set_pixel(renderer, x - 4, y - 3, skin_shade);
+        allstar_renderer_set_pixel(renderer, x - 5, y - 4, skin_shade);
+        allstar_renderer_set_pixel(renderer, x + 4, y - 3, skin_shade);
+        allstar_renderer_set_pixel(renderer, x + 5, y - 4, skin_shade);
+    }
+}
+
 void allstar_renderer_present(AllStarRenderer *renderer) {
     (void)renderer;
-    /* Hook for platform frame presentation */
 }

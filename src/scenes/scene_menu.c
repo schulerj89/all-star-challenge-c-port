@@ -6,8 +6,8 @@
 #define MENU_ITEM_COUNT 5
 
 static const char *MENU_ITEMS[MENU_ITEM_COUNT] = {
-    "1 ON 1",
-    "3 POINT SHOOTOUT",
+    "1 ON 1 GAME",
+    "3-PT SHOOTOUT",
     "FREE THROW",
     "H - O - R - S - E",
     "TOURNAMENT"
@@ -15,17 +15,19 @@ static const char *MENU_ITEMS[MENU_ITEM_COUNT] = {
 
 typedef struct {
     int selected_index;
+    float anim_timer;
 } SceneMenuData;
 
 static void menu_init(AllStarScene *scene, AllStarGame *game) {
     (void)game;
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     data->selected_index = 0;
+    data->anim_timer = 0.0f;
 }
 
 static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
-    (void)dt;
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
+    data->anim_timer += dt;
 
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_UP)) {
         data->selected_index = (data->selected_index + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
@@ -48,19 +50,27 @@ static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *r
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    allstar_renderer_draw_text(renderer, "GAME SELECT", 36, 16, 3);
+    /* Header Bar */
+    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 20, 3);
+    allstar_renderer_draw_text(renderer, "SELECT MODE", 36, 6, 0);
 
     for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        int y = 44 + i * 16;
+        int y = 30 + i * 20;
         if (i == data->selected_index) {
-            allstar_renderer_draw_text(renderer, ">", 16, y, 3);
-            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 28, y, 3);
+            /* Highlight Card */
+            allstar_renderer_draw_rect_fill(renderer, 10, y - 2, 140, 16, 2);
+            allstar_renderer_draw_rect_outline(renderer, 10, y - 2, 140, 16, 3);
+            /* Basketball icon */
+            allstar_renderer_draw_ball(renderer, 20, y + 5, 0);
+            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 32, y + 2, 0);
         } else {
-            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 28, y, 1);
+            allstar_renderer_draw_rect_fill(renderer, 14, y - 2, 132, 16, 1);
+            allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 32, y + 2, 3);
         }
     }
 
-    allstar_renderer_draw_text(renderer, "1992 LJN TOYS", 32, 128, 2);
+    /* Footer Hint */
+    allstar_renderer_draw_text(renderer, "PRESS A TO SELECT", 12, 132, 2);
 }
 
 static void menu_destroy(AllStarScene *scene) {

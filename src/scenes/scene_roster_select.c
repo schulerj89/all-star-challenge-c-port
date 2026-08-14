@@ -54,7 +54,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
             game->selected_player_1 = (uint32_t)data->p1_cursor;
-            data->p2_cursor = (int)((data->p1_cursor + 1) % count);
+            data->p2_cursor = 0; /* Reset back to first index player */
             data->timer = 0.0f;
 
             if (game->selected_mode == 0 || game->selected_mode == 3 || game->selected_mode == 4) {
@@ -174,75 +174,29 @@ static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int p
 }
 
 static void draw_matchup_vs(AllStarRenderer *renderer, AllStarGame *game, int p1_idx, int p2_idx) {
-    /* Draw Star Border */
-    for (int x = 0; x < 160; x += 8) {
-        allstar_renderer_draw_text(renderer, "*", x, 0, 3);
-        allstar_renderer_draw_text(renderer, "*", x, 136, 3);
-    }
-    for (int y = 0; y < 144; y += 8) {
-        allstar_renderer_draw_text(renderer, "*", 0, y, 3);
-        allstar_renderer_draw_text(renderer, "*", 152, y, 3);
-    }
-
-    /* Header Title */
-    allstar_renderer_draw_text(renderer, "PLAYER 1  VS  CPU", 16, 8, 3);
-
-    /* P1 Face (32x48) at (16, 22) */
-    int p1_art = p1_idx % ALLSTAR_PORTRAIT_COUNT;
-    const uint8_t *f1 = ALLSTAR_PLAYER_PORTRAITS[p1_art];
-    for (int fy = 0; fy < 48; fy++) {
-        for (int fx = 0; fx < 32; fx++) {
-            allstar_renderer_set_pixel(renderer, 16 + fx, 22 + fy, f1[fy * 32 + fx]);
-        }
-    }
-
-    /* Center VS */
-    allstar_renderer_draw_text(renderer, "VS", 74, 42, 3);
-
-    /* P2 Face (32x48) at (112, 22) */
-    int p2_art = p2_idx % ALLSTAR_PORTRAIT_COUNT;
-    const uint8_t *f2 = ALLSTAR_PLAYER_PORTRAITS[p2_art];
-    for (int fy = 0; fy < 48; fy++) {
-        for (int fx = 0; fx < 32; fx++) {
-            allstar_renderer_set_pixel(renderer, 112 + fx, 22 + fy, f2[fy * 32 + fx]);
-        }
-    }
-
-    /* P1 Team Logo (32x32) at (16, 74) */
-    const uint8_t *l1 = ALLSTAR_PLAYER_LOGOS[p1_art];
-    for (int ly = 0; ly < 32; ly++) {
-        for (int lx = 0; lx < 32; lx++) {
-            allstar_renderer_set_pixel(renderer, 16 + lx, 74 + ly, l1[ly * 32 + lx]);
-        }
-    }
-
-    /* P2 Team Logo (32x32) at (112, 74) */
-    const uint8_t *l2 = ALLSTAR_PLAYER_LOGOS[p2_art];
-    for (int ly = 0; ly < 32; ly++) {
-        for (int lx = 0; lx < 32; lx++) {
-            allstar_renderer_set_pixel(renderer, 112 + lx, 74 + ly, l2[ly * 32 + lx]);
-        }
-    }
-
-    /* Player Last Names Below Columns */
     const AllStarPlayerStats *s1 = allstar_roster_get_player(&game->roster, (size_t)p1_idx);
     const AllStarPlayerStats *s2 = allstar_roster_get_player(&game->roster, (size_t)p2_idx);
 
-    const char *n1 = s1 ? s1->last_name : "PLAYER 1";
-    const char *n2 = s2 ? s2->last_name : "CPU";
+    const char *name1 = s1 ? s1->name : "PLAYER";
+    const char *name2 = s2 ? s2->name : "OPPONENT";
 
-    int len1 = (int)strlen(n1);
-    int x1 = 16 + (32 - len1 * 8) / 2;
-    if (x1 < 8) x1 = 8;
-    allstar_renderer_draw_text(renderer, n1, x1, 110, 3);
+    /* Player 1 Name centered at Y = 44 */
+    int len1 = (int)strlen(name1);
+    int x1 = (160 - len1 * 8) / 2;
+    if (x1 < 4) x1 = 4;
+    allstar_renderer_draw_text(renderer, name1, x1, 44, 3);
 
-    int len2 = (int)strlen(n2);
-    int x2 = 112 + (32 - len2 * 8) / 2;
-    if (x2 < 88) x2 = 88;
-    allstar_renderer_draw_text(renderer, n2, x2, 110, 3);
+    /* VS centered at Y = 64 */
+    allstar_renderer_draw_text(renderer, "VS", 72, 64, 3);
 
-    /* Bottom Prompt */
-    allstar_renderer_draw_text(renderer, "PRESS START", 36, 126, 3);
+    /* Player 2 / Opponent Name centered at Y = 84 */
+    int len2 = (int)strlen(name2);
+    int x2 = (160 - len2 * 8) / 2;
+    if (x2 < 4) x2 = 4;
+    allstar_renderer_draw_text(renderer, name2, x2, 84, 3);
+
+    /* Bottom Prompt at Y = 120 */
+    allstar_renderer_draw_text(renderer, "PRESS START", 36, 120, 3);
 }
 
 static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {

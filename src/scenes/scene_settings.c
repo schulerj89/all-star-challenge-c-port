@@ -95,23 +95,23 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
         const char *winners_str = (data->winners_outs == 0) ? "NO " : "YES";
         const char *time_str = (data->time_limit == 0) ? "02:00" : ((data->time_limit == 1) ? "03:00" : "05:00");
 
-        allstar_renderer_draw_text(renderer, play_to_str, 120, 68, 3);
-        allstar_renderer_draw_text(renderer, skill_str, 120, 76, 3);
-        allstar_renderer_draw_text(renderer, winners_str, 120, 84, 3);
-        allstar_renderer_draw_text(renderer, time_str, 120, 92, 3);
+        allstar_renderer_draw_text(renderer, play_to_str, 120, 72, 3);
+        allstar_renderer_draw_text(renderer, skill_str, 120, 80, 3);
+        allstar_renderer_draw_text(renderer, winners_str, 120, 88, 3);
+        allstar_renderer_draw_text(renderer, time_str, 120, 96, 3);
     } else if (data->mode == 1) {
         static const char *THROWS[4] = { " 5", "10", "15", "20" };
-        allstar_renderer_draw_text(renderer, THROWS[data->num_throws % 4], 120, 76, 3);
+        allstar_renderer_draw_text(renderer, THROWS[data->num_throws % 4], 120, 80, 3);
     } else if (data->mode == 3) {
         const char *time_str = (data->time_limit == 0) ? "02:00" : "01:00";
-        allstar_renderer_draw_text(renderer, time_str, 120, 84, 3);
+        allstar_renderer_draw_text(renderer, time_str, 120, 80, 3);
     }
 
-    /* Draw Basketball cursor */
-    static const int JORDAN_CURSOR_Y[4] = { 68, 76, 84, 92 };
+    /* Draw Basketball cursor aligned with text rows */
+    static const int JORDAN_CURSOR_Y[4] = { 72, 80, 88, 96 };
     int cur_y = JORDAN_CURSOR_Y[data->cursor_row % 4];
-    if (data->mode == 1) cur_y = 76;
-    else if (data->mode == 3) cur_y = 68 + (data->cursor_row * 8);
+    if (data->mode == 1) cur_y = 80;
+    else if (data->mode == 3) cur_y = 64 + (data->cursor_row * 8);
 
     allstar_renderer_draw_cursor(renderer, 0, cur_y);
 }

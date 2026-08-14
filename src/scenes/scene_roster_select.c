@@ -86,7 +86,9 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             data->timer = 0.0f;
         }
     } else if (data->state == ROSTER_STATE_MATCHUP_VS) {
-        if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) || allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
+        if (data->timer >= 1.5f ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             switch (game->selected_mode) {
                 case 0: allstar_game_change_scene(game, ALLSTAR_SCENE_ONE_ON_ONE); break;
                 case 1: allstar_game_change_scene(game, ALLSTAR_SCENE_THREE_POINT); break;
@@ -99,16 +101,32 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
     }
 }
 
-static void draw_splash_screen(AllStarRenderer *renderer, const char *line1, const char *line2) {
-    if (line1) {
-        int len1 = (int)strlen(line1);
-        int x1 = (160 - len1 * 8) / 2;
-        allstar_renderer_draw_text(renderer, line1, x1, 56, 3);
-    }
-    if (line2) {
-        int len2 = (int)strlen(line2);
-        int x2 = (160 - len2 * 8) / 2;
-        allstar_renderer_draw_text(renderer, line2, x2, 72, 3);
+static void draw_splash_screen(AllStarRenderer *renderer, const char *line1, const char *line2, const char *line3) {
+    if (line3) {
+        if (line1) {
+            int len1 = (int)strlen(line1);
+            int x1 = (160 - len1 * 8) / 2;
+            allstar_renderer_draw_text(renderer, line1, x1, 48, 3);
+        }
+        if (line2) {
+            int len2 = (int)strlen(line2);
+            int x2 = (160 - len2 * 8) / 2;
+            allstar_renderer_draw_text(renderer, line2, x2, 64, 3);
+        }
+        int len3 = (int)strlen(line3);
+        int x3 = (160 - len3 * 8) / 2;
+        allstar_renderer_draw_text(renderer, line3, x3, 80, 3);
+    } else {
+        if (line1) {
+            int len1 = (int)strlen(line1);
+            int x1 = (160 - len1 * 8) / 2;
+            allstar_renderer_draw_text(renderer, line1, x1, 56, 3);
+        }
+        if (line2) {
+            int len2 = (int)strlen(line2);
+            int x2 = (160 - len2 * 8) / 2;
+            allstar_renderer_draw_text(renderer, line2, x2, 72, 3);
+        }
     }
 }
 
@@ -177,26 +195,23 @@ static void draw_matchup_vs(AllStarRenderer *renderer, AllStarGame *game, int p1
     const AllStarPlayerStats *s1 = allstar_roster_get_player(&game->roster, (size_t)p1_idx);
     const AllStarPlayerStats *s2 = allstar_roster_get_player(&game->roster, (size_t)p2_idx);
 
-    const char *name1 = s1 ? s1->name : "PLAYER";
-    const char *name2 = s2 ? s2->name : "OPPONENT";
+    const char *name1 = s1 ? s1->last_name : "PLAYER";
+    const char *name2 = s2 ? s2->last_name : "OPPONENT";
 
-    /* Player 1 Name centered at Y = 44 */
+    /* Player 1 Last Name centered at Y = 48 */
     int len1 = (int)strlen(name1);
     int x1 = (160 - len1 * 8) / 2;
     if (x1 < 4) x1 = 4;
-    allstar_renderer_draw_text(renderer, name1, x1, 44, 3);
+    allstar_renderer_draw_text(renderer, name1, x1, 48, 3);
 
-    /* VS centered at Y = 64 */
-    allstar_renderer_draw_text(renderer, "VS", 72, 64, 3);
+    /* VS centered at Y = 68 */
+    allstar_renderer_draw_text(renderer, "VS", 72, 68, 3);
 
-    /* Player 2 / Opponent Name centered at Y = 84 */
+    /* Player 2 / Opponent Last Name centered at Y = 88 */
     int len2 = (int)strlen(name2);
     int x2 = (160 - len2 * 8) / 2;
     if (x2 < 4) x2 = 4;
-    allstar_renderer_draw_text(renderer, name2, x2, 84, 3);
-
-    /* Bottom Prompt at Y = 120 */
-    allstar_renderer_draw_text(renderer, "PRESS START", 36, 120, 3);
+    allstar_renderer_draw_text(renderer, name2, x2, 88, 3);
 }
 
 static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
@@ -204,11 +219,11 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
     allstar_renderer_clear(renderer, 0);
 
     if (data->state == ROSTER_STATE_SPLASH_P1) {
-        draw_splash_screen(renderer, "SELECT", "PLAYER");
+        draw_splash_screen(renderer, "SELECT", "PLAYER", NULL);
     } else if (data->state == ROSTER_STATE_SELECT_P1) {
         draw_player_card(renderer, game, data->p1_cursor);
     } else if (data->state == ROSTER_STATE_SPLASH_OPPONENT) {
-        draw_splash_screen(renderer, "SELECT YOUR", "OPPONENT");
+        draw_splash_screen(renderer, "SELECT", "YOUR", "OPPONENT");
     } else if (data->state == ROSTER_STATE_SELECT_OPPONENT) {
         draw_player_card(renderer, game, data->p2_cursor);
     } else if (data->state == ROSTER_STATE_MATCHUP_VS) {

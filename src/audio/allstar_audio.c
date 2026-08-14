@@ -5,6 +5,37 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
+
+static DWORD WINAPI play_sfx_thread(LPVOID param) {
+    uintptr_t sfx = (uintptr_t)param;
+    switch ((AllStarSfxId)sfx) {
+        case ALLSTAR_SFX_MENU_MOVE:
+            Beep(880, 20);
+            break;
+        case ALLSTAR_SFX_MENU_SELECT:
+            Beep(659, 25);
+            Beep(987, 45);
+            break;
+        case ALLSTAR_SFX_DRIBBLE:
+            Beep(130, 20);
+            break;
+        case ALLSTAR_SFX_SHOOT:
+            Beep(523, 30);
+            break;
+        case ALLSTAR_SFX_SWISH:
+            Beep(1046, 40);
+            break;
+        case ALLSTAR_SFX_RIM_CLANK:
+            Beep(220, 50);
+            break;
+        case ALLSTAR_SFX_BUZZER:
+            Beep(180, 300);
+            break;
+        default:
+            break;
+    }
+    return 0;
+}
 #endif
 
 void allstar_audio_init(AllStarAudioEngine *audio) {
@@ -17,7 +48,10 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
 
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
     if (!audio || !audio->enabled) return;
-    (void)sfx;
+#ifdef _WIN32
+    HANDLE hThread = CreateThread(NULL, 0, play_sfx_thread, (LPVOID)(uintptr_t)sfx, 0, NULL);
+    if (hThread) CloseHandle(hThread);
+#endif
 }
 
 void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {

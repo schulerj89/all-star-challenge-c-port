@@ -135,11 +135,6 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
         allstar_renderer_draw_text(renderer, ":", 84, 108, 3);
         allstar_renderer_draw_text(renderer, p->ppg_str, 104, 108, 3);
     }
-
-    /* Sub-header prompt */
-    char prompt_buf[32];
-    snprintf(prompt_buf, sizeof(prompt_buf), "%s", data->p1_selected ? "SELECT 2P: PRESS A" : "SELECT 1P: PRESS A");
-    allstar_renderer_draw_text(renderer, prompt_buf, 16, 126, 2);
 }
 
 static void roster_select_destroy(AllStarScene *scene) {

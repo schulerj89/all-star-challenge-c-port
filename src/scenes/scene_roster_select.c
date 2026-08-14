@@ -80,7 +80,8 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         }
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
+            allstar_audio_stop_bgm(&game->audio);
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
             game->selected_player_2 = (uint32_t)data->p2_cursor;
             data->state = ROSTER_STATE_MATCHUP_VS;
             data->timer = 0.0f;

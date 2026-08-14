@@ -236,39 +236,24 @@ void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32
     allstar_renderer_draw_line(renderer, hoop_x, 6, hoop_x, hoop_y - 8, 3);
     allstar_renderer_draw_line(renderer, hoop_x + 1, 6, hoop_x + 1, hoop_y - 8, 3);
 
-    /* 1. Authentic Backboard (24x16) from ROM Bank 3 */
-    int bb_x = hoop_x - 12;
-    int bb_y = hoop_y - 12;
-    for (int r = 0; r < 16; r++) {
-        for (int c = 0; c < 24; c++) {
-            uint8_t raw = ALLSTAR_HOOP_BACKBOARD[r][c];
-            if (raw != 0) {
-                allstar_renderer_set_pixel(renderer, bb_x + c, bb_y + r, raw);
-            }
-        }
-    }
+    /* Backboard (24x9) at (hoop_x - 12, hoop_y - 9) */
+    allstar_renderer_draw_rect_fill(renderer, hoop_x - 12, hoop_y - 9, 24, 9, 0);
+    allstar_renderer_draw_rect_outline(renderer, hoop_x - 12, hoop_y - 9, 24, 9, 3);
 
-    /* 2. Authentic Rim (24x8) from ROM Bank 3 */
-    int rim_x = hoop_x - 12;
-    int rim_y = hoop_y - 1;
-    for (int r = 0; r < 8; r++) {
-        for (int c = 0; c < 24; c++) {
-            uint8_t raw = ALLSTAR_HOOP_RIM[r][c];
-            if (raw != 0) {
-                allstar_renderer_set_pixel(renderer, rim_x + c, rim_y + r, raw);
-            }
-        }
-    }
+    /* Inner Target Box (10x6) */
+    allstar_renderer_draw_rect_outline(renderer, hoop_x - 5, hoop_y - 7, 10, 6, 3);
 
-    /* 3. Authentic Net (32x16) from ROM Bank 3 */
-    int net_x = hoop_x - 16;
-    int net_y = hoop_y + 1;
-    for (int r = 0; r < 16; r++) {
-        for (int c = 0; c < 32; c++) {
-            uint8_t raw = ALLSTAR_HOOP_NET[r][c];
-            if (raw != 0) {
-                allstar_renderer_set_pixel(renderer, net_x + c, net_y + r, raw);
-            }
+    /* Rim (12px) */
+    allstar_renderer_draw_line(renderer, hoop_x - 6, hoop_y, hoop_x + 6, hoop_y, 3);
+
+    /* Net (hanging down 8px) */
+    for (int ny = 1; ny <= 7; ny++) {
+        int w = 6 - (ny / 2);
+        allstar_renderer_set_pixel(renderer, hoop_x - w, hoop_y + ny, (ny % 2 == 0) ? 3 : 2);
+        allstar_renderer_set_pixel(renderer, hoop_x + w, hoop_y + ny, (ny % 2 == 0) ? 3 : 2);
+        if (ny % 2 == 0) {
+            allstar_renderer_set_pixel(renderer, hoop_x - (w / 2), hoop_y + ny, 2);
+            allstar_renderer_set_pixel(renderer, hoop_x + (w / 2), hoop_y + ny, 2);
         }
     }
 }
@@ -278,15 +263,6 @@ void allstar_renderer_draw_court(AllStarRenderer *renderer) {
 
     /* Hardwood Floor Background */
     allstar_renderer_draw_rect_fill(renderer, 0, 16, 160, 128, 0);
-
-    /* Wood Plank Grain Lines */
-    for (int y = 24; y < 144; y += 12) {
-        for (int x = 8; x < 152; x += 4) {
-            if ((x + y) % 8 == 0) {
-                allstar_renderer_set_pixel(renderer, x, y, 1);
-            }
-        }
-    }
 
     /* Outer Court Perimeter Boundaries */
     allstar_renderer_draw_line(renderer, 8, 18, 151, 18, 3);   /* Baseline */
@@ -391,7 +367,7 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    /* Select 16x32 Authentic Sprite Frame from ROM Bank 1 */
+    /* Select 16x28 Sprite Frame */
     const uint8_t (*sprite)[16] = ALLSTAR_SPRITE_IDLE;
     int jump_y_offset = 0;
 
@@ -412,9 +388,9 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
     uint8_t skin_shade = (skin_tone == 0x90) ? 2 : 1;
     uint8_t jersey_shade = is_p1 ? 3 : 1;
 
-    /* Render 16x32 Sprite */
-    int top_y = y - 28 + jump_y_offset;
-    for (int r = 0; r < 32; r++) {
+    /* Render 16x28 Sprite */
+    int top_y = y - 26 + jump_y_offset;
+    for (int r = 0; r < 28; r++) {
         int py = top_y + r;
         for (int c = 0; c < 16; c++) {
             int src_c = facing_left ? (15 - c) : c;

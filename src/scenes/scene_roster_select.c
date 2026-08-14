@@ -79,32 +79,40 @@ static void draw_stat_bar(AllStarRenderer *renderer, const char *label, int val,
     }
 }
 
+#include "allstar_player_art.h"
+
 static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
     /* Draw Authentic Star Border */
-    for (int x = 2; x < 156; x += 8) {
-        allstar_renderer_draw_text(renderer, "*", x, 2, 3);
+    for (int x = 0; x < 160; x += 8) {
+        allstar_renderer_draw_text(renderer, "*", x, 0, 3);
         allstar_renderer_draw_text(renderer, "*", x, 136, 3);
     }
-    for (int y = 2; y < 136; y += 8) {
-        allstar_renderer_draw_text(renderer, "*", 2, y, 3);
+    for (int y = 8; y < 136; y += 8) {
+        allstar_renderer_draw_text(renderer, "*", 0, y, 3);
         allstar_renderer_draw_text(renderer, "*", 152, y, 3);
     }
 
     int active_cursor = data->p1_selected ? data->p2_cursor : data->p1_cursor;
     const AllStarPlayerStats *p = allstar_roster_get_player(&game->roster, active_cursor);
     if (p) {
-        /* Player Face Portrait Frame (top-left) */
-        allstar_renderer_draw_rect_fill(renderer, 32, 14, 32, 32, 1);
-        allstar_renderer_draw_rect_outline(renderer, 32, 14, 32, 32, 3);
-        bool is_dark = (p->skin_tone == 0x90);
-        allstar_renderer_draw_player(renderer, 48, 42, is_dark, false, false, 0.0f);
+        /* Authentic Player Face Portrait (top-left: 32x32) */
+        for (int py = 0; py < 32; py++) {
+            for (int px = 0; px < 32; px++) {
+                uint8_t shade = ALLSTAR_FACE_PORTRAIT_SAMPLE[py * 32 + px];
+                allstar_renderer_set_pixel(renderer, 32 + px, 14 + py, shade);
+            }
+        }
 
-        /* Team Basketball Logo (top-right) */
-        allstar_renderer_draw_ball(renderer, 114, 28, 0);
-        allstar_renderer_draw_text(renderer, p->team, 102, 42, 3);
+        /* Authentic Team Basketball Logo (top-right: 32x32) */
+        for (int py = 0; py < 32; py++) {
+            for (int px = 0; px < 32; px++) {
+                uint8_t shade = ALLSTAR_TEAM_LOGO_SAMPLE[py * 32 + px];
+                allstar_renderer_set_pixel(renderer, 96 + px, 14 + py, shade);
+            }
+        }
 
         /* Full Player Name */
         char full_name[64];

@@ -6,35 +6,33 @@
 
 typedef struct {
     float timer;
-    float ball_y;
-    float ball_vy;
+    int selected_option; /* 0 = 1 PLAYER, 1 = 2 PLAYERS */
 } SceneIntroData;
 
 static void intro_init(AllStarScene *scene, AllStarGame *game) {
     (void)game;
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     data->timer = 0.0f;
-    data->ball_y = 10.0f;
-    data->ball_vy = 0.0f;
+    data->selected_option = 0;
 }
 
 static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     data->timer += dt;
 
-    /* Bouncing ball animation */
-    data->ball_vy += 120.0f * dt;
-    data->ball_y += data->ball_vy * dt;
-    if (data->ball_y >= 100.0f) {
-        data->ball_y = 100.0f;
-        data->ball_vy = -75.0f;
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
+    /* Left / Right / Select toggles 1 PLAYER vs 2 PLAYERS */
+    if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT) ||
+        allstar_input_is_pressed(input, ALLSTAR_BTN_RIGHT) ||
+        allstar_input_is_pressed(input, ALLSTAR_BTN_SELECT)) {
+        data->selected_option = (data->selected_option == 0) ? 1 : 0;
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
     }
 
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
         allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
-        allstar_game_change_scene(game, ALLSTAR_SCENE_MENU);
+        /* 1 Player transitions directly to Player Select */
+        allstar_game_change_scene(game, ALLSTAR_SCENE_ROSTER_SELECT);
     }
 }
 
@@ -65,8 +63,9 @@ static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *
         }
 
         /* Pulsing "PRESS START" and Animated Cursor */
+        int cursor_x = (data->selected_option == 0) ? 46 : 108;
         if ((int)(data->timer * 3.0f) % 2 == 0) {
-            allstar_renderer_draw_ball(renderer, 46, 128, 0);
+            allstar_renderer_draw_ball(renderer, cursor_x, 128, 0);
         }
     }
 }

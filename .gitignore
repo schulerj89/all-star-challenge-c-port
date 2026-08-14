@@ -28,6 +28,9 @@ tools/GhidraBoy/
 *.assetpack
 *.sav
 *.sgm
+*.wav
+assets/audio/
+build/assets/audio/
 
 # Logs, Dumps, Captures
 *.log

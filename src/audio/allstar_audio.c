@@ -35,6 +35,14 @@ static bool load_wav_file(const char *filename, CachedWav *out) {
         snprintf(path, sizeof(path), "build\\assets\\audio\\%s", filename);
         f = fopen(path, "rb");
     }
+    if (!f) {
+        char exe_dir[MAX_PATH];
+        GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+        char *last_slash = strrchr(exe_dir, '\\');
+        if (last_slash) *last_slash = '\0';
+        snprintf(path, sizeof(path), "%s\\assets\\audio\\%s", exe_dir, filename);
+        f = fopen(path, "rb");
+    }
     if (!f) return false;
 
     uint8_t header[44];

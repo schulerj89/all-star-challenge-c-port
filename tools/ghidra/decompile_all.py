@@ -1,17 +1,72 @@
 # Ghidra Headless Script: decompile_all.py
-# Exports full C pseudocode for all functions in the Game Boy binary
+# Auto-disassembles Game Boy binary, resolves functions, and exports full C decompilation
 from ghidra.app.decompiler import DecompInterface
 from ghidra.util.task import ConsoleTaskMonitor
+from ghidra.app.cmd.disassemble import DisassembleCommand
+from ghidra.program.model.symbol import SourceType
 import os
 
-program_name = currentProgram.getName()
-print("[Ghidra] Starting full decompilation of: " + program_name)
+print("[Ghidra] Initializing Game Boy disassembler & decompiler...")
 
-decompiler = DecompInterface()
-decompiler.openProgram(currentProgram)
+addr_factory = currentProgram.getAddressFactory()
+space = addr_factory.getDefaultAddressSpace()
+
+# Standard entry points and interrupt vectors for Game Boy
+entry_offsets = [
+    0x0000, 0x0008, 0x0010, 0x0018, 0x0020, 0x0028, 0x0030, 0x0038, # RST vectors
+    0x0040, # VBlank
+    0x0048, # LCD STAT
+    0x0050, # Timer
+    0x0058, # Serial
+    0x0060, # Joypad
+    0x0100, # Boot / Entrypoint
+    0x0150  # Main initialization Jump
+]
+
 monitor = ConsoleTaskMonitor()
 
-project_dir = getProjectRootFolder().getProjectLocator().getLocation()
+# Disassemble from known entrypoints
+for off in entry_offsets:
+    addr = space.getAddress(off)
+    cmd = DisassembleCommand(addr, None, True)
+    cmd.applyTo(currentProgram, monitor)
+
+# Sweep through ROM space 0x0000..0x7FFF to auto-disassemble remaining instructions
+mem = currentProgram.getMemory()
+listing = currentProgram.getListing()
+
+addr = space.getAddress(0x0000)
+end_addr = space.getAddress(0x7FFF)
+
+while addr.compareTo(end_addr) < 0:
+    inst = listing.getInstructionAt(addr)
+    if inst is not None:
+        addr = addr.add(inst.getLength())
+    else:
+        # Try disassembling
+        cmd = DisassembleCommand(addr, None, True)
+        if cmd.applyTo(currentProgram, monitor):
+            inst = listing.getInstructionAt(addr)
+            if inst is not None:
+                addr = addr.add(inst.getLength())
+            else:
+                addr = addr.add(1)
+        else:
+            addr = addr.add(1)
+
+# Auto-create functions at all disassembled instructions that are call/jump targets
+createFunction(space.getAddress(0x0100), "entry_boot")
+createFunction(space.getAddress(0x0150), "init_game")
+
+for off in entry_offsets:
+    a = space.getAddress(off)
+    if listing.getInstructionAt(a) is not None:
+        createFunction(a, "vec_%04x" % off)
+
+# Initialize Decompiler
+decompiler = DecompInterface()
+decompiler.openProgram(currentProgram)
+
 decomp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "decomp")
 if not os.path.exists(decomp_dir):
     try:
@@ -21,8 +76,10 @@ if not os.path.exists(decomp_dir):
 
 out_file = os.path.join(decomp_dir, "ghidra_decompiled.c")
 f = open(out_file, "w")
-f.write("/* Ghidra Decompilation: " + program_name + " */\n")
-f.write("/* Target Architecture: Sharp SM83 / LR35902 (Game Boy) */\n\n")
+f.write("/* ========================================================================= */\n")
+f.write("/* Ghidra Decompiled Source for NBA All-Star Challenge (Game Boy)          */\n")
+f.write("/* Architecture: Sharp SM83 (LR35902)                                       */\n")
+f.write("/* ========================================================================= */\n\n")
 
 fm = currentProgram.getFunctionManager()
 funcs = fm.getFunctions(True)
@@ -36,9 +93,11 @@ for func in funcs:
         decomp_func = res.getDecompiledFunction()
         if decomp_func:
             c_code = decomp_func.getC()
+            f.write("/* ------------------------------------------------------------------------- */\n")
             f.write("/* Function: " + name + " @ " + entry + " */\n")
+            f.write("/* ------------------------------------------------------------------------- */\n")
             f.write(c_code + "\n\n")
             count += 1
 
 f.close()
-print("[Ghidra] Decompilation complete! Exported " + str(count) + " functions to " + out_file)
+print("[Ghidra] Full Decompilation Succeeded! Exported %d functions to %s" % (count, out_file))

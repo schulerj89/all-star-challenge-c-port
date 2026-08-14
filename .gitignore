@@ -15,6 +15,7 @@ disassembly/
 decomp/
 ghidra_project/
 tools/mgbdis/
+tools/GhidraBoy/
 *.asm
 *.inc
 *.sym

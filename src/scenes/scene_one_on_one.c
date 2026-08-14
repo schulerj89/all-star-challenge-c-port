@@ -148,43 +148,43 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     const AllStarPlayerStats *s1 = allstar_roster_get_player(&game->roster, game->selected_player_1);
     const AllStarPlayerStats *s2 = allstar_roster_get_player(&game->roster, game->selected_player_2);
 
-    /* Left Shot Clock (10, 8) */
+    /* Left Shot Clock (8, 8) */
     char shot_buf[16];
     snprintf(shot_buf, sizeof(shot_buf), "00:%02d", (int)data->shot_clock);
-    allstar_renderer_draw_text(renderer, shot_buf, 10, 8, 3);
+    allstar_renderer_draw_text(renderer, shot_buf, 8, 8, 3);
 
-    /* Left Score (18, 24) */
+    /* Left Score (16, 24) */
     char s1_buf[16];
     snprintf(s1_buf, sizeof(s1_buf), "%03d", data->p1_score);
-    allstar_renderer_draw_text(renderer, s1_buf, 18, 24, 3);
+    allstar_renderer_draw_text(renderer, s1_buf, 16, 24, 3);
 
-    /* Left Name Plate (0..72, 43) */
+    /* Left Name Plate (2..70, 40) */
     const char *p1_name = s1 ? s1->name : "PLAYER 1";
     const char *p1_space = strchr(p1_name, ' ');
     const char *p1_last = p1_space ? (p1_space + 1) : p1_name;
     int p1_len = (int)strlen(p1_last);
     int p1_x = (72 - p1_len * 8) / 2;
     if (p1_x < 2) p1_x = 2;
-    allstar_renderer_draw_text(renderer, p1_last, p1_x, 43, 3);
+    allstar_renderer_draw_text(renderer, p1_last, p1_x, 40, 3);
 
     /* Right Game Timer (112, 8) */
     char clk_buf[16];
     snprintf(clk_buf, sizeof(clk_buf), "%02d:%02d", (int)data->game_timer / 60, (int)data->game_timer % 60);
     allstar_renderer_draw_text(renderer, clk_buf, 112, 8, 3);
 
-    /* Right Score (122, 24) */
+    /* Right Score (120, 24) */
     char s2_buf[16];
     snprintf(s2_buf, sizeof(s2_buf), "%03d", data->p2_score);
-    allstar_renderer_draw_text(renderer, s2_buf, 122, 24, 3);
+    allstar_renderer_draw_text(renderer, s2_buf, 120, 24, 3);
 
-    /* Right Name Plate (88..160, 43) */
+    /* Right Name Plate (90..158, 40) */
     const char *p2_name = s2 ? s2->name : "PLAYER 2";
     const char *p2_space = strchr(p2_name, ' ');
     const char *p2_last = p2_space ? (p2_space + 1) : p2_name;
     int p2_len = (int)strlen(p2_last);
     int p2_x = 88 + (72 - p2_len * 8) / 2;
     if (p2_x < 88) p2_x = 88;
-    allstar_renderer_draw_text(renderer, p2_last, p2_x, 43, 3);
+    allstar_renderer_draw_text(renderer, p2_last, p2_x, 40, 3);
 
     uint8_t p1_skin = s1 ? s1->skin_tone : 0x90;
     uint8_t p2_skin = s2 ? s2->skin_tone : 0x91;

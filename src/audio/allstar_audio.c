@@ -6,30 +6,76 @@
 #include <windows.h>
 #include <mmsystem.h>
 
+static void play_wav_file(const char *filename) {
+    char path[MAX_PATH];
+    snprintf(path, sizeof(path), "assets\\audio\\%s", filename);
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        snprintf(path, sizeof(path), "build\\assets\\audio\\%s", filename);
+        f = fopen(path, "rb");
+    }
+    if (!f) return;
+
+    /* Read WAV header */
+    uint8_t header[44];
+    if (fread(header, 1, 44, f) != 44) {
+        fclose(f);
+        return;
+    }
+
+    uint16_t channels = *(uint16_t*)(header + 22);
+    uint32_t sample_rate = *(uint32_t*)(header + 24);
+    uint16_t bits_per_sample = *(uint16_t*)(header + 34);
+    uint32_t data_size = *(uint32_t*)(header + 40);
+
+    if (data_size == 0 || data_size > 5000000) {
+        fclose(f);
+        return;
+    }
+
+    uint8_t *buffer = (uint8_t*)malloc(data_size);
+    if (!buffer) {
+        fclose(f);
+        return;
+    }
+    fread(buffer, 1, data_size, f);
+    fclose(f);
+
+    WAVEFORMATEX wfx;
+    memset(&wfx, 0, sizeof(wfx));
+    wfx.wFormatTag = WAVE_FORMAT_PCM;
+    wfx.nChannels = channels;
+    wfx.nSamplesPerSec = sample_rate;
+    wfx.wBitsPerSample = bits_per_sample;
+    wfx.nBlockAlign = (channels * bits_per_sample) / 8;
+    wfx.nAvgBytesPerSec = sample_rate * wfx.nBlockAlign;
+
+    HWAVEOUT hWaveOut = NULL;
+    if (waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL) == MMSYSERR_NOERROR) {
+        WAVEHDR header_hdr;
+        memset(&header_hdr, 0, sizeof(header_hdr));
+        header_hdr.lpData = (LPSTR)buffer;
+        header_hdr.dwBufferLength = data_size;
+        waveOutPrepareHeader(hWaveOut, &header_hdr, sizeof(WAVEHDR));
+        waveOutWrite(hWaveOut, &header_hdr, sizeof(WAVEHDR));
+
+        while (!(header_hdr.dwFlags & WHDR_DONE)) {
+            Sleep(5);
+        }
+        waveOutUnprepareHeader(hWaveOut, &header_hdr, sizeof(WAVEHDR));
+        waveOutClose(hWaveOut);
+    }
+    free(buffer);
+}
+
 static DWORD WINAPI play_sfx_thread(LPVOID param) {
     uintptr_t sfx = (uintptr_t)param;
     switch ((AllStarSfxId)sfx) {
         case ALLSTAR_SFX_MENU_MOVE:
-            Beep(880, 20);
+            play_wav_file("sfx_menu_move.wav");
             break;
         case ALLSTAR_SFX_MENU_SELECT:
-            Beep(659, 25);
-            Beep(987, 45);
-            break;
-        case ALLSTAR_SFX_DRIBBLE:
-            Beep(130, 20);
-            break;
-        case ALLSTAR_SFX_SHOOT:
-            Beep(523, 30);
-            break;
-        case ALLSTAR_SFX_SWISH:
-            Beep(1046, 40);
-            break;
-        case ALLSTAR_SFX_RIM_CLANK:
-            Beep(220, 50);
-            break;
-        case ALLSTAR_SFX_BUZZER:
-            Beep(180, 300);
+            play_wav_file("sfx_menu_select.wav");
             break;
         default:
             break;

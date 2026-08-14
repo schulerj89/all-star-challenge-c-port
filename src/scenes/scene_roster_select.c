@@ -98,42 +98,42 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
     int active_cursor = data->p1_selected ? data->p2_cursor : data->p1_cursor;
     const AllStarPlayerStats *p = allstar_roster_get_player(&game->roster, active_cursor);
     if (p) {
-        /* Authentic Player Face Portrait (top-left: 32x32) */
-        for (int py = 0; py < 32; py++) {
+        /* Authentic Full Player Face Portrait (32x48 at X=32, Y=8) */
+        for (int py = 0; py < 48; py++) {
             for (int px = 0; px < 32; px++) {
                 uint8_t shade = ALLSTAR_PLAYER_PORTRAITS[active_cursor % 27][py * 32 + px];
-                allstar_renderer_set_pixel(renderer, 32 + px, 14 + py, shade);
+                allstar_renderer_set_pixel(renderer, 32 + px, 8 + py, shade);
             }
         }
 
-        /* Authentic Team Basketball Logo (top-right: 32x32) */
+        /* Authentic Team Basketball Logo (32x32 at X=96, Y=16) */
         for (int py = 0; py < 32; py++) {
             for (int px = 0; px < 32; px++) {
                 uint8_t shade = ALLSTAR_PLAYER_LOGOS[active_cursor % 27][py * 32 + px];
-                allstar_renderer_set_pixel(renderer, 96 + px, 14 + py, shade);
+                allstar_renderer_set_pixel(renderer, 96 + px, 16 + py, shade);
             }
         }
 
-        /* Full Player Name */
+        /* Full Player Name at Y=64 */
         char full_name[64];
         snprintf(full_name, sizeof(full_name), "%s %s", p->first_name, p->last_name);
         int name_len = (int)strlen(full_name);
         int name_x = 80 - (name_len * 4);
         if (name_x < 12) name_x = 12;
-        allstar_renderer_draw_text(renderer, full_name, name_x, 56, 3);
+        allstar_renderer_draw_text(renderer, full_name, name_x, 64, 3);
 
-        /* Authentic Height / Weight / PPG Table */
-        allstar_renderer_draw_text(renderer, "HEIGHT", 16, 76, 3);
-        allstar_renderer_draw_text(renderer, ":", 84, 76, 3);
-        allstar_renderer_draw_text(renderer, p->height_str, 104, 76, 3);
+        /* Authentic Height / Weight / PPG Table at Y=88, 104, 120 */
+        allstar_renderer_draw_text(renderer, "HEIGHT", 16, 88, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 88, 3);
+        allstar_renderer_draw_text(renderer, p->height_str, 104, 88, 3);
 
-        allstar_renderer_draw_text(renderer, "WEIGHT", 16, 92, 3);
-        allstar_renderer_draw_text(renderer, ":", 84, 92, 3);
-        allstar_renderer_draw_text(renderer, p->weight_str, 104, 92, 3);
+        allstar_renderer_draw_text(renderer, "WEIGHT", 16, 104, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 104, 3);
+        allstar_renderer_draw_text(renderer, p->weight_str, 104, 104, 3);
 
-        allstar_renderer_draw_text(renderer, "PPG AVG", 16, 108, 3);
-        allstar_renderer_draw_text(renderer, ":", 84, 108, 3);
-        allstar_renderer_draw_text(renderer, p->ppg_str, 104, 108, 3);
+        allstar_renderer_draw_text(renderer, "PPG AVG", 16, 120, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 120, 3);
+        allstar_renderer_draw_text(renderer, p->ppg_str, 104, 120, 3);
     }
 }
 

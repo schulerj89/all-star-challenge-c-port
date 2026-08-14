@@ -52,7 +52,7 @@ static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *r
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Render Authentic Select Game Background */
+    /* Render Authentic Clean Select Game Background */
     for (int y = 0; y < 144; y++) {
         for (int x = 0; x < 160; x++) {
             uint8_t shade = ALLSTAR_MENU_BACKGROUND[y * 160 + x];
@@ -60,8 +60,22 @@ static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *r
         }
     }
 
-    /* Moving Basketball Cursor at ROM Table 0x2ABA Coordinates */
+    /* Clean Header */
+    allstar_renderer_draw_text(renderer, "SELECT GAME", 16, 20, 3);
+    for (int x = 12; x < 112; x++) {
+        allstar_renderer_set_pixel(renderer, x, 30, 3);
+    }
+
+    /* Clean Mode Options */
     static const int OPTION_Y[5] = { 48, 56, 64, 72, 80 };
+    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
+        allstar_renderer_draw_text(renderer, MENU_ITEMS[i], 16, OPTION_Y[i], 3);
+    }
+
+    /* Prompt */
+    allstar_renderer_draw_text(renderer, "PRESS START", 36, 124, 3);
+
+    /* Moving Basketball Cursor: X=4, Leaving 4px space before text at X=16 */
     int cur_y = OPTION_Y[data->selected_index % 5];
     allstar_renderer_draw_cursor(renderer, 4, cur_y);
 }

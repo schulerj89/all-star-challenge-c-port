@@ -136,61 +136,50 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 }
 
 static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
-    (void)game;
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
+    /* Render Basketball Court & Hoop */
+    allstar_renderer_draw_court(renderer);
+
     /* Top Scoreboard Bar */
     allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
+    
+    const AllStarPlayerStats *s1 = allstar_roster_get_player(&game->roster, game->selected_player_1);
+    const AllStarPlayerStats *s2 = allstar_roster_get_player(&game->roster, game->selected_player_2);
+
     char hud_buf[32];
-    snprintf(hud_buf, sizeof(hud_buf), "1P %02d  %02d:%02d  %02d 2P",
+    snprintf(hud_buf, sizeof(hud_buf), "%02d  %02d:%02d  %02d",
              data->p1_score, (int)data->game_timer / 60, (int)data->game_timer % 60, data->p2_score);
-    allstar_renderer_draw_text(renderer, hud_buf, 10, 4, 0);
+    int hud_len = (int)strlen(hud_buf);
+    int hud_x = (160 - hud_len * 8) / 2;
+    allstar_renderer_draw_text(renderer, hud_buf, hud_x, 4, 0);
 
-    /* Half-Court Floor (Light Shade) */
-    allstar_renderer_draw_rect_fill(renderer, 10, 20, 140, 118, 0);
+    /* 1P / 2P Labels on ends of Scoreboard */
+    allstar_renderer_draw_text(renderer, "1P", 4, 4, 0);
+    allstar_renderer_draw_text(renderer, "2P", 140, 4, 0);
 
-    /* Court Perimeter Outline */
-    allstar_renderer_draw_rect_outline(renderer, 10, 20, 140, 118, 2);
-    allstar_renderer_draw_line(renderer, 10, 137, 150, 137, 3); /* Half court line */
+    uint8_t p1_skin = s1 ? s1->skin_tone : 0x90;
+    uint8_t p2_skin = s2 ? s2->skin_tone : 0x91;
 
-    /* The Key / Paint */
-    allstar_renderer_draw_rect_fill(renderer, 60, 20, 40, 45, 1);
-    allstar_renderer_draw_rect_outline(renderer, 60, 20, 40, 45, 2);
-
-    /* Free Throw Circle */
-    for (int deg = 0; deg < 180; deg += 10) {
-        float rad = (float)deg * 3.14159f / 180.0f;
-        int cx = 80 + (int)(cosf(rad) * 20.0f);
-        int cy = 65 + (int)(sinf(rad) * 12.0f);
-        allstar_renderer_set_pixel(renderer, cx, cy, 2);
-    }
-
-    /* 3-Point Arc */
-    for (int deg = 0; deg < 180; deg += 4) {
-        float rad = (float)deg * 3.14159f / 180.0f;
-        int cx = 80 + (int)(cosf(rad) * 55.0f);
-        int cy = 20 + (int)(sinf(rad) * 50.0f);
-        if (cx >= 12 && cx <= 148 && cy <= 136) {
-            allstar_renderer_set_pixel(renderer, cx, cy, 2);
-        }
-    }
-
-    /* Backboard, Rim & Net */
-    allstar_renderer_draw_line(renderer, 70, 22, 90, 22, 3); /* Backboard */
-    allstar_renderer_draw_line(renderer, 76, 26, 84, 26, 3); /* Rim */
-    allstar_renderer_draw_line(renderer, 77, 27, 83, 30, 2); /* Net */
-    allstar_renderer_draw_line(renderer, 83, 27, 77, 30, 2);
+    bool p1_facing_left = (data->p1.x > data->p2.x);
+    bool p2_facing_left = (data->p2.x > data->p1.x);
 
     /* Draw CPU Player (P2) */
-    allstar_renderer_draw_player(renderer, (int32_t)data->p2.x, (int32_t)data->p2.y, false, data->p2.has_ball, data->p2.is_shooting, data->anim_timer);
+    allstar_renderer_draw_player_ex(renderer, (int32_t)data->p2.x, (int32_t)data->p2.y,
+                                    false, p2_skin, data->p2.has_ball, data->p2.is_shooting,
+                                    !data->p2.has_ball && data->p1.has_ball,
+                                    data->anim_timer, p2_facing_left);
 
     /* Draw Human Player (P1) */
-    allstar_renderer_draw_player(renderer, (int32_t)data->p1.x, (int32_t)data->p1.y, true, data->p1.has_ball, data->p1.is_shooting, data->anim_timer);
+    allstar_renderer_draw_player_ex(renderer, (int32_t)data->p1.x, (int32_t)data->p1.y,
+                                    true, p1_skin, data->p1.has_ball, data->p1.is_shooting,
+                                    !data->p1.has_ball && data->p2.has_ball,
+                                    data->anim_timer, p1_facing_left);
 
-    /* Draw Ball */
+    /* Draw Ball in flight */
     if (data->ball.in_flight) {
-        allstar_renderer_draw_ball(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y, (int32_t)data->ball.z);
+        allstar_renderer_draw_ball_ex(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y, (int32_t)data->ball.z, data->anim_timer);
     }
 }
 

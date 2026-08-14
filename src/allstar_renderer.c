@@ -226,39 +226,127 @@ void allstar_renderer_draw_sprite(AllStarRenderer *renderer, const AllStarTile *
     }
 }
 
-void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
-    int draw_y = y - (int)(z * 0.45f);
+#include "allstar_court_art.h"
 
-    /* Ball Shadow on floor */
-    if (z > 2) {
-        allstar_renderer_set_pixel(renderer, x - 1, y, 1);
-        allstar_renderer_set_pixel(renderer, x, y, 2);
-        allstar_renderer_set_pixel(renderer, x + 1, y, 1);
+void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32_t hoop_y) {
+    if (!renderer) return;
+
+    /* Stanchion / Support Post */
+    allstar_renderer_draw_line(renderer, hoop_x - 1, 6, hoop_x - 1, hoop_y - 8, 3);
+    allstar_renderer_draw_line(renderer, hoop_x, 6, hoop_x, hoop_y - 8, 3);
+    allstar_renderer_draw_line(renderer, hoop_x + 1, 6, hoop_x + 1, hoop_y - 8, 3);
+
+    /* Backboard (28x10) at (hoop_x - 14, hoop_y - 9) */
+    allstar_renderer_draw_rect_outline(renderer, hoop_x - 14, hoop_y - 9, 28, 10, 3);
+    allstar_renderer_draw_rect_fill(renderer, hoop_x - 13, hoop_y - 8, 26, 8, 0);
+
+    /* Inner Target Box (10x6) */
+    allstar_renderer_draw_rect_outline(renderer, hoop_x - 5, hoop_y - 7, 10, 6, 3);
+
+    /* Rim Bracket & Orange/Dark Rim */
+    allstar_renderer_draw_line(renderer, hoop_x - 1, hoop_y - 1, hoop_x + 1, hoop_y - 1, 3);
+    allstar_renderer_draw_line(renderer, hoop_x - 6, hoop_y, hoop_x + 6, hoop_y, 3);
+
+    /* Net (Hanging down to hoop_y + 8) */
+    for (int ny = 1; ny <= 7; ny++) {
+        int w = 6 - (ny / 2);
+        allstar_renderer_set_pixel(renderer, hoop_x - w, hoop_y + ny, (ny % 2 == 0) ? 3 : 2);
+        allstar_renderer_set_pixel(renderer, hoop_x + w, hoop_y + ny, (ny % 2 == 0) ? 3 : 2);
+        if (ny % 2 == 0) {
+            allstar_renderer_set_pixel(renderer, hoop_x - (w / 2), hoop_y + ny, 2);
+            allstar_renderer_set_pixel(renderer, hoop_x + (w / 2), hoop_y + ny, 2);
+        }
+    }
+}
+
+void allstar_renderer_draw_court(AllStarRenderer *renderer) {
+    if (!renderer) return;
+
+    /* Hardwood Floor Background */
+    allstar_renderer_draw_rect_fill(renderer, 0, 16, 160, 128, 0);
+
+    /* Wood Plank Grain Lines */
+    for (int y = 24; y < 144; y += 12) {
+        for (int x = 8; x < 152; x += 4) {
+            if ((x + y) % 8 == 0) {
+                allstar_renderer_set_pixel(renderer, x, y, 1);
+            }
+        }
     }
 
-    /* 6x6 Round Basketball Sprite */
-    static const uint8_t BALL_SPRITE[6][6] = {
-        {0, 2, 3, 3, 2, 0},
-        {2, 3, 2, 2, 3, 2},
-        {3, 2, 3, 3, 2, 3},
-        {3, 2, 3, 3, 2, 3},
-        {2, 3, 2, 2, 3, 2},
-        {0, 2, 3, 3, 2, 0}
-    };
+    /* Outer Court Perimeter Boundaries */
+    allstar_renderer_draw_line(renderer, 8, 18, 151, 18, 3);   /* Baseline */
+    allstar_renderer_draw_line(renderer, 8, 18, 8, 138, 3);    /* Left Sideline */
+    allstar_renderer_draw_line(renderer, 151, 18, 151, 138, 3);/* Right Sideline */
+    allstar_renderer_draw_line(renderer, 8, 138, 151, 138, 3); /* Half-Court Line */
 
-    for (int r = 0; r < 6; r++) {
-        for (int c = 0; c < 6; c++) {
-            uint8_t shade = BALL_SPRITE[r][c];
-            if (shade) {
-                allstar_renderer_set_pixel(renderer, x - 3 + c, draw_y - 3 + r, shade);
+    /* Center Court Circle at Half Court Line */
+    for (int deg = 0; deg < 180; deg += 10) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 16.0f);
+        int cy = 138 - (int)(sinf(rad) * 8.0f);
+        allstar_renderer_set_pixel(renderer, cx, cy, 3);
+    }
+
+    /* The Key / Lane (32x44) */
+    allstar_renderer_draw_rect_fill(renderer, 64, 18, 32, 44, 1);
+    allstar_renderer_draw_rect_outline(renderer, 64, 18, 32, 44, 3);
+
+    /* Free Throw Circle */
+    for (int deg = 0; deg < 360; deg += 12) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 16.0f);
+        int cy = 62 + (int)(sinf(rad) * 9.0f);
+        allstar_renderer_set_pixel(renderer, cx, cy, 3);
+    }
+
+    /* 3-Point Arc */
+    for (int deg = 0; deg < 180; deg += 3) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 56.0f);
+        int cy = 25 + (int)(sinf(rad) * 52.0f);
+        if (cx >= 10 && cx <= 149 && cy <= 136) {
+            allstar_renderer_set_pixel(renderer, cx, cy, 3);
+        }
+    }
+
+    /* Basketball Hoop */
+    allstar_renderer_draw_hoop(renderer, 80, 25);
+}
+
+void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time) {
+    if (!renderer) return;
+
+    /* Dynamic Floor Shadow */
+    if (z > 2) {
+        int shadow_w = (z > 20) ? 2 : 3;
+        for (int sx = -shadow_w; sx <= shadow_w; sx++) {
+            uint8_t shade = (abs(sx) == shadow_w) ? 1 : 2;
+            allstar_renderer_set_pixel(renderer, x + sx, y, shade);
+        }
+    }
+
+    /* Ball Position with Z elevation */
+    int draw_y = y - (int)(z * 0.5f);
+    int frame = ((int)(spin_time * 10.0f)) & 3;
+
+    /* Render 8x8 Basketball Sprite */
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            uint8_t shade = ALLSTAR_BALL_FRAMES[frame][r][c];
+            if (shade != 0) {
+                allstar_renderer_set_pixel(renderer, x - 4 + c, draw_y - 4 + r, shade);
             }
         }
     }
 }
 
+void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
+    allstar_renderer_draw_ball_ex(renderer, x, y, z, 0.0f);
+}
+
 void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y) {
     if (!renderer) return;
-    /* Authentic 8x8 Game Boy Basketball Cursor Sprite from ROM */
     static const uint8_t GB_CURSOR_SPRITE[8][8] = {
         {0, 0, 2, 2, 2, 2, 0, 0},
         {0, 2, 1, 1, 1, 1, 2, 0},
@@ -280,48 +368,61 @@ void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t 
     }
 }
 
-void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
-    (void)anim_time;
-    uint8_t skin_shade = 2;
-    uint8_t jersey_shade = is_p1 ? 3 : 1;
-    uint8_t outline_shade = 3;
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left) {
+    if (!renderer) return;
 
-    /* Shadow */
-    allstar_renderer_set_pixel(renderer, x - 3, y + 8, 1);
-    allstar_renderer_set_pixel(renderer, x - 2, y + 8, 2);
-    allstar_renderer_set_pixel(renderer, x - 1, y + 8, 2);
-    allstar_renderer_set_pixel(renderer, x, y + 8, 2);
-    allstar_renderer_set_pixel(renderer, x + 1, y + 8, 2);
-    allstar_renderer_set_pixel(renderer, x + 2, y + 8, 2);
-    allstar_renderer_set_pixel(renderer, x + 3, y + 8, 1);
-
-    /* Head */
-    allstar_renderer_draw_rect_fill(renderer, x - 2, y - 10, 5, 5, skin_shade);
-    allstar_renderer_draw_rect_outline(renderer, x - 2, y - 10, 5, 5, outline_shade);
-
-    /* Torso / Jersey */
-    allstar_renderer_draw_rect_fill(renderer, x - 3, y - 5, 7, 7, jersey_shade);
-    allstar_renderer_draw_rect_outline(renderer, x - 3, y - 5, 7, 7, outline_shade);
-
-    /* Legs / Shorts */
-    allstar_renderer_draw_rect_fill(renderer, x - 3, y + 2, 3, 5, is_p1 ? 3 : 2);
-    allstar_renderer_draw_rect_fill(renderer, x + 1, y + 2, 3, 5, is_p1 ? 3 : 2);
-
-    /* Arms holding ball or defending */
-    if (has_ball) {
-        if (is_shooting) {
-            allstar_renderer_draw_rect_fill(renderer, x - 1, y - 14, 3, 3, skin_shade);
-            allstar_renderer_draw_ball(renderer, x, y - 16, 0);
-        } else {
-            allstar_renderer_draw_ball(renderer, x + 5, y - 2, 0);
-        }
-    } else {
-        /* Defensive stance arms */
-        allstar_renderer_set_pixel(renderer, x - 4, y - 3, skin_shade);
-        allstar_renderer_set_pixel(renderer, x - 5, y - 4, skin_shade);
-        allstar_renderer_set_pixel(renderer, x + 4, y - 3, skin_shade);
-        allstar_renderer_set_pixel(renderer, x + 5, y - 4, skin_shade);
+    /* Floor Shadow beneath feet */
+    for (int sx = -5; sx <= 5; sx++) {
+        uint8_t shade = (abs(sx) >= 4) ? 1 : 2;
+        allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
+
+    /* Select 16x24 Frame */
+    const uint8_t (*sprite)[16] = ALLSTAR_SPRITE_DRIBBLE_A;
+    int jump_y_offset = 0;
+
+    if (is_shooting) {
+        sprite = ALLSTAR_SPRITE_JUMP_SHOT;
+        jump_y_offset = -6;
+    } else if (is_defending) {
+        sprite = ALLSTAR_SPRITE_DEFEND;
+    } else {
+        int frame_idx = ((int)(anim_time * 6.0f)) % 2;
+        sprite = (frame_idx == 0) ? ALLSTAR_SPRITE_DRIBBLE_A : ALLSTAR_SPRITE_DRIBBLE_B;
+    }
+
+    /* Skin tone shade selection: 0x90 = Dark (Shade 2), 0x91 = Light (Shade 1) */
+    uint8_t skin_shade = (skin_tone == 0x90) ? 2 : 1;
+    uint8_t jersey_shade = is_p1 ? 3 : 1;
+
+    /* Render 16x24 Sprite */
+    int top_y = y - 22 + jump_y_offset;
+    for (int r = 0; r < 24; r++) {
+        int py = top_y + r;
+        for (int c = 0; c < 16; c++) {
+            int src_c = facing_left ? (15 - c) : c;
+            uint8_t raw = sprite[r][src_c];
+            if (raw == 0) continue;
+
+            uint8_t final_shade = 3;
+            if (raw == 1) final_shade = skin_shade;
+            else if (raw == 2) final_shade = jersey_shade;
+            else if (raw == 3) final_shade = 3;
+
+            allstar_renderer_set_pixel(renderer, x - 8 + c, py, final_shade);
+        }
+    }
+
+    /* If holding ball on court (and not shooting in air) */
+    if (has_ball && !is_shooting) {
+        int ball_x = x + (facing_left ? -7 : 7);
+        int bounce_y = y - 2 + (((int)(anim_time * 6.0f) % 2) ? 3 : -1);
+        allstar_renderer_draw_ball_ex(renderer, ball_x, bounce_y, 0, anim_time);
+    }
+}
+
+void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
+    allstar_renderer_draw_player_ex(renderer, x, y, is_p1, is_p1 ? 0x90 : 0x91, has_ball, is_shooting, false, anim_time, false);
 }
 
 void allstar_renderer_present(AllStarRenderer *renderer) {

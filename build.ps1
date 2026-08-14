@@ -38,6 +38,7 @@ $CommonSources = @(
     "src\audio\allstar_audio.c",
     "src\scenes\scene_intro.c",
     "src\scenes\scene_menu.c",
+    "src\scenes\scene_settings.c",
     "src\scenes\scene_roster_select.c",
     "src\scenes\scene_one_on_one.c",
     "src\scenes\scene_three_point.c",

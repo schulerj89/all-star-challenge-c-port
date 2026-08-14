@@ -244,6 +244,12 @@ int allstar_cli_dump_screenshots(const char *out_dir) {
     snprintf(path, sizeof(path), "%s\\02_menu.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 2b. Settings */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\02b_settings.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 3. Roster Select */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);

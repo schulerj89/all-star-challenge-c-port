@@ -77,6 +77,9 @@ void allstar_game_change_scene(AllStarGame *game, AllStarSceneId scene_id) {
         case ALLSTAR_SCENE_MENU:
             game->active_scene = allstar_scene_create_menu();
             break;
+        case ALLSTAR_SCENE_SETTINGS:
+            game->active_scene = allstar_scene_create_settings();
+            break;
         case ALLSTAR_SCENE_ROSTER_SELECT:
             game->active_scene = allstar_scene_create_roster_select();
             break;

@@ -10,6 +10,7 @@ struct AllStarGame;
 typedef enum {
     ALLSTAR_SCENE_INTRO = 0,
     ALLSTAR_SCENE_MENU,
+    ALLSTAR_SCENE_SETTINGS,
     ALLSTAR_SCENE_ROSTER_SELECT,
     ALLSTAR_SCENE_ONE_ON_ONE,
     ALLSTAR_SCENE_THREE_POINT,
@@ -30,6 +31,7 @@ typedef struct AllStarScene {
 
 AllStarScene* allstar_scene_create_intro(void);
 AllStarScene* allstar_scene_create_menu(void);
+AllStarScene* allstar_scene_create_settings(void);
 AllStarScene* allstar_scene_create_roster_select(void);
 AllStarScene* allstar_scene_create_one_on_one(void);
 AllStarScene* allstar_scene_create_three_point(void);

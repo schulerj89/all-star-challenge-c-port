@@ -41,7 +41,7 @@ static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInp
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         game->selected_mode = (uint32_t)data->selected_index;
-        allstar_game_change_scene(game, ALLSTAR_SCENE_ROSTER_SELECT);
+        allstar_game_change_scene(game, ALLSTAR_SCENE_SETTINGS);
     }
 }
 

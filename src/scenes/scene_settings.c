@@ -49,11 +49,36 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
     }
 
     /* Left / Right toggles current setting */
-    if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT) || allstar_input_is_pressed(input, ALLSTAR_BTN_RIGHT)) {
+    if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         if (data->mode == 0 || data->mode == 4) { /* One on One / Tournament */
             switch (data->cursor_row) {
-                case 0: data->play_to ^= 1; break;
+                case 0: /* Play to: Time -> 99 -> 98 ... -> 01 -> Time */
+                    if (data->play_to > 1) data->play_to--;
+                    else if (data->play_to == 1) data->play_to = 0;
+                    else data->play_to = 99;
+                    break;
+                case 1: data->skill_level = (data->skill_level == 1) ? 3 : (data->skill_level - 1); break;
+                case 2: data->winners_outs ^= 1; break;
+                case 3: data->time_limit = (data->time_limit == 0) ? 2 : (data->time_limit - 1); break;
+                default: break;
+            }
+        } else if (data->mode == 1) { /* Free Throws */
+            data->num_throws = (data->num_throws == 0) ? 3 : (data->num_throws - 1);
+        } else if (data->mode == 3) { /* Accuracy */
+            data->time_limit ^= 1;
+        }
+    }
+
+    if (allstar_input_is_pressed(input, ALLSTAR_BTN_RIGHT)) {
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
+        if (data->mode == 0 || data->mode == 4) { /* One on One / Tournament */
+            switch (data->cursor_row) {
+                case 0: /* Play to: Time -> 01 -> 02 ... -> 99 -> Time */
+                    if (data->play_to == 0) data->play_to = 1;
+                    else if (data->play_to < 99) data->play_to++;
+                    else data->play_to = 0;
+                    break;
                 case 1: data->skill_level = (data->skill_level % 3) + 1; break;
                 case 2: data->winners_outs ^= 1; break;
                 case 3: data->time_limit = (data->time_limit + 1) % 3; break;
@@ -62,7 +87,7 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
         } else if (data->mode == 1) { /* Free Throws */
             data->num_throws = (data->num_throws + 1) % 4;
         } else if (data->mode == 3) { /* Accuracy */
-            data->time_limit = (data->time_limit + 1) % 2;
+            data->time_limit ^= 1;
         }
     }
 
@@ -88,7 +113,13 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
 
     /* Draw dynamic option values */
     if (data->mode == 0 || data->mode == 4) {
-        const char *play_to_str = (data->play_to == 0) ? "Time " : "Score";
+        char play_to_str[16];
+        if (data->play_to == 0) {
+            snprintf(play_to_str, sizeof(play_to_str), "Time ");
+        } else {
+            snprintf(play_to_str, sizeof(play_to_str), "%02d   ", data->play_to);
+        }
+
         char skill_str[4];
         snprintf(skill_str, sizeof(skill_str), "%d", data->skill_level);
         const char *winners_str = (data->winners_outs == 0) ? "NO " : "YES";

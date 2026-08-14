@@ -38,31 +38,36 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
     }
 }
 
+#include "allstar_title_art.h"
+
 static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
     (void)game;
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Decorative Court Lines */
-    allstar_renderer_draw_line(renderer, 0, 115, 160, 115, 2);
-    allstar_renderer_draw_line(renderer, 0, 117, 160, 117, 1);
+    if (data->timer < 1.0f) {
+        /* Authentic Beam Software Copyright Screen */
+        allstar_renderer_draw_text(renderer, "(C)1990 NBA", 36, 20, 3);
+        allstar_renderer_draw_text(renderer, "PROPERTIES INC.", 20, 32, 3);
 
-    /* Game Boy Header Presentation */
-    allstar_renderer_draw_text(renderer, "BEAM SOFTWARE", 28, 12, 2);
-    allstar_renderer_draw_text(renderer, "PRESENTS", 48, 24, 1);
+        allstar_renderer_draw_text(renderer, "(C)1990 LJN. LTD", 16, 56, 3);
+        allstar_renderer_draw_text(renderer, "LICENSED BY NINTENDO", 4, 76, 3);
 
-    /* Title Box */
-    allstar_renderer_draw_rect_fill(renderer, 10, 36, 140, 42, 3);
-    allstar_renderer_draw_rect_outline(renderer, 12, 38, 136, 38, 0);
-    allstar_renderer_draw_text(renderer, "NBA ALL-STAR", 32, 44, 0);
-    allstar_renderer_draw_text(renderer, "CHALLENGE", 44, 58, 0);
+        allstar_renderer_draw_text(renderer, "PROGRAMMED BY", 28, 106, 3);
+        allstar_renderer_draw_text(renderer, "BEAM SOFTWARE.", 24, 120, 3);
+    } else {
+        /* Authentic NBA All-Star Challenge Title Screen Extracted from ROM */
+        for (int y = 0; y < 144; y++) {
+            for (int x = 0; x < 160; x++) {
+                uint8_t shade = ALLSTAR_TITLE_BITMAP[y * 160 + x];
+                allstar_renderer_set_pixel(renderer, x, y, shade);
+            }
+        }
 
-    /* Bouncing Ball */
-    allstar_renderer_draw_ball(renderer, 80, (int)data->ball_y, 0);
-
-    /* Pulsing Press Start */
-    if ((int)(data->timer * 3.0f) % 2 == 0) {
-        allstar_renderer_draw_text_box(renderer, "PRESS START", 36, 122, 3, 0, 2);
+        /* Pulsing "PRESS START" and Animated Cursor */
+        if ((int)(data->timer * 3.0f) % 2 == 0) {
+            allstar_renderer_draw_ball(renderer, 46, 128, 0);
+        }
     }
 }
 

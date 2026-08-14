@@ -228,8 +228,13 @@ int allstar_cli_dump_screenshots(const char *out_dir) {
 
     char path[512];
 
-    /* 1. Intro */
-    for (int i = 0; i < 30; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    /* 0. Copyright */
+    for (int i = 0; i < 20; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\00_copyright.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 1. Title Screen */
+    for (int i = 0; i < 120; i++) allstar_game_tick(&game, 1.0f / 60.0f);
     snprintf(path, sizeof(path), "%s\\01_intro.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 

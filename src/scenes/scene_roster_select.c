@@ -83,44 +83,55 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Header */
-    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 18, 3);
-    allstar_renderer_draw_text(renderer, data->p1_selected ? "SELECT OPPONENT" : "SELECT PLAYER", 24, 5, 0);
+    /* Draw Authentic Star Border */
+    for (int x = 2; x < 156; x += 8) {
+        allstar_renderer_draw_text(renderer, "*", x, 2, 3);
+        allstar_renderer_draw_text(renderer, "*", x, 136, 3);
+    }
+    for (int y = 2; y < 136; y += 8) {
+        allstar_renderer_draw_text(renderer, "*", 2, y, 3);
+        allstar_renderer_draw_text(renderer, "*", 152, y, 3);
+    }
 
     int active_cursor = data->p1_selected ? data->p2_cursor : data->p1_cursor;
     const AllStarPlayerStats *p = allstar_roster_get_player(&game->roster, active_cursor);
     if (p) {
-        /* Player Card Box */
-        allstar_renderer_draw_rect_fill(renderer, 8, 24, 144, 98, 1);
-        allstar_renderer_draw_rect_outline(renderer, 8, 24, 144, 98, 3);
+        /* Player Face Portrait Frame (top-left) */
+        allstar_renderer_draw_rect_fill(renderer, 32, 14, 32, 32, 1);
+        allstar_renderer_draw_rect_outline(renderer, 32, 14, 32, 32, 3);
+        bool is_dark = (p->skin_tone == 0x90);
+        allstar_renderer_draw_player(renderer, 48, 42, is_dark, false, false, 0.0f);
 
-        /* Player Name Banner */
-        allstar_renderer_draw_rect_fill(renderer, 10, 26, 140, 16, 2);
-        char name_buf[32];
-        snprintf(name_buf, sizeof(name_buf), "#%d %s", p->number, p->name);
-        allstar_renderer_draw_text(renderer, name_buf, 14, 30, 0);
+        /* Team Basketball Logo (top-right) */
+        allstar_renderer_draw_ball(renderer, 114, 28, 0);
+        allstar_renderer_draw_text(renderer, p->team, 102, 42, 3);
 
-        /* Team & Height/Weight/PPG info */
-        char info_buf[32];
-        snprintf(info_buf, sizeof(info_buf), "%s  %s %sLB", p->team, p->height_str, p->weight_str);
-        allstar_renderer_draw_text(renderer, info_buf, 14, 46, 3);
+        /* Full Player Name */
+        char full_name[64];
+        snprintf(full_name, sizeof(full_name), "%s %s", p->first_name, p->last_name);
+        int name_len = (int)strlen(full_name);
+        int name_x = 80 - (name_len * 4);
+        if (name_x < 12) name_x = 12;
+        allstar_renderer_draw_text(renderer, full_name, name_x, 56, 3);
 
-        snprintf(info_buf, sizeof(info_buf), "PPG: %s", p->ppg_str);
-        allstar_renderer_draw_text(renderer, info_buf, 14, 56, 3);
+        /* Authentic Height / Weight / PPG Table */
+        allstar_renderer_draw_text(renderer, "HEIGHT", 16, 76, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 76, 3);
+        allstar_renderer_draw_text(renderer, p->height_str, 104, 76, 3);
 
-        /* Stats Bars */
-        draw_stat_bar(renderer, "SPD", p->speed, 14, 68);
-        draw_stat_bar(renderer, "3PT", p->shooting_3pt, 14, 78);
-        draw_stat_bar(renderer, "2PT", p->shooting_2pt, 14, 88);
-        draw_stat_bar(renderer, "DEF", p->defense, 14, 98);
+        allstar_renderer_draw_text(renderer, "WEIGHT", 16, 92, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 92, 3);
+        allstar_renderer_draw_text(renderer, p->weight_str, 104, 92, 3);
 
-        /* Animated Player Preview with skin tone */
-        bool is_dark_skin = (p->skin_tone == 0x90);
-        allstar_renderer_draw_player(renderer, 126, 80, is_dark_skin, true, false, 0.0f);
+        allstar_renderer_draw_text(renderer, "PPG AVG", 16, 108, 3);
+        allstar_renderer_draw_text(renderer, ":", 84, 108, 3);
+        allstar_renderer_draw_text(renderer, p->ppg_str, 104, 108, 3);
     }
 
-    /* Footer Navigation */
-    allstar_renderer_draw_text(renderer, "< LEFT/RIGHT > PICK", 8, 128, 2);
+    /* Sub-header prompt */
+    char prompt_buf[32];
+    snprintf(prompt_buf, sizeof(prompt_buf), "%s", data->p1_selected ? "SELECT 2P: PRESS A" : "SELECT 1P: PRESS A");
+    allstar_renderer_draw_text(renderer, prompt_buf, 16, 126, 2);
 }
 
 static void roster_select_destroy(AllStarScene *scene) {

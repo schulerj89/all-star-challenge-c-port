@@ -1,0 +1,32 @@
+# Build outputs
+build/
+bin/
+obj/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.lib
+*.dll
+
+# ROMs and Asset Packs (Do NOT commit copyrighted ROMs or generated packs)
+*.gb
+*.gbc
+*.nes
+*.assetpack
+*.sav
+*.sgm
+
+# Logs, Dumps, Captures
+*.log
+*.ndjson
+*.trace
+temp-videos/
+captures/
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

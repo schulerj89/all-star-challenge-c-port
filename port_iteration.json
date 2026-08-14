@@ -1,0 +1,78 @@
+{
+  "project": "nba-all-star-challenge-c-port",
+  "target_platform": "Game Boy (DMG-01)",
+  "game_title": "NBA All-Star Challenge",
+  "developer": "Beam Software / LJN",
+  "rom_spec": {
+    "size_bytes": 32768,
+    "mapper": "MBC0 / No Mapper",
+    "cpu": "Sharp SM83"
+  },
+  "current_phase": 1,
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Project Initialization & Tooling Environment",
+      "status": "in_progress",
+      "tasks": [
+        {"name": "Create repository structure and documentation", "status": "completed"},
+        {"name": "Create build scripts (build.ps1, CMakeLists.txt)", "status": "completed"},
+        {"name": "Setup Ghidra & Ghidra MCP bridge tools", "status": "completed"},
+        {"name": "Implement core types, ROM loader, and CLI parser", "status": "in_progress"}
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "ROM Memory Mapping & Asset Pipeline",
+      "status": "pending",
+      "tasks": [
+        {"name": "Map WRAM/HRAM addresses and Game Boy I/O hooks", "status": "pending"},
+        {"name": "Implement 2bpp tile and tilemap extractor", "status": "pending"},
+        {"name": "Implement roster and stat table parser", "status": "pending"},
+        {"name": "Implement asset pack container serialization", "status": "pending"}
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Display Rasterizer & Menu State Machines",
+      "status": "pending",
+      "tasks": [
+        {"name": "Implement 160x144 software rasterizer and DMG palettes", "status": "pending"},
+        {"name": "Implement Win32 window and direct framebuffer presentation", "status": "pending"},
+        {"name": "Implement Title Screen & Intro Scene", "status": "pending"},
+        {"name": "Implement Main Menu & Player Select Scene", "status": "pending"}
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Game Modes & Physics Engine",
+      "status": "pending",
+      "tasks": [
+        {"name": "Port shot trajectory and ball physics", "status": "pending"},
+        {"name": "Port Three-Point Shootout mode", "status": "pending"},
+        {"name": "Port Free Throw Competition mode", "status": "pending"},
+        {"name": "Port H-O-R-S-E mode", "status": "pending"},
+        {"name": "Port One-on-One & Tournament gameplay modes", "status": "pending"},
+        {"name": "Port CPU AI decision trees", "status": "pending"}
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Audio Engine Porting",
+      "status": "pending",
+      "tasks": [
+        {"name": "Reverse engineer sound effect and music drivers", "status": "pending"},
+        {"name": "Implement DMG APU audio synthesizer", "status": "pending"}
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Automated Verification & Polish",
+      "status": "pending",
+      "tasks": [
+        {"name": "Implement headless test runner and visual regression suite", "status": "pending"},
+        {"name": "Add quality-of-life options (color palettes, scaling)", "status": "pending"}
+      ]
+    }
+  ]
+}

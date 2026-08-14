@@ -287,62 +287,6 @@ void allstar_renderer_draw_court(AllStarRenderer *renderer) {
     }
 }
 
-void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time) {
-    if (!renderer) return;
-
-    /* Dynamic Floor Shadow */
-    if (z > 2) {
-        int shadow_w = (z > 20) ? 2 : 3;
-        for (int sx = -shadow_w; sx <= shadow_w; sx++) {
-            uint8_t shade = (abs(sx) == shadow_w) ? 1 : 2;
-            allstar_renderer_set_pixel(renderer, x + sx, y, shade);
-        }
-    }
-
-    /* Ball Position with Z elevation */
-    int draw_y = y - (int)(z * 0.5f);
-    int frame = (int)(spin_time * 12.0f) % 6;
-    if (frame < 0) frame = 0;
-    /* Basketball tiles in VRAM $8000 */
-    const uint8_t *ball_tile = ALLSTAR_VRAM_TILES[frame];
-
-    for (int r = 0; r < 8; r++) {
-        for (int c = 0; c < 8; c++) {
-            uint8_t shade = allstar_decode_2bpp_pixel(ball_tile, c, r);
-            if (shade != 0) {
-                allstar_renderer_set_pixel(renderer, x - 4 + c, draw_y - 4 + r, shade);
-            }
-        }
-    }
-}
-
-void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
-    allstar_renderer_draw_ball_ex(renderer, x, y, z, 0.0f);
-}
-
-void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y) {
-    if (!renderer) return;
-    static const uint8_t GB_CURSOR_SPRITE[8][8] = {
-        {0, 0, 2, 2, 2, 2, 0, 0},
-        {0, 2, 1, 1, 1, 1, 2, 0},
-        {2, 1, 1, 2, 2, 2, 2, 2},
-        {2, 1, 1, 1, 1, 1, 1, 2},
-        {2, 1, 2, 2, 2, 2, 2, 2},
-        {2, 1, 1, 1, 1, 1, 2, 2},
-        {0, 2, 2, 2, 2, 2, 2, 0},
-        {0, 0, 2, 2, 2, 2, 0, 0}
-    };
-
-    for (int r = 0; r < 8; r++) {
-        for (int c = 0; c < 8; c++) {
-            uint8_t shade = GB_CURSOR_SPRITE[r][c];
-            if (shade != 0) {
-                allstar_renderer_set_pixel(renderer, x + c, y + r, shade);
-            }
-        }
-    }
-}
-
 /* Helper to render an 8x16 hardware sprite directly from raw ROM VRAM tile arrays */
 static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx, int sy, int tile_base, bool flip_x, uint8_t skin_tone) {
     int top_tile = tile_base & 0xFE;
@@ -371,6 +315,56 @@ static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx,
                 final_shade = 2; /* Dark skin tone mapping */
             }
             allstar_renderer_set_pixel(renderer, rx, ry, final_shade);
+        }
+    }
+}
+
+void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time) {
+    if (!renderer) return;
+
+    /* Dynamic Floor Shadow */
+    if (z > 2) {
+        int shadow_w = (z > 20) ? 2 : 4;
+        for (int sx = -shadow_w; sx <= shadow_w; sx++) {
+            uint8_t shade = (abs(sx) == shadow_w) ? 1 : 2;
+            allstar_renderer_set_pixel(renderer, x + sx, y, shade);
+        }
+    }
+
+    /* Ball Position with Z elevation */
+    int draw_y = y - (int)(z * 0.5f);
+    int frame = (int)(spin_time * 8.0f) % 3;
+    if (frame < 0) frame = 0;
+
+    /* Authentic 16x16 Basketball Sprite Pair: Tiles 0x3A and 0x3C in VRAM */
+    int base_tile = 0x3A + (frame * 4);
+    allstar_renderer_draw_8x16_sprite(renderer, x - 8, draw_y - 8, base_tile, false, 0);
+    allstar_renderer_draw_8x16_sprite(renderer, x,     draw_y - 8, base_tile + 2, false, 0);
+}
+
+void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
+    allstar_renderer_draw_ball_ex(renderer, x, y, z, 0.0f);
+}
+
+void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y) {
+    if (!renderer) return;
+    static const uint8_t GB_CURSOR_SPRITE[8][8] = {
+        {0, 0, 2, 2, 2, 2, 0, 0},
+        {0, 2, 1, 1, 1, 1, 2, 0},
+        {2, 1, 1, 2, 2, 2, 2, 2},
+        {2, 1, 1, 1, 1, 1, 1, 2},
+        {2, 1, 2, 2, 2, 2, 2, 2},
+        {2, 1, 1, 1, 1, 1, 2, 2},
+        {0, 2, 2, 2, 2, 2, 2, 0},
+        {0, 0, 2, 2, 2, 2, 0, 0}
+    };
+
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            uint8_t shade = GB_CURSOR_SPRITE[r][c];
+            if (shade != 0) {
+                allstar_renderer_set_pixel(renderer, x + c, y + r, shade);
+            }
         }
     }
 }

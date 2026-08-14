@@ -10,10 +10,10 @@ typedef struct {
 } SceneIntroData;
 
 static void intro_init(AllStarScene *scene, AllStarGame *game) {
-    (void)game;
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     data->timer = 0.0f;
     data->selected_option = 0;
+    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
 }
 
 static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {

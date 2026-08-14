@@ -39,6 +39,7 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     data->game_timer = 120.0f;
     data->shot_clock = 24.0f;
     data->anim_timer = 0.0f;
+    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_GAMEPLAY);
 }
 
 static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {

@@ -53,11 +53,11 @@ $CompileBatchContent = @"
 @echo off
 call "$VcVars" > nul
 echo Compiling allstar_port.exe (CLI/Test runner)...
-cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$ConsoleExePath" /Fo"$ObjDir\\" "$Root\src\main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib
+cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$ConsoleExePath" /Fo"$ObjDir\\" "$Root\src\main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib winmm.lib
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
 echo Compiling allstar_port_game.exe (Win32 GUI Game)...
-cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$GameExePath" /Fo"$ObjDir\\" "$Root\src\win32_game_main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib /link /SUBSYSTEM:WINDOWS
+cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$GameExePath" /Fo"$ObjDir\\" "$Root\src\win32_game_main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib winmm.lib /link /SUBSYSTEM:WINDOWS
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 "@
 

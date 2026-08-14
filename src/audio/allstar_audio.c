@@ -59,30 +59,51 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
     }
     if (!f) return false;
 
-    uint8_t header[44];
-    if (fread(header, 1, 44, f) != 44) {
+    /* Read RIFF header */
+    uint8_t riff[12];
+    if (fread(riff, 1, 12, f) != 12 || memcmp(riff, "RIFF", 4) != 0 || memcmp(riff + 8, "WAVE", 4) != 0) {
         fclose(f);
         return false;
     }
 
-    uint16_t channels = *(uint16_t*)(header + 22);
-    uint16_t bits_per_sample = *(uint16_t*)(header + 34);
-    uint32_t data_size = *(uint32_t*)(header + 40);
+    uint16_t channels = 2;
+    uint32_t sample_rate = 48000;
+    uint16_t bits_per_sample = 16;
+    uint8_t *raw_buf = NULL;
+    uint32_t data_size = 0;
 
-    if (data_size == 0 || data_size > 20000000) {
-        fclose(f);
-        return false;
+    /* Parse RIFF chunks */
+    uint8_t chunk_hdr[8];
+    while (fread(chunk_hdr, 1, 8, f) == 8) {
+        uint32_t chunk_size = *(uint32_t*)(chunk_hdr + 4);
+        if (memcmp(chunk_hdr, "fmt ", 4) == 0) {
+            uint8_t fmt_data[16];
+            if (fread(fmt_data, 1, 16, f) == 16) {
+                channels = *(uint16_t*)(fmt_data + 2);
+                sample_rate = *(uint32_t*)(fmt_data + 4);
+                bits_per_sample = *(uint16_t*)(fmt_data + 14);
+                if (chunk_size > 16) fseek(f, (long)(chunk_size - 16), SEEK_CUR);
+            }
+        } else if (memcmp(chunk_hdr, "data", 4) == 0) {
+            data_size = chunk_size;
+            raw_buf = (uint8_t*)malloc(data_size);
+            if (raw_buf) {
+                fread(raw_buf, 1, data_size, f);
+            }
+            break;
+        } else {
+            fseek(f, (long)chunk_size, SEEK_CUR);
+        }
     }
-
-    uint8_t *raw_buf = (uint8_t*)malloc(data_size);
-    if (!raw_buf) {
-        fclose(f);
-        return false;
-    }
-    fread(raw_buf, 1, data_size, f);
     fclose(f);
 
-    uint32_t total_frames = data_size / (channels * (bits_per_sample / 8));
+    if (!raw_buf || data_size == 0) {
+        if (raw_buf) free(raw_buf);
+        return false;
+    }
+
+    uint32_t bytes_per_frame = channels * (bits_per_sample / 8);
+    uint32_t total_frames = data_size / bytes_per_frame;
     out->samples = (int16_t*)malloc(total_frames * MIX_CHANNELS * sizeof(int16_t));
     if (!out->samples) {
         free(raw_buf);
@@ -128,10 +149,11 @@ static DWORD WINAPI audio_mixer_thread(LPVOID param) {
 
     for (int i = 0; i < NUM_BUFFERS; i++) {
         memset(&headers[i], 0, sizeof(WAVEHDR));
+        memset(mix_buffers[i], 0, sizeof(mix_buffers[i]));
         headers[i].lpData = (LPSTR)mix_buffers[i];
         headers[i].dwBufferLength = sizeof(mix_buffers[i]);
-        headers[i].dwFlags = WHDR_DONE;
         waveOutPrepareHeader(hWave, &headers[i], sizeof(WAVEHDR));
+        headers[i].dwFlags |= WHDR_DONE; /* Mark as ready for immediate refill */
     }
 
     int buf_idx = 0;

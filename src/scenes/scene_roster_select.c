@@ -250,7 +250,7 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
     allstar_renderer_clear(renderer, 0);
 
     if (data->state == ROSTER_STATE_SPLASH_P1) {
-        draw_splash_screen(renderer, "SELECT YOUR", "PLAYER");
+        draw_splash_screen(renderer, "SELECT", "PLAYER");
     } else if (data->state == ROSTER_STATE_SELECT_P1) {
         draw_player_card(renderer, game, data->p1_cursor);
     } else if (data->state == ROSTER_STATE_SPLASH_OPPONENT) {

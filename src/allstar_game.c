@@ -92,6 +92,9 @@ void allstar_game_change_scene(AllStarGame *game, AllStarSceneId scene_id) {
         case ALLSTAR_SCENE_HORSE:
             game->active_scene = allstar_scene_create_horse();
             break;
+        case ALLSTAR_SCENE_TOURNAMENT:
+            game->active_scene = allstar_scene_create_tournament();
+            break;
         default:
             game->active_scene = allstar_scene_create_intro();
             break;

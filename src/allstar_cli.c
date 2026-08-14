@@ -207,8 +207,14 @@ int allstar_cli_test_headless_frames(void) {
         allstar_game_tick(&game, 1.0f / 60.0f);
     }
 
+    /* Switch to Tournament Scene and tick 60 frames */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_TOURNAMENT);
+    for (int i = 0; i < 60; i++) {
+        allstar_game_tick(&game, 1.0f / 60.0f);
+    }
+
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: Headless multi-scene 360 frames rendered without error\n");
+    printf("[Test] PASSED: Headless multi-scene 420 frames rendered without error\n");
     return 0;
 }
 
@@ -251,8 +257,26 @@ int allstar_cli_dump_screenshots(const char *out_dir) {
     snprintf(path, sizeof(path), "%s\\05_three_point.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 6. Free Throw */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\06_free_throw.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 7. HORSE */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_HORSE);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\07_horse.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 8. Tournament */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_TOURNAMENT);
+    for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
+    snprintf(path, sizeof(path), "%s\\08_tournament.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     allstar_game_shutdown(&game);
-    printf("[Screenshots] Successfully exported screenshots.\n");
+    printf("[Screenshots] Successfully exported all 8 scene screenshots.\n");
     return 0;
 }
 

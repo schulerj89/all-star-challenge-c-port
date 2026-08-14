@@ -61,6 +61,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             case 1: allstar_game_change_scene(game, ALLSTAR_SCENE_THREE_POINT); break;
             case 2: allstar_game_change_scene(game, ALLSTAR_SCENE_FREE_THROW); break;
             case 3: allstar_game_change_scene(game, ALLSTAR_SCENE_HORSE); break;
+            case 4: allstar_game_change_scene(game, ALLSTAR_SCENE_TOURNAMENT); break;
             default: allstar_game_change_scene(game, ALLSTAR_SCENE_ONE_ON_ONE); break;
         }
     }

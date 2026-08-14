@@ -35,5 +35,6 @@ AllStarScene* allstar_scene_create_one_on_one(void);
 AllStarScene* allstar_scene_create_three_point(void);
 AllStarScene* allstar_scene_create_free_throw(void);
 AllStarScene* allstar_scene_create_horse(void);
+AllStarScene* allstar_scene_create_tournament(void);
 
 #endif /* ALLSTAR_SCENE_H */

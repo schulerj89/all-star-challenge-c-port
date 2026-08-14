@@ -27,6 +27,7 @@ set(ALLSTAR_SOURCES
     src/scenes/scene_three_point.c
     src/scenes/scene_free_throw.c
     src/scenes/scene_horse.c
+    src/scenes/scene_tournament.c
 )
 
 add_executable(allstar_port ${ALLSTAR_SOURCES})

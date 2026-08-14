@@ -37,16 +37,22 @@ static void free_throw_update(AllStarScene *scene, AllStarGame *game, const AllS
     data->gauge_y += data->gauge_dy * dt;
     if (data->gauge_y >= 100.0f || data->gauge_y <= 0.0f) data->gauge_dy = -data->gauge_dy;
 
-    if (allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
+    if (!data->ball.in_flight && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         data->attempts++;
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
-        if (data->gauge_x >= 40.0f && data->gauge_x <= 60.0f &&
-            data->gauge_y >= 40.0f && data->gauge_y <= 60.0f) {
-            data->makes++;
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
-        } else {
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_RIM_CLANK);
-        }
+
+        bool accurate = (data->gauge_x >= 38.0f && data->gauge_x <= 62.0f &&
+                         data->gauge_y >= 38.0f && data->gauge_y <= 62.0f);
+
+        float target_offset = accurate ? 0.0f : ((data->gauge_x - 50.0f) * 0.4f);
+        allstar_physics_shoot_ball(&data->ball, 80.0f, 96.0f, 80.0f + target_offset, 26.0f, 44.0f, 1, 1);
+    }
+
+    allstar_physics_update_ball(&data->ball, dt);
+    if (allstar_physics_check_basket(&data->ball, 80.0f, 26.0f, 16.0f)) {
+        data->ball.made_basket = true;
+        data->makes++;
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
     }
 }
 
@@ -55,28 +61,56 @@ static void free_throw_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     SceneFreeThrowData *data = (SceneFreeThrowData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    allstar_renderer_draw_text(renderer, "FREE THROW", 44, 8, 3);
+    /* Top HUD */
+    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "FREE THROW  %02d/%02d", data->makes, data->attempts);
+    allstar_renderer_draw_text(renderer, buf, 10, 4, 0);
 
-    /* Draw Target Reticle Box */
-    for (int i = 0; i < 40; i++) {
-        allstar_renderer_set_pixel(renderer, 60 + i, 40, 2);
-        allstar_renderer_set_pixel(renderer, 60 + i, 80, 2);
-        allstar_renderer_set_pixel(renderer, 60, 40 + i, 2);
-        allstar_renderer_set_pixel(renderer, 100, 40 + i, 2);
+    /* Free Throw Key / Paint */
+    allstar_renderer_draw_rect_fill(renderer, 60, 20, 40, 75, 1);
+    allstar_renderer_draw_rect_outline(renderer, 60, 20, 40, 75, 2);
+
+    /* Free Throw Circle */
+    for (int deg = 0; deg < 360; deg += 15) {
+        float rad = (float)deg * 3.14159f / 180.0f;
+        int cx = 80 + (int)(cosf(rad) * 18.0f);
+        int cy = 95 + (int)(sinf(rad) * 10.0f);
+        allstar_renderer_set_pixel(renderer, cx, cy, 2);
     }
 
-    /* Draw Moving Aim Point */
-    int ax = 60 + (int)(data->gauge_x * 0.4f);
-    int ay = 40 + (int)(data->gauge_y * 0.4f);
-    allstar_renderer_set_pixel(renderer, ax, ay, 3);
-    allstar_renderer_set_pixel(renderer, ax + 1, ay, 3);
-    allstar_renderer_set_pixel(renderer, ax, ay + 1, 3);
-    allstar_renderer_set_pixel(renderer, ax + 1, ay + 1, 3);
+    /* Backboard & Rim */
+    allstar_renderer_draw_line(renderer, 70, 22, 90, 22, 3);
+    allstar_renderer_draw_line(renderer, 76, 26, 84, 26, 3);
+    allstar_renderer_draw_line(renderer, 78, 27, 82, 30, 2);
 
-    /* HUD */
-    char buf[32];
-    snprintf(buf, sizeof(buf), "MAKES:%d/%d", data->makes, data->attempts);
-    allstar_renderer_draw_text(renderer, buf, 36, 110, 3);
+    /* Shooter at Line */
+    const AllStarPlayerStats *p = allstar_roster_get_player(&game->roster, game->selected_player_1);
+    bool is_dark = (p && p->skin_tone == 0x90);
+    allstar_renderer_draw_player(renderer, 80, 96, is_dark, !data->ball.in_flight, data->ball.in_flight, 0.0f);
+
+    /* Ball */
+    if (data->ball.in_flight) {
+        allstar_renderer_draw_ball(renderer, (int)data->ball.x, (int)data->ball.y, (int)data->ball.z);
+    }
+
+    /* Target Reticle Box (Aim Window) */
+    allstar_renderer_draw_rect_fill(renderer, 10, 110, 140, 28, 1);
+    allstar_renderer_draw_rect_outline(renderer, 10, 110, 140, 28, 3);
+    allstar_renderer_draw_text(renderer, "AIM", 14, 114, 3);
+
+    /* Target Box */
+    allstar_renderer_draw_rect_fill(renderer, 50, 113, 60, 22, 0);
+    allstar_renderer_draw_rect_outline(renderer, 50, 113, 60, 22, 3);
+
+    /* Sweet Spot Center */
+    allstar_renderer_draw_rect_fill(renderer, 74, 120, 12, 8, 2);
+
+    /* Moving Crosshair */
+    int ret_x = 50 + (int)(data->gauge_x * 0.58f);
+    int ret_y = 113 + (int)(data->gauge_y * 0.20f);
+    allstar_renderer_draw_line(renderer, ret_x - 3, ret_y, ret_x + 3, ret_y, 3);
+    allstar_renderer_draw_line(renderer, ret_x, ret_y - 3, ret_x, ret_y + 3, 3);
 }
 
 static void free_throw_destroy(AllStarScene *scene) {

@@ -42,7 +42,8 @@ $CommonSources = @(
     "src\scenes\scene_one_on_one.c",
     "src\scenes\scene_three_point.c",
     "src\scenes\scene_free_throw.c",
-    "src\scenes\scene_horse.c"
+    "src\scenes\scene_horse.c",
+    "src\scenes\scene_tournament.c"
 )
 
 $IncludePath = Join-Path $Root "include"

@@ -43,7 +43,7 @@ void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
     ball->in_flight = true;
     ball->made_basket = false;
 
-    float flight_time = 0.85f; /* Standard 3-point / jumper flight duration */
+    float flight_time = 0.85f; /* Standard flight duration to rim */
     ball->vx = (target_x - start_x) / flight_time;
     ball->vy = (target_y - start_y) / flight_time;
     ball->vz = (arc_height + 0.5f * GRAVITY * flight_time * flight_time) / flight_time;
@@ -59,6 +59,6 @@ bool allstar_physics_check_basket(const AllStarBall *ball, float hoop_x, float h
     float dx = ball->x - hoop_x;
     float dy = ball->y - hoop_y;
     float dz = ball->z - hoop_z;
-    float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-    return dist < 8.0f && ball->vz < 0.0f;
+    float dist_xy = sqrtf(dx * dx + dy * dy);
+    return (dist_xy < 8.0f) && (fabsf(dz) < 20.0f) && (ball->vz < 0.0f);
 }

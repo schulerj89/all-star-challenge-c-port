@@ -40,15 +40,22 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     data->game_timer = 120.0f;
     data->shot_clock = 24.0f;
     data->anim_timer = 0.0f;
-    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_GAMEPLAY);
+
+    /* Stop menu music and sound referee whistle on court tip-off */
+    allstar_audio_stop_bgm(&game->audio);
+    allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
 }
 
+/* Ghidra: Jump_000_26c2 / Call_001_7170 - Main gameplay tick */
 static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     data->anim_timer += dt;
     data->game_timer -= dt;
     data->shot_clock -= dt;
-    if (data->shot_clock <= 0.0f) data->shot_clock = 24.0f;
+    if (data->shot_clock <= 0.0f) {
+        data->shot_clock = 24.0f;
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_BUZZER);
+    }
     if (data->game_timer <= 0.0f) data->game_timer = 0.0f;
 
     /* Human Player (P1) Movement */
@@ -66,30 +73,45 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     /* Court Bounds Clamping (160x144 half-court) */
     if (data->p1.x < 18.0f) data->p1.x = 18.0f;
     if (data->p1.x > 142.0f) data->p1.x = 142.0f;
-    if (data->p1.y < 80.0f) data->p1.y = 80.0f;
+    if (data->p1.y < 88.0f) data->p1.y = 88.0f;
     if (data->p1.y > 136.0f) data->p1.y = 136.0f;
 
-    /* Shooting mechanics */
+    /* Human Shooting mechanics (Ghidra: Jump_001_72bf) */
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         data->p1.has_ball = false;
         data->p1.is_shooting = true;
 
-        float dist = sqrtf((data->p1.x - 80.0f) * (data->p1.x - 80.0f) + (data->p1.y - 27.0f) * (data->p1.y - 27.0f));
-        int pt_val = (dist > 54.0f) ? 3 : 2;
+        float dist = sqrtf((data->p1.x - 80.0f) * (data->p1.x - 80.0f) + (data->p1.y - 82.0f) * (data->p1.y - 82.0f));
+        int pt_val = (dist > 45.0f) ? 3 : 2;
 
         const AllStarPlayerStats *p1_stats = allstar_roster_get_player(&game->roster, game->selected_player_1);
         int rating = (pt_val == 3) ? (p1_stats ? p1_stats->shooting_3pt : 75) : (p1_stats ? p1_stats->shooting_2pt : 85);
 
         /* Accuracy jitter: high rating shoots straight to basket */
-        float target_offset = ((float)(rand() % 100) > (float)rating) ? ((float)(rand() % 14) - 7.0f) : 0.0f;
-        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f + target_offset, 27.0f, 48.0f, 1, pt_val);
+        float target_offset = ((float)(rand() % 100) > (float)rating) ? ((float)(rand() % 12) - 6.0f) : 0.0f;
+        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y, 80.0f + target_offset, 82.0f, 96.0f, 1, pt_val);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
     }
 
-    /* CPU AI update */
+    /* CPU AI update (Ghidra: Jump_001_7476) */
     allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball, dt);
 
-    /* Ball physics & collision */
+    /* CPU Shooting trigger */
+    if (data->p2.has_ball && data->p2.is_shooting && !data->ball.in_flight) {
+        data->p2.has_ball = false;
+
+        float dist = sqrtf((data->p2.x - 80.0f) * (data->p2.x - 80.0f) + (data->p2.y - 82.0f) * (data->p2.y - 82.0f));
+        int pt_val = (dist > 45.0f) ? 3 : 2;
+
+        const AllStarPlayerStats *p2_stats = allstar_roster_get_player(&game->roster, game->selected_player_2);
+        int rating = (pt_val == 3) ? (p2_stats ? p2_stats->shooting_3pt : 75) : (p2_stats ? p2_stats->shooting_2pt : 85);
+
+        float target_offset = ((float)(rand() % 100) > (float)rating) ? ((float)(rand() % 12) - 6.0f) : 0.0f;
+        allstar_physics_shoot_ball(&data->ball, data->p2.x, data->p2.y, 80.0f + target_offset, 82.0f, 96.0f, 2, pt_val);
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+    }
+
+    /* Ball physics & collision (Ghidra: Call_001_7f37) */
     allstar_physics_update_ball(&data->ball, dt);
 
     if (!data->ball.in_flight && !data->p1.has_ball && !data->p2.has_ball) {
@@ -97,18 +119,21 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         float d1 = sqrtf((data->p1.x - data->ball.x) * (data->p1.x - data->ball.x) + (data->p1.y - data->ball.y) * (data->p1.y - data->ball.y));
         float d2 = sqrtf((data->p2.x - data->ball.x) * (data->p2.x - data->ball.x) + (data->p2.y - data->ball.y) * (data->p2.y - data->ball.y));
 
-        if (d1 < 10.0f) {
+        if (d1 < 12.0f) {
             data->p1.has_ball = true;
             data->p1.is_shooting = false;
+            data->p2.is_shooting = false;
             allstar_physics_init_ball(&data->ball);
-        } else if (d2 < 10.0f) {
+        } else if (d2 < 12.0f) {
             data->p2.has_ball = true;
+            data->p1.is_shooting = false;
             data->p2.is_shooting = false;
             allstar_physics_init_ball(&data->ball);
         }
     }
 
-    if (allstar_physics_check_basket(&data->ball, 80.0f, 27.0f, 16.0f)) {
+    /* Basket check (Ghidra: Call_001_7ec4) */
+    if (allstar_physics_check_basket(&data->ball, 80.0f, 82.0f, 112.0f)) {
         data->ball.made_basket = true;
         if (data->ball.shooter_id == 1) {
             data->p1_score += data->ball.point_value;

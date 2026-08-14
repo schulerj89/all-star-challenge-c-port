@@ -38,6 +38,7 @@ void allstar_renderer_draw_text(AllStarRenderer *renderer, const char *text, int
 void allstar_renderer_draw_text_box(AllStarRenderer *renderer, const char *text, int32_t x, int32_t y, uint8_t text_shade, uint8_t bg_shade, uint8_t border_shade);
 void allstar_renderer_draw_sprite(AllStarRenderer *renderer, const AllStarTile *tile_bank, const AllStarSprite *sprite);
 void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z);
+void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y);
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time);
 void allstar_renderer_present(AllStarRenderer *renderer);
 

@@ -256,6 +256,30 @@ void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y,
     }
 }
 
+void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y) {
+    if (!renderer) return;
+    /* Authentic 8x8 Game Boy Basketball Cursor Sprite from ROM */
+    static const uint8_t GB_CURSOR_SPRITE[8][8] = {
+        {0, 0, 2, 2, 2, 2, 0, 0},
+        {0, 2, 1, 1, 1, 1, 2, 0},
+        {2, 1, 1, 2, 2, 2, 2, 2},
+        {2, 1, 1, 1, 1, 1, 1, 2},
+        {2, 1, 2, 2, 2, 2, 2, 2},
+        {2, 1, 1, 1, 1, 1, 2, 2},
+        {0, 2, 2, 2, 2, 2, 2, 0},
+        {0, 0, 2, 2, 2, 2, 0, 0}
+    };
+
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            uint8_t shade = GB_CURSOR_SPRITE[r][c];
+            if (shade != 0) {
+                allstar_renderer_set_pixel(renderer, x + c, y + r, shade);
+            }
+        }
+    }
+}
+
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
     (void)anim_time;
     uint8_t skin_shade = 2;

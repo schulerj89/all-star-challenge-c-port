@@ -51,11 +51,9 @@ static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *
         }
     }
 
-    /* Pulsing "PRESS START" and Animated Cursor */
-    int cursor_x = (data->selected_option == 0) ? 46 : 108;
-    if ((int)(data->timer * 3.0f) % 2 == 0) {
-        allstar_renderer_draw_ball(renderer, cursor_x, 128, 0);
-    }
+    /* Basketball Cursor at ROM Table 0x2AC4 Coordinates */
+    int cursor_x = (data->selected_option == 0) ? 43 : 109;
+    allstar_renderer_draw_cursor(renderer, cursor_x, 124);
 }
 
 static void intro_destroy(AllStarScene *scene) {

@@ -6,11 +6,11 @@
 #define MENU_ITEM_COUNT 5
 
 static const char *MENU_ITEMS[MENU_ITEM_COUNT] = {
-    "1 ON 1 GAME",
-    "3-PT SHOOTOUT",
-    "FREE THROW",
-    "H - O - R - S - E",
-    "TOURNAMENT"
+    "One On One",
+    "Free Throws",
+    "Horse",
+    "Accuracy Shootout",
+    "Tournament"
 };
 
 typedef struct {
@@ -60,11 +60,10 @@ static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *r
         }
     }
 
-    /* Moving Basketball Cursor:
-       Options at y: 42 (One On One), 52 (Free Throws), 62 (Horse), 72 (Accuracy Shootout), 82 (Tournament) */
-    static const int OPTION_Y[5] = { 42, 52, 62, 72, 82 };
+    /* Moving Basketball Cursor at ROM Table 0x2ABA Coordinates */
+    static const int OPTION_Y[5] = { 48, 56, 64, 72, 80 };
     int cur_y = OPTION_Y[data->selected_index % 5];
-    allstar_renderer_draw_ball(renderer, 6, cur_y, 0);
+    allstar_renderer_draw_cursor(renderer, 4, cur_y);
 }
 
 static void menu_destroy(AllStarScene *scene) {

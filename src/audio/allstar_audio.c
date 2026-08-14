@@ -74,9 +74,6 @@ static DWORD WINAPI play_sfx_thread(LPVOID param) {
         case ALLSTAR_SFX_MENU_MOVE:
             play_wav_file("sfx_menu_move.wav");
             break;
-        case ALLSTAR_SFX_MENU_SELECT:
-            play_wav_file("sfx_menu_select.wav");
-            break;
         default:
             break;
     }

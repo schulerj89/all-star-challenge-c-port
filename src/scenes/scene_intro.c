@@ -29,7 +29,6 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
             allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             data->state = 1;
             data->timer = 0.0f;
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         }
         return;
     }
@@ -44,7 +43,6 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
 
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
         allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         allstar_game_change_scene(game, ALLSTAR_SCENE_MENU);
     }
 }

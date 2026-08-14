@@ -68,7 +68,6 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
 
     /* Press Start / A to advance to Player Select */
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) || allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         allstar_game_change_scene(game, ALLSTAR_SCENE_ROSTER_SELECT);
     }
 }

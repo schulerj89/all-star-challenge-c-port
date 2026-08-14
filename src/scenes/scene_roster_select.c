@@ -36,7 +36,6 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             data->p1_selected = true;
             game->selected_player_1 = (uint32_t)data->p1_cursor;
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         }
     } else if (!data->p2_selected && game->selected_mode == 0) {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
@@ -50,7 +49,6 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             data->p2_selected = true;
             game->selected_player_2 = (uint32_t)data->p2_cursor;
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
         }
     }
 

@@ -158,15 +158,25 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
         const char *winners_str = (data->winners_outs == 0) ? "NO " : "YES";
         const char *time_str = (data->time_limit == 0) ? "02:00" : ((data->time_limit == 1) ? "03:00" : "05:00");
 
+        /* Clear only the exact tile character slots (8x8 per character) to shade 0 */
+        allstar_renderer_draw_rect_fill(renderer, 120, 72, 32, 8, 0);
         allstar_renderer_draw_text(renderer, play_to_str, 120, 72, 3);
+
+        allstar_renderer_draw_rect_fill(renderer, 120, 80, 8, 8, 0);
         allstar_renderer_draw_text(renderer, skill_str, 120, 80, 3);
+
+        allstar_renderer_draw_rect_fill(renderer, 120, 88, 24, 8, 0);
         allstar_renderer_draw_text(renderer, winners_str, 120, 88, 3);
+
+        allstar_renderer_draw_rect_fill(renderer, 120, 96, 40, 8, 0);
         allstar_renderer_draw_text(renderer, time_str, 120, 96, 3);
     } else if (data->mode == 1) {
         static const char *THROWS[4] = { " 5", "10", "15", "20" };
+        allstar_renderer_draw_rect_fill(renderer, 120, 80, 16, 8, 0);
         allstar_renderer_draw_text(renderer, THROWS[data->num_throws % 4], 120, 80, 3);
     } else if (data->mode == 3) {
         const char *time_str = (data->time_limit == 0) ? "02:00" : "01:00";
+        allstar_renderer_draw_rect_fill(renderer, 120, 80, 40, 8, 0);
         allstar_renderer_draw_text(renderer, time_str, 120, 80, 3);
     }
 

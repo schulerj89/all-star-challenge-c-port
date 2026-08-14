@@ -375,31 +375,6 @@ static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx,
     }
 }
 
-/* Offense (P1) OAM Meta-Sprite directly from Bank 1 OAM table */
-static const struct { int8_t dx, dy; uint8_t tile; bool flip_x; } P1_OAM_DRIBBLE[9] = {
-    { -8, -32, 0x00, true },
-    {  0, -32, 0x02, true },
-    {  8, -32, 0x04, true },
-    { -8, -16, 0x06, true },
-    {  0, -16, 0x08, true },
-    {  8, -16, 0x0A, true },
-    { -8,   0, 0x0C, true },
-    {  0,   0, 0x0E, true },
-    {  8,   0, 0x10, true }
-};
-
-/* Defense (P2) OAM Meta-Sprite directly from Bank 1 OAM table */
-static const struct { int8_t dx, dy; uint8_t tile; bool flip_x; } P2_OAM_DEFEND[8] = {
-    { -8, -36, 0x12, true },
-    {  0, -36, 0x14, true },
-    {  8, -36, 0x16, true },
-    { -8, -20, 0x18, true },
-    {  0, -20, 0x1A, true },
-    {  8, -20, 0x1C, true },
-    { -8,  -4, 0x1E, true },
-    {  0,  -4, 0x20, true }
-};
-
 void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left) {
     if (!renderer) return;
     (void)is_p1;
@@ -412,21 +387,22 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    if (is_defending || !has_ball) {
-        /* Render Defender OAM Meta-Sprite */
-        for (int i = 0; i < 8; i++) {
-            int spr_x = x + (facing_left ? -P2_OAM_DEFEND[i].dx : P2_OAM_DEFEND[i].dx);
-            int spr_y = y + P2_OAM_DEFEND[i].dy;
-            bool fx = facing_left ? !P2_OAM_DEFEND[i].flip_x : P2_OAM_DEFEND[i].flip_x;
-            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, P2_OAM_DEFEND[i].tile, fx, skin_tone);
-        }
-    } else {
-        /* Render Offense Dribbling OAM Meta-Sprite */
-        for (int i = 0; i < 9; i++) {
-            int spr_x = x + (facing_left ? -P1_OAM_DRIBBLE[i].dx : P1_OAM_DRIBBLE[i].dx);
-            int spr_y = y + P1_OAM_DRIBBLE[i].dy;
-            bool fx = facing_left ? !P1_OAM_DRIBBLE[i].flip_x : P1_OAM_DRIBBLE[i].flip_x;
-            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, P1_OAM_DRIBBLE[i].tile, fx, skin_tone);
+    int tile_base = (is_defending || !has_ball) ? 0x12 : 0x00;
+    int base_x = x - 12;
+    int base_y = y - 44;
+
+    /* 3 rows of 8x16 sprites (24x48 pixels) */
+    /* Tile 0 is Column 2 (Right), Tile 1 is Column 1 (Center), Tile 2 is Column 0 (Left) */
+    static const int col_dest[3] = { 2, 1, 0 };
+
+    for (int row = 0; row < 3; row++) {
+        int spr_y = base_y + row * 16;
+        for (int col = 0; col < 3; col++) {
+            if (tile_base == 0x12 && row == 2 && col == 2) continue; /* Defender has 8 sprites */
+            int spr_tile = tile_base + (row * 6) + (col * 2);
+            int dst_col = facing_left ? (2 - col_dest[col]) : col_dest[col];
+            int spr_x = base_x + dst_col * 8;
+            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, spr_tile, facing_left, skin_tone);
         }
     }
 }

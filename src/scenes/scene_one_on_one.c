@@ -22,12 +22,12 @@ typedef struct {
 static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     data->p1.x = 80.0f;
-    data->p1.y = 130.0f;
+    data->p1.y = 136.0f;
     data->p1.has_ball = true;
     data->p1.is_shooting = false;
 
     data->p2.x = 80.0f;
-    data->p2.y = 105.0f;
+    data->p2.y = 112.0f;
     data->p2.has_ball = false;
     data->p2.is_shooting = false;
 
@@ -67,7 +67,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     if (data->p1.x < 18.0f) data->p1.x = 18.0f;
     if (data->p1.x > 142.0f) data->p1.x = 142.0f;
     if (data->p1.y < 80.0f) data->p1.y = 80.0f;
-    if (data->p1.y > 138.0f) data->p1.y = 138.0f;
+    if (data->p1.y > 136.0f) data->p1.y = 136.0f;
 
     /* Shooting mechanics */
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {

@@ -7,26 +7,40 @@
 #include <windows.h>
 #include <mmsystem.h>
 
+#define MIX_BUFFER_SAMPLES 2048
+#define MIX_CHANNELS 2
+#define MIX_SAMPLE_RATE 48000
+
 typedef struct {
-    uint8_t *data;
-    uint32_t size;
-    WAVEFORMATEX wfx;
+    int16_t *samples;
+    uint32_t sample_count; /* in 16-bit stereo frame units */
     bool loaded;
-} CachedWav;
+} PcmSound;
 
-static CachedWav g_bgm_cache[ALLSTAR_BGM_COUNT];
-static CachedWav g_sfx_cache[ALLSTAR_SFX_COUNT];
+static PcmSound g_bgm[ALLSTAR_BGM_COUNT];
+static PcmSound g_sfx[ALLSTAR_SFX_COUNT];
 
-static HANDLE g_bgm_thread = NULL;
-static volatile bool g_bgm_running = false;
-static volatile AllStarBgmId g_bgm_requested = ALLSTAR_BGM_NONE;
-static volatile AllStarBgmId g_bgm_active = ALLSTAR_BGM_NONE;
-static CRITICAL_SECTION g_audio_cs;
-static bool g_audio_cs_init = false;
+static HANDLE g_mixer_thread = NULL;
+static volatile bool g_mixer_running = false;
+static volatile AllStarBgmId g_requested_bgm = ALLSTAR_BGM_NONE;
+static volatile AllStarBgmId g_current_bgm = ALLSTAR_BGM_NONE;
+static uint32_t g_bgm_playhead = 0;
 
-static bool load_wav_file(const char *filename, CachedWav *out) {
+/* Active SFX voice slots */
+#define MAX_SFX_VOICES 4
+typedef struct {
+    AllStarSfxId sfx_id;
+    uint32_t playhead;
+    bool active;
+} SfxVoice;
+
+static SfxVoice g_sfx_voices[MAX_SFX_VOICES];
+static CRITICAL_SECTION g_audio_lock;
+static bool g_lock_initialized = false;
+
+static bool load_pcm_wav(const char *filename, PcmSound *out) {
     if (!out) return false;
-    memset(out, 0, sizeof(CachedWav));
+    memset(out, 0, sizeof(PcmSound));
 
     char path[MAX_PATH];
     snprintf(path, sizeof(path), "assets\\audio\\%s", filename);
@@ -52,7 +66,6 @@ static bool load_wav_file(const char *filename, CachedWav *out) {
     }
 
     uint16_t channels = *(uint16_t*)(header + 22);
-    uint32_t sample_rate = *(uint32_t*)(header + 24);
     uint16_t bits_per_sample = *(uint16_t*)(header + 34);
     uint32_t data_size = *(uint32_t*)(header + 40);
 
@@ -61,92 +74,141 @@ static bool load_wav_file(const char *filename, CachedWav *out) {
         return false;
     }
 
-    out->data = (uint8_t*)malloc(data_size);
-    if (!out->data) {
+    uint8_t *raw_buf = (uint8_t*)malloc(data_size);
+    if (!raw_buf) {
         fclose(f);
         return false;
     }
-    fread(out->data, 1, data_size, f);
+    fread(raw_buf, 1, data_size, f);
     fclose(f);
 
-    out->size = data_size;
-    out->wfx.wFormatTag = WAVE_FORMAT_PCM;
-    out->wfx.nChannels = channels;
-    out->wfx.nSamplesPerSec = sample_rate;
-    out->wfx.wBitsPerSample = bits_per_sample;
-    out->wfx.nBlockAlign = (channels * bits_per_sample) / 8;
-    out->wfx.nAvgBytesPerSec = sample_rate * out->wfx.nBlockAlign;
+    uint32_t total_frames = data_size / (channels * (bits_per_sample / 8));
+    out->samples = (int16_t*)malloc(total_frames * MIX_CHANNELS * sizeof(int16_t));
+    if (!out->samples) {
+        free(raw_buf);
+        return false;
+    }
+
+    int16_t *src16 = (int16_t*)raw_buf;
+    for (uint32_t i = 0; i < total_frames; i++) {
+        if (channels == 1) {
+            out->samples[i * 2 + 0] = src16[i];
+            out->samples[i * 2 + 1] = src16[i];
+        } else {
+            out->samples[i * 2 + 0] = src16[i * 2 + 0];
+            out->samples[i * 2 + 1] = src16[i * 2 + 1];
+        }
+    }
+    free(raw_buf);
+
+    out->sample_count = total_frames;
     out->loaded = true;
     return true;
 }
 
-static DWORD WINAPI bgm_worker_thread(LPVOID param) {
+static DWORD WINAPI audio_mixer_thread(LPVOID param) {
     (void)param;
-    HWAVEOUT hWave = NULL;
-    AllStarBgmId current_playing = ALLSTAR_BGM_NONE;
-
-    while (g_bgm_running) {
-        AllStarBgmId req = g_bgm_requested;
-        if (req != current_playing) {
-            if (hWave) {
-                waveOutReset(hWave);
-                waveOutClose(hWave);
-                hWave = NULL;
-            }
-            current_playing = req;
-            g_bgm_active = req;
-
-            if (req != ALLSTAR_BGM_NONE && g_bgm_cache[req].loaded) {
-                waveOutOpen(&hWave, WAVE_MAPPER, &g_bgm_cache[req].wfx, 0, 0, CALLBACK_NULL);
-            }
-        }
-
-        if (current_playing != ALLSTAR_BGM_NONE && hWave && g_bgm_cache[current_playing].loaded) {
-            CachedWav *w = &g_bgm_cache[current_playing];
-            WAVEHDR hdr;
-            memset(&hdr, 0, sizeof(WAVEHDR));
-            hdr.lpData = (LPSTR)w->data;
-            hdr.dwBufferLength = w->size;
-            waveOutPrepareHeader(hWave, &hdr, sizeof(WAVEHDR));
-            waveOutWrite(hWave, &hdr, sizeof(WAVEHDR));
-
-            while (g_bgm_running && g_bgm_requested == current_playing && !(hdr.dwFlags & WHDR_DONE)) {
-                Sleep(10);
-            }
-            waveOutUnprepareHeader(hWave, &hdr, sizeof(WAVEHDR));
-        } else {
-            Sleep(20);
-        }
-    }
-
-    if (hWave) {
-        waveOutReset(hWave);
-        waveOutClose(hWave);
-    }
-    return 0;
-}
-
-static DWORD WINAPI play_sfx_thread(LPVOID param) {
-    uintptr_t sfx_id = (uintptr_t)param;
-    if (sfx_id >= ALLSTAR_SFX_COUNT) return 0;
-    CachedWav *w = &g_sfx_cache[sfx_id];
-    if (!w->loaded) return 0;
+    WAVEFORMATEX wfx;
+    memset(&wfx, 0, sizeof(wfx));
+    wfx.wFormatTag = WAVE_FORMAT_PCM;
+    wfx.nChannels = MIX_CHANNELS;
+    wfx.nSamplesPerSec = MIX_SAMPLE_RATE;
+    wfx.wBitsPerSample = 16;
+    wfx.nBlockAlign = (MIX_CHANNELS * 16) / 8;
+    wfx.nAvgBytesPerSec = MIX_SAMPLE_RATE * wfx.nBlockAlign;
 
     HWAVEOUT hWave = NULL;
-    if (waveOutOpen(&hWave, WAVE_MAPPER, &w->wfx, 0, 0, CALLBACK_NULL) == MMSYSERR_NOERROR) {
-        WAVEHDR hdr;
-        memset(&hdr, 0, sizeof(WAVEHDR));
-        hdr.lpData = (LPSTR)w->data;
-        hdr.dwBufferLength = w->size;
-        waveOutPrepareHeader(hWave, &hdr, sizeof(WAVEHDR));
-        waveOutWrite(hWave, &hdr, sizeof(WAVEHDR));
-
-        while (!(hdr.dwFlags & WHDR_DONE)) {
-            Sleep(5);
-        }
-        waveOutUnprepareHeader(hWave, &hdr, sizeof(WAVEHDR));
-        waveOutClose(hWave);
+    if (waveOutOpen(&hWave, WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR) {
+        return 0;
     }
+
+    #define NUM_BUFFERS 3
+    WAVEHDR headers[NUM_BUFFERS];
+    int16_t mix_buffers[NUM_BUFFERS][MIX_BUFFER_SAMPLES * MIX_CHANNELS];
+
+    for (int i = 0; i < NUM_BUFFERS; i++) {
+        memset(&headers[i], 0, sizeof(WAVEHDR));
+        headers[i].lpData = (LPSTR)mix_buffers[i];
+        headers[i].dwBufferLength = sizeof(mix_buffers[i]);
+        headers[i].dwFlags = WHDR_DONE;
+        waveOutPrepareHeader(hWave, &headers[i], sizeof(WAVEHDR));
+    }
+
+    int buf_idx = 0;
+    while (g_mixer_running) {
+        WAVEHDR *hdr = &headers[buf_idx];
+        if (!(hdr->dwFlags & WHDR_DONE)) {
+            Sleep(2);
+            continue;
+        }
+
+        EnterCriticalSection(&g_audio_lock);
+
+        /* Handle BGM track switch */
+        AllStarBgmId req = g_requested_bgm;
+        if (req != g_current_bgm) {
+            g_current_bgm = req;
+            g_bgm_playhead = 0;
+        }
+
+        int16_t *buf = mix_buffers[buf_idx];
+        memset(buf, 0, sizeof(mix_buffers[buf_idx]));
+
+        /* Mix BGM stream */
+        if (g_current_bgm != ALLSTAR_BGM_NONE && g_bgm[g_current_bgm].loaded) {
+            PcmSound *track = &g_bgm[g_current_bgm];
+            for (uint32_t s = 0; s < MIX_BUFFER_SAMPLES; s++) {
+                if (g_bgm_playhead >= track->sample_count) {
+                    g_bgm_playhead = 0; /* Seamless infinite loop */
+                }
+                buf[s * 2 + 0] = track->samples[g_bgm_playhead * 2 + 0];
+                buf[s * 2 + 1] = track->samples[g_bgm_playhead * 2 + 1];
+                g_bgm_playhead++;
+            }
+        }
+
+        /* Mix active SFX voices */
+        for (int v = 0; v < MAX_SFX_VOICES; v++) {
+            if (g_sfx_voices[v].active) {
+                AllStarSfxId sfx_id = g_sfx_voices[v].sfx_id;
+                if (sfx_id < ALLSTAR_SFX_COUNT && g_sfx[sfx_id].loaded) {
+                    PcmSound *sfx = &g_sfx[sfx_id];
+                    for (uint32_t s = 0; s < MIX_BUFFER_SAMPLES; s++) {
+                        if (g_sfx_voices[v].playhead < sfx->sample_count) {
+                            int32_t left = (int32_t)buf[s * 2 + 0] + (int32_t)sfx->samples[g_sfx_voices[v].playhead * 2 + 0];
+                            int32_t right = (int32_t)buf[s * 2 + 1] + (int32_t)sfx->samples[g_sfx_voices[v].playhead * 2 + 1];
+
+                            /* Saturation clip */
+                            if (left > 32767) left = 32767;
+                            else if (left < -32768) left = -32768;
+                            if (right > 32767) right = 32767;
+                            else if (right < -32768) right = -32768;
+
+                            buf[s * 2 + 0] = (int16_t)left;
+                            buf[s * 2 + 1] = (int16_t)right;
+                            g_sfx_voices[v].playhead++;
+                        } else {
+                            g_sfx_voices[v].active = false;
+                            break;
+                        }
+                    }
+                } else {
+                    g_sfx_voices[v].active = false;
+                }
+            }
+        }
+
+        LeaveCriticalSection(&g_audio_lock);
+
+        waveOutWrite(hWave, hdr, sizeof(WAVEHDR));
+        buf_idx = (buf_idx + 1) % NUM_BUFFERS;
+    }
+
+    waveOutReset(hWave);
+    for (int i = 0; i < NUM_BUFFERS; i++) {
+        waveOutUnprepareHeader(hWave, &headers[i], sizeof(WAVEHDR));
+    }
+    waveOutClose(hWave);
     return 0;
 }
 #endif
@@ -159,22 +221,25 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
     audio->current_bgm = ALLSTAR_BGM_NONE;
 
 #ifdef _WIN32
-    if (!g_audio_cs_init) {
-        InitializeCriticalSection(&g_audio_cs);
-        g_audio_cs_init = true;
+    if (!g_lock_initialized) {
+        InitializeCriticalSection(&g_audio_lock);
+        g_lock_initialized = true;
     }
 
-    /* Pre-cache audio tracks */
-    load_wav_file("bgm_title.wav", &g_bgm_cache[ALLSTAR_BGM_TITLE]);
-    load_wav_file("bgm_menu.wav", &g_bgm_cache[ALLSTAR_BGM_MENU]);
-    load_wav_file("bgm_gameplay.wav", &g_bgm_cache[ALLSTAR_BGM_GAMEPLAY]);
-    load_wav_file("sfx_menu_move.wav", &g_sfx_cache[ALLSTAR_SFX_MENU_MOVE]);
+    /* Pre-cache audio tracks into RAM */
+    load_pcm_wav("bgm_title.wav", &g_bgm[ALLSTAR_BGM_TITLE]);
+    load_pcm_wav("bgm_menu.wav", &g_bgm[ALLSTAR_BGM_MENU]);
+    load_pcm_wav("bgm_gameplay.wav", &g_bgm[ALLSTAR_BGM_GAMEPLAY]);
+    load_pcm_wav("sfx_menu_move.wav", &g_sfx[ALLSTAR_SFX_MENU_MOVE]);
+    load_pcm_wav("sfx_menu_select.wav", &g_sfx[ALLSTAR_SFX_MENU_SELECT]);
 
-    g_bgm_running = true;
-    g_bgm_requested = ALLSTAR_BGM_NONE;
-    g_bgm_active = ALLSTAR_BGM_NONE;
-    if (!g_bgm_thread) {
-        g_bgm_thread = CreateThread(NULL, 0, bgm_worker_thread, NULL, 0, NULL);
+    memset(g_sfx_voices, 0, sizeof(g_sfx_voices));
+    g_mixer_running = true;
+    g_requested_bgm = ALLSTAR_BGM_NONE;
+    g_current_bgm = ALLSTAR_BGM_NONE;
+
+    if (!g_mixer_thread) {
+        g_mixer_thread = CreateThread(NULL, 0, audio_mixer_thread, NULL, 0, NULL);
     }
 #endif
 }
@@ -182,8 +247,22 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
     if (!audio || !audio->enabled) return;
 #ifdef _WIN32
-    HANDLE hThread = CreateThread(NULL, 0, play_sfx_thread, (LPVOID)(uintptr_t)sfx, 0, NULL);
-    if (hThread) CloseHandle(hThread);
+    if (!g_lock_initialized) return;
+    EnterCriticalSection(&g_audio_lock);
+    /* Find free or oldest voice */
+    int slot = -1;
+    for (int i = 0; i < MAX_SFX_VOICES; i++) {
+        if (!g_sfx_voices[i].active) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == -1) slot = 0; /* Steal voice 0 */
+
+    g_sfx_voices[slot].sfx_id = sfx;
+    g_sfx_voices[slot].playhead = 0;
+    g_sfx_voices[slot].active = true;
+    LeaveCriticalSection(&g_audio_lock);
 #endif
 }
 
@@ -193,7 +272,7 @@ void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
     audio->current_bgm = bgm;
 
 #ifdef _WIN32
-    g_bgm_requested = bgm;
+    g_requested_bgm = bgm;
 #endif
 }
 
@@ -201,7 +280,7 @@ void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
     if (!audio) return;
     audio->current_bgm = ALLSTAR_BGM_NONE;
 #ifdef _WIN32
-    g_bgm_requested = ALLSTAR_BGM_NONE;
+    g_requested_bgm = ALLSTAR_BGM_NONE;
 #endif
 }
 

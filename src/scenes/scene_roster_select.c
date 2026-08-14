@@ -6,7 +6,9 @@
 #include <string.h>
 
 typedef enum {
-    ROSTER_STATE_SELECT_P1 = 0,
+    ROSTER_STATE_SPLASH_P1 = 0,
+    ROSTER_STATE_SELECT_P1,
+    ROSTER_STATE_SPLASH_OPPONENT,
     ROSTER_STATE_SELECT_OPPONENT,
     ROSTER_STATE_MATCHUP_VS
 } RosterSelectState;
@@ -21,7 +23,7 @@ typedef struct {
 static void roster_select_init(AllStarScene *scene, AllStarGame *game) {
     (void)game;
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
-    data->state = ROSTER_STATE_SELECT_P1;
+    data->state = ROSTER_STATE_SPLASH_P1;
     data->p1_cursor = 0;
     data->p2_cursor = 1;
     data->timer = 0.0f;
@@ -33,7 +35,14 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
     data->timer += dt;
     size_t count = game->roster.count ? game->roster.count : ALLSTAR_PORTRAIT_COUNT;
 
-    if (data->state == ROSTER_STATE_SELECT_P1) {
+    if (data->state == ROSTER_STATE_SPLASH_P1) {
+        if (data->timer >= 0.8f ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
+            data->state = ROSTER_STATE_SELECT_P1;
+            data->timer = 0.0f;
+        }
+    } else if (data->state == ROSTER_STATE_SELECT_P1) {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
             data->p1_cursor = (int)((data->p1_cursor + count - 1) % count);
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
@@ -46,12 +55,20 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
             game->selected_player_1 = (uint32_t)data->p1_cursor;
             data->p2_cursor = (int)((data->p1_cursor + 1) % count);
+            data->timer = 0.0f;
 
             if (game->selected_mode == 0 || game->selected_mode == 3 || game->selected_mode == 4) {
-                data->state = ROSTER_STATE_SELECT_OPPONENT;
+                data->state = ROSTER_STATE_SPLASH_OPPONENT;
             } else {
                 data->state = ROSTER_STATE_MATCHUP_VS;
             }
+        }
+    } else if (data->state == ROSTER_STATE_SPLASH_OPPONENT) {
+        if (data->timer >= 0.8f ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
+            allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
+            data->state = ROSTER_STATE_SELECT_OPPONENT;
+            data->timer = 0.0f;
         }
     } else if (data->state == ROSTER_STATE_SELECT_OPPONENT) {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_LEFT)) {
@@ -66,6 +83,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
             game->selected_player_2 = (uint32_t)data->p2_cursor;
             data->state = ROSTER_STATE_MATCHUP_VS;
+            data->timer = 0.0f;
         }
     } else if (data->state == ROSTER_STATE_MATCHUP_VS) {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_START) || allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
@@ -81,7 +99,20 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
     }
 }
 
-static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int player_idx, const char *header_title) {
+static void draw_splash_screen(AllStarRenderer *renderer, const char *line1, const char *line2) {
+    if (line1) {
+        int len1 = (int)strlen(line1);
+        int x1 = (160 - len1 * 8) / 2;
+        allstar_renderer_draw_text(renderer, line1, x1, 56, 3);
+    }
+    if (line2) {
+        int len2 = (int)strlen(line2);
+        int x2 = (160 - len2 * 8) / 2;
+        allstar_renderer_draw_text(renderer, line2, x2, 72, 3);
+    }
+}
+
+static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int player_idx) {
     /* Draw Authentic Star Border */
     for (int x = 0; x < 160; x += 8) {
         allstar_renderer_draw_text(renderer, "*", x, 0, 3);
@@ -92,34 +123,28 @@ static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int p
         allstar_renderer_draw_text(renderer, "*", 152, y, 3);
     }
 
-    if (header_title) {
-        int title_len = (int)strlen(header_title);
-        int title_x = (160 - title_len * 8) / 2;
-        allstar_renderer_draw_text(renderer, header_title, title_x, 4, 3);
-    }
-
     const AllStarPlayerStats *stats = allstar_roster_get_player(&game->roster, (size_t)player_idx);
     int p_idx = player_idx % ALLSTAR_PORTRAIT_COUNT;
 
-    /* Render 32x48 Face Portrait at (32, 14) */
+    /* Render 32x48 Face Portrait at (32, 12) */
     const uint8_t *face = ALLSTAR_PLAYER_PORTRAITS[p_idx];
     for (int fy = 0; fy < 48; fy++) {
         for (int fx = 0; fx < 32; fx++) {
             uint8_t shade = face[fy * 32 + fx];
-            allstar_renderer_set_pixel(renderer, 32 + fx, 14 + fy, shade);
+            allstar_renderer_set_pixel(renderer, 32 + fx, 12 + fy, shade);
         }
     }
 
-    /* Render 32x32 Team Logo at (96, 22) */
+    /* Render 32x32 Team Logo at (96, 20) */
     const uint8_t *logo = ALLSTAR_PLAYER_LOGOS[p_idx];
     for (int ly = 0; ly < 32; ly++) {
         for (int lx = 0; lx < 32; lx++) {
             uint8_t shade = logo[ly * 32 + lx];
-            allstar_renderer_set_pixel(renderer, 96 + lx, 22 + ly, shade);
+            allstar_renderer_set_pixel(renderer, 96 + lx, 20 + ly, shade);
         }
     }
 
-    /* Player Name */
+    /* Player Name at Y=66 */
     char name_buf[64];
     if (stats) {
         snprintf(name_buf, sizeof(name_buf), "%s", stats->name);
@@ -129,7 +154,7 @@ static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int p
     int name_len = (int)strlen(name_buf);
     int name_x = (160 - name_len * 8) / 2;
     if (name_x < 8) name_x = 8;
-    allstar_renderer_draw_text(renderer, name_buf, name_x, 68, 3);
+    allstar_renderer_draw_text(renderer, name_buf, name_x, 66, 3);
 
     /* Attributes aligned with Game Boy ROM rows */
     char h_buf[32], w_buf[32], p_buf[32];
@@ -224,10 +249,14 @@ static void roster_select_draw(AllStarScene *scene, AllStarGame *game, AllStarRe
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    if (data->state == ROSTER_STATE_SELECT_P1) {
-        draw_player_card(renderer, game, data->p1_cursor, "SELECT PLAYER");
+    if (data->state == ROSTER_STATE_SPLASH_P1) {
+        draw_splash_screen(renderer, "SELECT", "PLAYER");
+    } else if (data->state == ROSTER_STATE_SELECT_P1) {
+        draw_player_card(renderer, game, data->p1_cursor);
+    } else if (data->state == ROSTER_STATE_SPLASH_OPPONENT) {
+        draw_splash_screen(renderer, "SELECT", "OPPONENT");
     } else if (data->state == ROSTER_STATE_SELECT_OPPONENT) {
-        draw_player_card(renderer, game, data->p2_cursor, "SELECT OPPONENT");
+        draw_player_card(renderer, game, data->p2_cursor);
     } else if (data->state == ROSTER_STATE_MATCHUP_VS) {
         draw_matchup_vs(renderer, game, data->p1_cursor, data->p2_cursor);
     }

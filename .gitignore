@@ -8,6 +8,17 @@ obj/
 *.ilk
 *.lib
 *.dll
+*.o
+
+# Disassembly & Decompilation (Strictly local reverse-engineering data, NEVER committed)
+disassembly/
+decomp/
+ghidra_project/
+tools/mgbdis/
+*.asm
+*.inc
+*.sym
+*.map
 
 # ROMs and Asset Packs (Do NOT commit copyrighted ROMs or generated packs)
 *.gb

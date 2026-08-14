@@ -378,8 +378,6 @@ static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx,
 void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left) {
     if (!renderer) return;
     (void)is_p1;
-    (void)anim_time;
-    (void)is_shooting;
 
     /* Dynamic Floor Shadow beneath player feet */
     for (int sx = -8; sx <= 8; sx++) {
@@ -387,23 +385,52 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    int tile_base = (is_defending || !has_ball) ? 0x12 : 0x00;
-    int base_x = x - 12;
-    int base_y = y - 44;
+    /* Select Animated 24x40 Sprite Frame */
+    const uint8_t (*frame_data)[24] = ALLSTAR_ANIM_DRIBBLE[0];
+    int jump_y = 0;
 
-    /* 3 rows of 8x16 sprites (24x48 pixels) */
-    /* Tile 0 is Column 2 (Right), Tile 1 is Column 1 (Center), Tile 2 is Column 0 (Left) */
-    static const int col_dest[3] = { 2, 1, 0 };
+    if (is_shooting) {
+        frame_data = ALLSTAR_ANIM_SHOOT_APEX;
+        jump_y = -12;
+    } else if (is_defending) {
+        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DEFEND_COUNT;
+        frame_data = ALLSTAR_ANIM_DEFEND[f];
+    } else if (has_ball) {
+        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DRIBBLE_COUNT;
+        frame_data = ALLSTAR_ANIM_DRIBBLE[f];
+    } else {
+        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DRIBBLE_COUNT;
+        frame_data = ALLSTAR_ANIM_DRIBBLE[f];
+    }
 
-    for (int row = 0; row < 3; row++) {
-        int spr_y = base_y + row * 16;
-        for (int col = 0; col < 3; col++) {
-            if (tile_base == 0x12 && row == 2 && col == 2) continue; /* Defender has 8 sprites */
-            int spr_tile = tile_base + (row * 6) + (col * 2);
-            int dst_col = facing_left ? (2 - col_dest[col]) : col_dest[col];
-            int spr_x = base_x + dst_col * 8;
-            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, spr_tile, facing_left, skin_tone);
+    int top_x = x - 12;
+    int top_y = y - 38 + jump_y;
+
+    /* Render 24x40 Frame */
+    for (int r = 0; r < 40; r++) {
+        int ry = top_y + r;
+        if (ry < 0 || ry >= 144) continue;
+        for (int c = 0; c < 24; c++) {
+            int rx = top_x + c;
+            if (rx < 0 || rx >= 160) continue;
+            int src_c = facing_left ? (23 - c) : c;
+            uint8_t raw = frame_data[r][src_c];
+            if (raw == 0) continue; /* Transparent */
+
+            /* Apply OBP1 skin tone remapping */
+            uint8_t final_shade = raw;
+            if (skin_tone == 0x90 && raw == 1) {
+                final_shade = 2; /* Dark skin tone */
+            }
+            allstar_renderer_set_pixel(renderer, rx, ry, final_shade);
         }
+    }
+
+    /* If dribbling ball */
+    if (has_ball && !is_shooting) {
+        int ball_x = x + (facing_left ? -8 : 8);
+        int bounce_y = y - 4 + (((int)(anim_time * 8.0f) % 2) ? 3 : -2);
+        allstar_renderer_draw_ball_ex(renderer, ball_x, bounce_y, 0, anim_time);
     }
 }
 

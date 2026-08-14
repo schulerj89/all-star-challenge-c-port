@@ -11,11 +11,11 @@ typedef struct {
 } SceneIntroData;
 
 static void intro_init(AllStarScene *scene, AllStarGame *game) {
+    (void)game;
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     data->timer = 0.0f;
-    data->state = 0; /* Boot to Credits Screen */
+    data->state = 0; /* Boot to Credits Screen (Silent) */
     data->selected_option = 0;
-    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
 }
 
 static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
@@ -29,6 +29,7 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
             allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             data->state = 1;
             data->timer = 0.0f;
+            allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
         }
         return;
     }

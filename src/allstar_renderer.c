@@ -258,20 +258,37 @@ void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32
     }
 }
 
+static inline uint8_t allstar_decode_2bpp_pixel(const uint8_t *tile_16bytes, int x, int y) {
+    uint8_t b1 = tile_16bytes[y * 2];
+    uint8_t b2 = tile_16bytes[y * 2 + 1];
+    int bit = 7 - x;
+    return (uint8_t)(((b1 >> bit) & 1) | (((b2 >> bit) & 1) << 1));
+}
+
 void allstar_renderer_draw_court(AllStarRenderer *renderer) {
     if (!renderer) return;
 
-    /* Authentic Background from Game Boy ROM */
-    for (int y = 0; y < 144; y++) {
-        for (int x = 0; x < 160; x++) {
-            allstar_renderer_set_pixel(renderer, x, y, ALLSTAR_COURT_BG[y][x]);
+    /* Render directly from raw 384 VRAM tilebank using signed $8800..$97FF tile addressing */
+    for (int r = 0; r < 18; r++) {
+        for (int c = 0; c < 20; c++) {
+            uint8_t t_idx = ALLSTAR_COURT_TILEMAP[r][c];
+            int signed_idx = (t_idx < 128) ? t_idx : (t_idx - 256);
+            int vram_tile = 256 + signed_idx;
+            if (vram_tile < 0 || vram_tile >= ALLSTAR_VRAM_TILE_COUNT) continue;
+
+            const uint8_t *tile_data = ALLSTAR_VRAM_TILES[vram_tile];
+            for (int ty = 0; ty < 8; ty++) {
+                for (int tx = 0; tx < 8; tx++) {
+                    uint8_t shade = allstar_decode_2bpp_pixel(tile_data, tx, ty);
+                    allstar_renderer_set_pixel(renderer, c * 8 + tx, r * 8 + ty, shade);
+                }
+            }
         }
     }
 }
 
 void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time) {
     if (!renderer) return;
-    (void)spin_time;
 
     /* Dynamic Floor Shadow */
     if (z > 2) {
@@ -284,11 +301,14 @@ void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t
 
     /* Ball Position with Z elevation */
     int draw_y = y - (int)(z * 0.5f);
+    int frame = (int)(spin_time * 12.0f) % 6;
+    if (frame < 0) frame = 0;
+    /* Basketball tiles in VRAM $8000 */
+    const uint8_t *ball_tile = ALLSTAR_VRAM_TILES[frame];
 
-    /* Render 8x8 Basketball Sprite */
     for (int r = 0; r < 8; r++) {
         for (int c = 0; c < 8; c++) {
-            uint8_t shade = ALLSTAR_BALL_SPRITE[r][c];
+            uint8_t shade = allstar_decode_2bpp_pixel(ball_tile, c, r);
             if (shade != 0) {
                 allstar_renderer_set_pixel(renderer, x - 4 + c, draw_y - 4 + r, shade);
             }
@@ -323,56 +343,91 @@ void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t 
     }
 }
 
+/* Helper to render an 8x16 hardware sprite directly from raw ROM VRAM tile arrays */
+static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx, int sy, int tile_base, bool flip_x, uint8_t skin_tone) {
+    int top_tile = tile_base & 0xFE;
+    int bot_tile = tile_base | 1;
+    if (top_tile < 0 || bot_tile >= ALLSTAR_VRAM_TILE_COUNT) return;
+
+    const uint8_t *top_tile_data = ALLSTAR_VRAM_TILES[top_tile];
+    const uint8_t *bot_tile_data = ALLSTAR_VRAM_TILES[bot_tile];
+
+    for (int py = 0; py < 16; py++) {
+        int ry = sy + py;
+        if (ry < 0 || ry >= 144) continue;
+        const uint8_t *tile_16b = (py < 8) ? top_tile_data : bot_tile_data;
+        int sub_y = py % 8;
+
+        for (int px = 0; px < 8; px++) {
+            int rx = sx + px;
+            if (rx < 0 || rx >= 160) continue;
+            int src_x = flip_x ? (7 - px) : px;
+            uint8_t raw_shade = allstar_decode_2bpp_pixel(tile_16b, src_x, sub_y);
+            if (raw_shade == 0) continue; /* Transparent in Game Boy OAM */
+
+            /* Apply OBP1 skin palette for skin tone */
+            uint8_t final_shade = raw_shade;
+            if (skin_tone == 0x90 && raw_shade == 1) {
+                final_shade = 2; /* Dark skin tone mapping */
+            }
+            allstar_renderer_set_pixel(renderer, rx, ry, final_shade);
+        }
+    }
+}
+
+/* Offense (P1) OAM Meta-Sprite directly from Bank 1 OAM table */
+static const struct { int8_t dx, dy; uint8_t tile; bool flip_x; } P1_OAM_DRIBBLE[9] = {
+    { -8, -32, 0x00, true },
+    {  0, -32, 0x02, true },
+    {  8, -32, 0x04, true },
+    { -8, -16, 0x06, true },
+    {  0, -16, 0x08, true },
+    {  8, -16, 0x0A, true },
+    { -8,   0, 0x0C, true },
+    {  0,   0, 0x0E, true },
+    {  8,   0, 0x10, true }
+};
+
+/* Defense (P2) OAM Meta-Sprite directly from Bank 1 OAM table */
+static const struct { int8_t dx, dy; uint8_t tile; bool flip_x; } P2_OAM_DEFEND[8] = {
+    { -8, -36, 0x12, true },
+    {  0, -36, 0x14, true },
+    {  8, -36, 0x16, true },
+    { -8, -20, 0x18, true },
+    {  0, -20, 0x1A, true },
+    {  8, -20, 0x1C, true },
+    { -8,  -4, 0x1E, true },
+    {  0,  -4, 0x20, true }
+};
+
 void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left) {
     if (!renderer) return;
     (void)is_p1;
-    (void)skin_tone;
+    (void)anim_time;
+    (void)is_shooting;
 
-    /* Dynamic Floor Shadow beneath feet */
+    /* Dynamic Floor Shadow beneath player feet */
     for (int sx = -8; sx <= 8; sx++) {
         uint8_t shade = (abs(sx) >= 6) ? 1 : 2;
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    /* Select 24x40 Authentic Sprite Frame */
-    const uint8_t (*sprite)[24] = ALLSTAR_SPRITE_IDLE;
-    int jump_y_offset = 0;
-
-    if (is_shooting) {
-        sprite = ALLSTAR_SPRITE_SHOOT_APEX;
-        jump_y_offset = -12;
-    } else if (is_defending) {
-        sprite = ALLSTAR_SPRITE_DEFEND;
-    } else if (has_ball) {
-        int frame_idx = ((int)(anim_time * 6.0f)) % 2;
-        sprite = (frame_idx == 0) ? ALLSTAR_SPRITE_DRIBBLE_A : ALLSTAR_SPRITE_DRIBBLE_B;
-    } else {
-        int frame_idx = ((int)(anim_time * 6.0f)) % 2;
-        sprite = (frame_idx == 0) ? ALLSTAR_SPRITE_RUN_A : ALLSTAR_SPRITE_RUN_B;
-    }
-
-    /* Render 24x40 Sprite */
-    int top_y = y - 38 + jump_y_offset;
-    for (int r = 0; r < 40; r++) {
-        int py = top_y + r;
-        if (py < 0 || py >= 144) continue;
-        for (int c = 0; c < 24; c++) {
-            int src_c = facing_left ? (23 - c) : c;
-            uint8_t raw = sprite[r][src_c];
-            if (raw == 0) continue;
-
-            int px = x - 12 + c;
-            if (px < 0 || px >= 160) continue;
-
-            allstar_renderer_set_pixel(renderer, px, py, raw);
+    if (is_defending || !has_ball) {
+        /* Render Defender OAM Meta-Sprite */
+        for (int i = 0; i < 8; i++) {
+            int spr_x = x + (facing_left ? -P2_OAM_DEFEND[i].dx : P2_OAM_DEFEND[i].dx);
+            int spr_y = y + P2_OAM_DEFEND[i].dy;
+            bool fx = facing_left ? !P2_OAM_DEFEND[i].flip_x : P2_OAM_DEFEND[i].flip_x;
+            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, P2_OAM_DEFEND[i].tile, fx, skin_tone);
         }
-    }
-
-    /* If holding ball on court (and not shooting in air) */
-    if (has_ball && !is_shooting) {
-        int ball_x = x + (facing_left ? -10 : 10);
-        int bounce_y = y - 4 + (((int)(anim_time * 6.0f) % 2) ? 4 : -2);
-        allstar_renderer_draw_ball_ex(renderer, ball_x, bounce_y, 0, anim_time);
+    } else {
+        /* Render Offense Dribbling OAM Meta-Sprite */
+        for (int i = 0; i < 9; i++) {
+            int spr_x = x + (facing_left ? -P1_OAM_DRIBBLE[i].dx : P1_OAM_DRIBBLE[i].dx);
+            int spr_y = y + P1_OAM_DRIBBLE[i].dy;
+            bool fx = facing_left ? !P1_OAM_DRIBBLE[i].flip_x : P1_OAM_DRIBBLE[i].flip_x;
+            allstar_renderer_draw_8x16_sprite(renderer, spr_x, spr_y, P1_OAM_DRIBBLE[i].tile, fx, skin_tone);
+        }
     }
 }
 
@@ -383,3 +438,4 @@ void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t 
 void allstar_renderer_present(AllStarRenderer *renderer) {
     (void)renderer;
 }
+

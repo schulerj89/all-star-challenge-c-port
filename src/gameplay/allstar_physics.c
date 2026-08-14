@@ -9,6 +9,7 @@ void allstar_physics_init_ball(AllStarBall *ball) {
     memset(ball, 0, sizeof(AllStarBall));
 }
 
+/* Ghidra: Call_001_7f37 - Ball flight trajectory & arc dynamics */
 void allstar_physics_update_ball(AllStarBall *ball, float dt) {
     if (!ball || !ball->in_flight) return;
 
@@ -31,6 +32,7 @@ void allstar_physics_update_ball(AllStarBall *ball, float dt) {
     }
 }
 
+/* Ghidra: Call_001_7ea9 - Ball shot launch & parabolic velocity multiplier */
 void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y, float target_x, float target_y, float arc_height, int shooter_id, int point_value) {
     if (!ball) return;
     ball->x = start_x;
@@ -47,6 +49,11 @@ void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
     ball->vz = (arc_height + 0.5f * GRAVITY * flight_time * flight_time) / flight_time;
 }
 
+void allstar_physics_launch_shot(AllStarBall *ball, float start_x, float start_y, float target_x, float target_y, float arc_height, int shooter_id, int point_value) {
+    allstar_physics_shoot_ball(ball, start_x, start_y, target_x, target_y, arc_height, shooter_id, point_value);
+}
+
+/* Ghidra: Call_001_7ec4 - Rim collision & basket net detection */
 bool allstar_physics_check_basket(const AllStarBall *ball, float hoop_x, float hoop_y, float hoop_z) {
     if (!ball || !ball->in_flight) return false;
     float dx = ball->x - hoop_x;

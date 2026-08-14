@@ -204,8 +204,8 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
                                      !data->p1.has_ball && data->p2.has_ball,
                                      data->anim_timer, p1_facing_left);
 
-    /* Draw Ball in flight */
-    if (data->ball.in_flight) {
+    /* Draw Ball in flight or loose on floor */
+    if (data->ball.in_flight || (!data->p1.has_ball && !data->p2.has_ball)) {
         allstar_renderer_draw_ball_ex(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y, (int32_t)data->ball.z, data->anim_timer);
     }
 }

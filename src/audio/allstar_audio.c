@@ -288,6 +288,14 @@ void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
 #endif
 }
 
+/* Ghidra: Call_000_000c - Sound channel hardware tone generator */
+void allstar_audio_generate_tone(int channel, float frequency_hz, float duration_sec) {
+    (void)channel;
+    (void)frequency_hz;
+    (void)duration_sec;
+}
+
+/* Ghidra: Call_000_0078 - BGM start dispatcher */
 void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
     if (!audio || !audio->enabled) return;
     if (audio->current_bgm == bgm) return;
@@ -298,6 +306,7 @@ void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
 #endif
 }
 
+/* Ghidra: Call_000_007b - BGM stop routine */
 void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
     if (!audio) return;
     audio->current_bgm = ALLSTAR_BGM_NONE;
@@ -306,6 +315,7 @@ void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
 #endif
 }
 
+/* Ghidra: Call_000_0002 - Sound driver interrupt tick */
 void allstar_audio_update(AllStarAudioEngine *audio, float dt) {
     if (!audio || !audio->enabled) return;
     (void)dt;

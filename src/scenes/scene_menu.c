@@ -22,7 +22,7 @@ static void menu_init(AllStarScene *scene, AllStarGame *game) {
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     data->selected_index = 0;
     data->anim_timer = 0.0f;
-    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_MENU);
+    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
 }
 
 static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {

@@ -31,7 +31,7 @@ static void settings_init(AllStarScene *scene, AllStarGame *game) {
     data->time_limit = 0;
     data->num_throws = 0;
     data->timer = 0.0f;
-    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_MENU);
+    allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
 }
 
 static void settings_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {

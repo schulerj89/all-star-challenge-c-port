@@ -22,9 +22,9 @@ if (!(Test-Path $VcVars)) {
 }
 
 $ConsoleExePath = Join-Path $BuildDir "allstar_port.exe"
+$GameExePath = Join-Path $BuildDir "allstar_port_game.exe"
 
-$Sources = @(
-    "src\main.c",
+$CommonSources = @(
     "src\allstar_cli.c",
     "src\allstar_rom.c",
     "src\allstar_asset_pack.c",
@@ -46,27 +46,27 @@ $Sources = @(
 
 $IncludePath = Join-Path $Root "include"
 
-$ObjFiles = @()
-foreach ($src in $Sources) {
-    $srcPath = Join-Path $Root $src
-    $objName = ([System.IO.Path]::GetFileNameWithoutExtension($src) + "_" + [System.IO.Path]::GetRandomFileName().Substring(0,4) + ".obj")
-    $objPath = Join-Path $ObjDir $objName
-    $ObjFiles += $objPath
-}
-
 $CompileScript = Join-Path $BuildDir "compile.bat"
 $CompileBatchContent = @"
 @echo off
 call "$VcVars" > nul
-cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$ConsoleExePath" /Fo"$ObjDir\\" $(($Sources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib
+echo Compiling allstar_port.exe (CLI/Test runner)...
+cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$ConsoleExePath" /Fo"$ObjDir\\" "$Root\src\main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+
+echo Compiling allstar_port_game.exe (Win32 GUI Game)...
+cl.exe /nologo /W3 /O2 /MD /I "$IncludePath" /Fe"$GameExePath" /Fo"$ObjDir\\" "$Root\src\win32_game_main.c" $(($CommonSources | ForEach-Object { "`"$Root\$_`"" }) -join ' ') user32.lib gdi32.lib /link /SUBSYSTEM:WINDOWS
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 "@
 
 Set-Content -Path $CompileScript -Value $CompileBatchContent -Encoding ASCII
-Write-Host "Compiling allstar_port.exe..."
+Write-Host "Building executables..."
 & cmd.exe /c $CompileScript
 
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Build complete: $ConsoleExePath" -ForegroundColor Green
+Write-Host "Build complete:" -ForegroundColor Green
+Write-Host "  CLI:  $ConsoleExePath"
+Write-Host "  Game: $GameExePath"

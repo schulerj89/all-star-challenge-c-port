@@ -22,11 +22,14 @@ corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
-The expanded One-on-One presentation/audio manifest is **55/55 (100.00%)**.
+The expanded One-on-One presentation/audio manifest is **60/60 (100.00%)**.
 The new live-flow manifest is **18/18 (100.00%)**; it covers shot-gather
 movement, complete run/shot records, decoded command `$0C`, CPU drive/gather
 decisions, and the made-ball bounce through fade entry.
-It now covers `$2DD2->$21FA` selected-player palettes, shared gameplay body art,
+It now also covers `$347B` instrument transposition, `$702D/$6B34/$7F0A`
+phase-two dunk presentation, `$C12B/$69F5` ball/net priority, identical
+`$7FC7/$7FCB` held-shot rows, and `$C178->$067C` take-back violations. The
+earlier 55 items cover `$2DD2->$21FA` selected-player palettes, shared gameplay body art,
 `$7138` hoop-facing shots, live `$2B14/$2B88` steals, `$05A3/$0C49` fouls,
 sound commands `$04/$05/$08/$09/$0C/$0D/$0E/$0F`, focused `$3014` program
 `$0A/$0C/$0B/$02/$11/$12/$07` extraction, corrected `$6F2A` placement,
@@ -55,15 +58,15 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Reviewed Ghidra functions | 117 functions | 61 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
-| Generated Ghidra C export | 130 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed Ghidra functions | 118 functions | 62 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 131 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
 | Reviewed routine-to-C parity | 34 of 118 | 34 mappings have address-level C plus deterministic or emulator evidence; 29 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Headless Mesen trace scripts | 14 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, miss/boundary/take-back, exact rim-noise, input, shot, defense, RNG, animation, collision, and contact-rule assertions. |
+| Headless Mesen trace scripts | 15 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, take-back clearing and violation, exact rim-noise, input/dunk, shot, defense, RNG, animation, collision, and contact-rule assertions. |
 
 ### Reviewed Ghidra recovery
 
@@ -125,7 +128,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | Scoped audio behavior | Navigation command `$0F`/program `$07` and accepted-player command `$0E`/five-step program `$12` are live-traced, extracted, and integrated; data and screen art remain hardcoded/partial. |
-| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 55/55 presentation/audio | Lifecycle, possession, shooting, roster palettes, hoop-facing shots, live steals, RNG, record-boundary movement, charging/blocking presentation/audio, CPU route/contact response, defender landing, grounded OAM, rim recovery, take-back, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
+| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 60/60 presentation/audio | Lifecycle, possession, shooting/dunk phase, roster palettes, hoop-facing shots and held-ball offsets, live steals, RNG, record-boundary movement, charging/blocking/take-back presentation/audio, CPU route/contact response, defender landing, grounded OAM, score-ball/net priority, rim recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
@@ -135,7 +138,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
 | CPU AI | Yes | Scoped One-on-One behavior | The prior target/shot/steal/contest/RNG paths plus `$75CD` owner reroute/fourteenth-contact shot and defender ten-count saved-position hold are integrated; unrelated `$7170` states remain incomplete. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
-| Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net, shared player action art, ball, and shadow tiles/composition load from asset-pack v10; `$21FA` applies selected-roster palettes. Other screens retain separate presentation work. |
+| Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net and OBJ priority, shared player action art, ball, and shadow tiles/composition load from asset-pack v11; `$21FA` applies selected-roster palettes. Other screens retain separate presentation work. |
 | ROM asset extraction | Yes | One-on-One scoped | Exact player/frame/net/court/ball sources, `$050F` RLE, composition maps, endpoint validation, and runtime loading are implemented. |
 | PCM output/mixing | Yes | Not applicable to original implementation | Native platform layer |
 | ROM music/SFX sequencing | Partial | Event-level One-on-One subset | Commands `$05/$08/$09/$0C/$0D/$0E/$0F` are dispatched at traced events; programs `$0C/$0B/$02/$11/$12/$07` are extracted, but the complete `$3014` command/APU sequencer and waveform tables are not ported. |
@@ -148,7 +151,7 @@ No whole subsystem should currently be labeled 100% ROM-equivalent; the
 
 | Priority | Area | Required work for verified coverage |
 |---|---|---|
-| P0 | Four-bank Ghidra function recovery | 117 stable reviewed functions are recovered; finish remaining bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
+| P0 | Four-bank Ghidra function recovery | 118 stable reviewed functions are recovered; finish remaining bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | Complete | Settings | Session persistence, ROM value cycles, and downstream consumption are verified; full Accuracy and Free Throw mode parity remain tracked separately. |
 | Complete | One-on-One scoped rules | 50/50 gameplay requirements and 50/50 remaining-focus requirements are verified, including collision/contact rules and user-ROM-derived presentation. Other modes and frame-perfect synchronization remain separate work. |

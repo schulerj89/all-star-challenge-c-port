@@ -94,13 +94,16 @@ local function onEndFrame()
   if gameplayReached then
     print(string.format(
       "TRACE scenario=%s frame=%d A=%d B=%d owner=%02X p1_action=%02X " ..
-      "p1_new=%02X p1_held=%02X p1_phase=%02X latch=%02X ball_vz=%02X%02X",
+      "display=%02X p1_new=%02X p1_held=%02X p1_phase=%02X latch=%02X " ..
+      "ball_vxy=%02X%02X/%02X%02X ball_vz=%02X%02X",
       scenario == 1 and "A-A" or "A-B", gameplayFrames,
       ((scenario == 1 and (gameplayFrames == 10 or gameplayFrames == 20)) or
        (scenario == 2 and gameplayFrames == 10)) and 1 or 0,
       (scenario == 2 and gameplayFrames == 20) and 1 or 0,
-      read(0xFFCF), read(0xFF9D), read(0xFFAE), read(0xFFAF),
-      read(0xFFB0), read(0xC16A), read(0xC0A9), read(0xC0A8)))
+      read(0xFFCF), read(0xFF9D), read(0xFF9E), read(0xFFAE), read(0xFFAF),
+      read(0xFFB0), read(0xC16A),
+      read(0xC0A1), read(0xC0A0), read(0xC0A5), read(0xC0A4),
+      read(0xC0A9), read(0xC0A8)))
     if scenario == 1 and gameplayFrames == 10 then
       expect(read(0xFF9D) == 0x0A and read(0xFFCF) == 1 and
              read(0xFFAE) == 1 and read(0xFFAF) == 1 and
@@ -118,14 +121,20 @@ local function onEndFrame()
     elseif scenario == 2 and gameplayFrames == 21 then
       expect(read(0xFFCF) == 0 and read(0xFFB0) == 2 and
              read(0xC16A) == 0 and
-             (read(0xC0A9) ~= 0 or read(0xC0A8) ~= 0),
-             "$C16A did not expire into the phase-two launch")
+             read(0xC0A0) == 0 and read(0xC0A1) == 0 and
+             read(0xC0A4) == 0 and read(0xC0A5) == 0 and
+             read(0xC0A9) >= 0x80,
+             "$C16A did not expire into the phase-two $6B34/$7F0A dunk")
+    elseif scenario == 2 and gameplayFrames == 22 then
+      expect(read(0xFF9E) == 0x13,
+             "$6A8C:$6B34 did not install dunk display frame $13")
     end
     if scenario == 1 and gameplayFrames >= 25 then
       reloadRequested = true
     elseif scenario == 2 and gameplayFrames >= 26 and not stopping then
       stopping = true
-      print(failures == 0 and "TRACE PASSED: $702D A-A and A-B release paths" or
+      print(failures == 0 and
+            "TRACE PASSED: $702D A-A and A-B $6B34/$7F0A dunk paths" or
             string.format("TRACE FAILED: %d mismatch(es)", failures))
       emu.stop(failures == 0 and 0 or 3)
     end

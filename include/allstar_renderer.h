@@ -91,6 +91,8 @@ void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32
 void allstar_renderer_draw_court(AllStarRenderer *renderer);
 void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
                                           uint8_t net_frame);
+void allstar_renderer_draw_net_overlay_1ecc(AllStarRenderer *renderer,
+                                            uint8_t net_frame);
 /* Fixed $27C7/$27CC BGP sequence remaps the completed DMG frame. */
 void allstar_renderer_apply_dmg_bgp(AllStarRenderer *renderer,
                                     uint8_t bg_palette);

@@ -56,6 +56,8 @@ typedef struct {
     uint8_t p2_action;
     uint8_t p1_record;
     uint8_t p2_record;
+    uint8_t p1_display_frame;
+    uint8_t shot_phase;
     uint8_t cpu_state;
     uint8_t cpu_offense_stage;
     uint8_t cpu_target_x;
@@ -92,5 +94,7 @@ bool allstar_scene_one_on_one_try_test_steal(
 bool allstar_scene_one_on_one_begin_test_foul(
     AllStarScene *scene, struct AllStarGame *game,
     uint8_t violation, int offender);
+bool allstar_scene_one_on_one_set_test_take_back_required(
+    AllStarScene *scene, bool required);
 
 #endif /* ALLSTAR_SCENE_H */

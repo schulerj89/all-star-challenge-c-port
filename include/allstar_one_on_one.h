@@ -156,7 +156,8 @@ typedef struct {
 typedef enum {
     ALLSTAR_ROM_CONTACT_NONE = 0,
     ALLSTAR_ROM_CONTACT_CHARGING,
-    ALLSTAR_ROM_CONTACT_BLOCKING
+    ALLSTAR_ROM_CONTACT_BLOCKING,
+    ALLSTAR_ROM_CONTACT_DIDNT_CLEAR
 } AllStarRomContactEvent;
 
 typedef enum {

@@ -355,6 +355,16 @@ uint8_t allstar_renderer_rom_player_palette_21fa(
    to the separate 17-tile bank-3 $793F stream loaded at VRAM $9600. */
 void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
                                           uint8_t net_frame) {
+    allstar_renderer_draw_court(renderer);
+    allstar_renderer_draw_net_overlay_1ecc(renderer, net_frame);
+}
+
+/* The rest net already occupies BG cells $9849/$984A/$9869/$986A/$9889/
+   $988A before a score.  Asset-pack court tiles and net tiles come from
+   separate VRAM streams, so native composition must draw that base frame
+   explicitly as well as the three animated replacements. */
+void allstar_renderer_draw_net_overlay_1ecc(AllStarRenderer *renderer,
+                                            uint8_t net_frame) {
     static const uint8_t net_tiles[3][6] = {
         {0x61, 0x62, 0x67, 0x68, 0x69, 0x6a},
         {0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70},
@@ -364,13 +374,12 @@ void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
     const uint8_t *tiles;
     int row;
     int column;
-    allstar_renderer_draw_court(renderer);
-    if (!renderer || net_frame == 0 || net_frame > 3) return;
+    if (!renderer || net_frame > 3) return;
     pack = renderer->asset_pack;
     if (!pack || (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) == 0 ||
         pack->header.net_tile_count != ALLSTAR_NET_TILE_COUNT) return;
-    tiles = net_tiles[net_frame - 1];
+    tiles = net_tiles[net_frame == 0 ? 2 : net_frame - 1];
     for (row = 0; row < 3; row++) {
         for (column = 0; column < 2; column++) {
             allstar_renderer_draw_tile(
@@ -416,7 +425,7 @@ void allstar_renderer_rom_held_ball_7f37(
     AllStarRomHeldBallPresentation *presentation) {
     static const int8_t held_offsets[2][2][2] = {
         {{7, -2}, {10, -2}},
-        {{7, 10}, {-2, 8}}
+        {{7, -2}, {10, -2}}
     };
     uint8_t player_x;
     uint8_t ground_y;

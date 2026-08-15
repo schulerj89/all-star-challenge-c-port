@@ -862,15 +862,15 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_renderer_rom_held_ball_7f37(
             80, 130, 0x13, 0x0d, false, &held_ball);
         if (!held_ball.visible || held_ball.ball_x != 0x4f ||
-            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x1a ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
             held_ball.behind_owner) {
             fprintf(stderr, "[Test] $7F37 unflipped held-ball placement was incorrect\n");
             return 1;
         }
         allstar_renderer_rom_held_ball_7f37(
             84, 130, 0x13, 0x0d, true, &held_ball);
-        if (!held_ball.visible || held_ball.ball_x != 0x4a ||
-            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x1c ||
+        if (!held_ball.visible || held_ball.ball_x != 0x56 ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
             !held_ball.behind_owner) {
             fprintf(stderr, "[Test] $7F37 flipped/rear held-ball placement was incorrect\n");
             return 1;
@@ -1606,6 +1606,13 @@ int allstar_cli_test_one_on_one_shooting(void) {
         fprintf(stderr, "[Test] $05A3 charging popup did not begin correctly\n");
         return 1;
     }
+    allstar_one_on_one_foul_presentation_begin_05a3(
+        &foul_presentation, ALLSTAR_ROM_CONTACT_DIDNT_CLEAR, 1);
+    if (!foul_presentation.active ||
+        foul_presentation.violation != ALLSTAR_ROM_CONTACT_DIDNT_CLEAR) {
+        fprintf(stderr, "[Test] $2C50/$067C take-back popup was rejected\n");
+        return 1;
+    }
     for (frame = 1; frame <= ALLSTAR_ROM_FOUL_COMPLETE_FRAME; frame++) {
         events = allstar_one_on_one_foul_presentation_tick_0c49(
             &foul_presentation, ALLSTAR_PHYSICS_STEP_SECONDS);
@@ -2309,6 +2316,66 @@ int allstar_cli_test_one_on_one_presentation(void) {
         return 1;
     }
 
+    /* $702D held-B arms $C16A; the next update reaches phase two and
+       $6A8C:$6B34 forces extracted display frame $13 for the dunk/drop. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 104.0f, 132.0f, 136.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_B);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (debug.shot_phase != 2 || debug.p1_display_frame != 0x13 ||
+        !debug.ball_in_flight || debug.p1_has_ball) {
+        fprintf(stderr,
+                "[Test] $702D/$C16A/$6B34 dunk pose did not survive "
+                "$6A8C (phase=%u display=$%02X flight=%d)\n",
+                debug.shot_phase, debug.p1_display_frame,
+                debug.ball_in_flight ? 1 : 0);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    /* $7C58 latches an uncleared changed possession in $C178; the next
+       $2C50 update must show $067C and restart opposite the offender. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 112.0f, 132.0f, 136.0f);
+    allstar_scene_one_on_one_set_test_take_back_required(
+        game.active_scene, true);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (!debug.foul_presentation_active ||
+        debug.foul_violation != ALLSTAR_ROM_CONTACT_DIDNT_CLEAR ||
+        game.audio.last_sfx != ALLSTAR_SFX_WHISTLE) {
+        fprintf(stderr,
+                "[Test] $7C58->$C178->$2C50 take-back violation was absent\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    for (frame = 0; frame < ALLSTAR_ROM_FOUL_RESET_FRAME; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (!debug.p2_has_ball || debug.p1_has_ball) {
+        fprintf(stderr,
+                "[Test] DIDN'T CLEAR BALL did not turn possession over\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
     /* Scene-level bank-1 $72BF->$72EA->$732C->$755D->$756C proof. */
     if (!allstar_scene_one_on_one_set_test_possession(
             game.active_scene, &game, 2)) {
@@ -2771,6 +2838,7 @@ int allstar_cli_dump_screenshots(const char *out_dir,
         game.active_scene, 0x5300, 0x5e00, 0x370f, 0, 0, 0, 1);
     allstar_input_update(&game.input, 0);
     allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path),
              "%s\\04q_one_on_one_rim_bounce.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
@@ -2841,6 +2909,78 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     allstar_game_tick(&game, 0.0f);
     snprintf(path, sizeof(path),
              "%s\\04w_one_on_one_blocking_foul.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4x. $702D A-then-B reaches phase two; $6A8C:$6B34 uses extracted
+       display frame $13 and $7F0A drops the ball vertically for the dunk. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 104.0f, 132.0f, 136.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_B);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    /* The cartridge keeps the prior display for the release update; the
+       next $6A8C record load applies phase-two display $13. */
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04x_one_on_one_dunk_phase2.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4xa. At score +20, $C12B is still nonzero and $6945 gives the ball
+       OBJ priority bit 7. Capture it behind the first bent-net BG frame. */
+    {
+        AllStarOneOnOneDebugState score_debug;
+        game.selected_player_1 = 2;
+        srand(1);
+        allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+        allstar_input_update(&game.input, ALLSTAR_BTN_A);
+        allstar_game_tick(&game, 0.0f);
+        allstar_input_update(&game.input, 0);
+        for (int i = 0; i < 25; i++)
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        allstar_input_update(&game.input, ALLSTAR_BTN_A);
+        allstar_game_tick(&game, 0.0f);
+        allstar_input_update(&game.input, 0);
+        for (int i = 0; i < 100; i++) {
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+            allstar_scene_one_on_one_get_debug_state(
+                game.active_scene, &score_debug);
+            if (score_debug.score_presentation_active) break;
+        }
+        for (int i = 0; i < 7; i++)
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        snprintf(path, sizeof(path),
+                 "%s\\04xa_one_on_one_score_ball_behind_net.bmp", out_dir);
+        save_bmp_file(path, game.renderer->pixels,
+                      ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    }
+
+    /* 4y. Both $7FC7 and $7FCB held tables are {+7,-2}/{+10,-2}; this
+       captures the corrected action-$12 left-side shot ball attachment. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 20.0f, 144.0f, 132.0f, 112.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04y_one_on_one_left_shot_ball.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4z. $7C58->$C178->$2C50 selects text pointer $067C. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_begin_test_foul(
+        game.active_scene, &game, ALLSTAR_ROM_CONTACT_DIDNT_CLEAR, 1);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path),
+             "%s\\04z_one_on_one_didnt_clear_ball.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 

@@ -357,6 +357,7 @@ static bool decode_rom_square_stream(const AllStarRom *rom,
 
     while (cursor < rom->size && rom->data[cursor] != 0xff) {
         uint8_t note;
+        uint8_t effective_note;
         uint8_t duration_code;
         uint8_t duration;
         uint16_t base_frequency;
@@ -364,12 +365,17 @@ static bool decode_rom_square_stream(const AllStarRom *rom,
         if (cursor + 1 >= rom->size) return false;
         note = rom->data[cursor++];
         duration_code = rom->data[cursor++];
-        if ((size_t)note + 0x31c6u >= rom->size ||
-            (size_t)note + 0x3159u >= rom->size ||
+        /* $347B adds the instrument descriptor's signed/byte pitch base
+           from +$01 before indexing the two frequency-table halves.  The
+           command-$0F roster-cycle descriptor $8F contributes $0A, so its
+           stream note $47 resolves as table entry $51 (frequency $07B1). */
+        effective_note = (uint8_t)(note + rom->data[descriptor + 1]);
+        if ((size_t)effective_note + 0x31c6u >= rom->size ||
+            (size_t)effective_note + 0x3159u >= rom->size ||
             (size_t)duration_code + 0x312bu >= rom->size) return false;
         duration = rom->data[0x312b + duration_code];
-        base_frequency = (uint16_t)(rom->data[0x31c6 + note] |
-            ((uint16_t)rom->data[0x3159 + note] << 8));
+        base_frequency = (uint16_t)(rom->data[0x31c6 + effective_note] |
+            ((uint16_t)rom->data[0x3159 + effective_note] << 8));
         if (duration == 0 || output_frame + duration >
                 ALLSTAR_ROM_SFX_MAX_FRAMES) return false;
         for (local_frame = 0; local_frame < duration; local_frame++) {
@@ -520,7 +526,7 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[3].square1_sweep != 0x08 ||
         pack->rom_sfx_programs[3].square1_duty_length != 0x88 ||
         pack->rom_sfx_programs[3].square1_envelope != 0xf1 ||
-        pack->rom_sfx_programs[3].frames[0].square1_frequency != 0x0773 ||
+        pack->rom_sfx_programs[3].frames[0].square1_frequency != 0x07b1 ||
         pack->rom_sfx_programs[4].command != 0x0e ||
         pack->rom_sfx_programs[4].program_id != 0x12 ||
         pack->rom_sfx_programs[4].priority_frames != 0x32 ||
@@ -611,7 +617,7 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         navigation->priority_frames == 0x19 &&
         navigation->frame_count == 24 &&
         navigation->stream_pointer_1 == 0x3ebc &&
-        navigation->frames[0].square1_frequency == 0x0773 &&
+        navigation->frames[0].square1_frequency == 0x07b1 &&
         confirm->command == 0x0e && confirm->program_id == 0x12 &&
         confirm->priority_frames == 0x32 && confirm->frame_count == 48 &&
         confirm->stream_pointer_1 == 0x3fa6 &&

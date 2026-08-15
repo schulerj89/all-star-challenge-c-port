@@ -307,8 +307,13 @@ local function onEndFrame()
       "command $0D did not execute sound program $11 with APU writes")
     expect(audioCaptures[0x0F] ~= nil and
            audioCaptures[0x0F].program == 0x87 and
-           audioCaptures[0x0F].priorityFrames == 0x19,
-      "command $0F did not execute roster-navigation program $07")
+           audioCaptures[0x0F].priorityFrames == 0x19 and
+           audioContains(audioCaptures[0x0F], 4, 0xFF10, 0x08) and
+           audioContains(audioCaptures[0x0F], 4, 0xFF11, 0x88) and
+           audioContains(audioCaptures[0x0F], 4, 0xFF12, 0xF1) and
+           audioContains(audioCaptures[0x0F], 4, 0xFF13, 0xB1) and
+           audioContains(audioCaptures[0x0F], 4, 0xFF14, 0xBF),
+      "command $0F did not execute transposed $07B1 navigation pitch")
     expect(audioCaptures[0x0E] ~= nil and
            audioCaptures[0x0E].program == 0x92 and
            audioCaptures[0x0E].priorityFrames == 0x32,

@@ -1,13 +1,14 @@
 # One-on-One asset and OAM parity
 
-## Asset-pack v10 layout
+## Asset-pack v11 layout
 
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-10 pack. Version 10 also appends the focused
+small composition maps in a version-11 pack. Version 11 also appends the focused
 One-on-One `$04/$05/$09/$0D/$0C/$0F/$0E` audio programs; the graphics payload itself
-is unchanged.
+is unchanged from v10. The v11 decoder also applies `$347B`'s per-instrument
+descriptor `+$01` note transpose before frequency-table lookup.
 
 | Asset | ROM source | Decoded result |
 |---|---|---:|
@@ -54,8 +55,9 @@ the phase moves between halves by four and aligned OAM X shifts by four. Ball
 OAM Y is `ball_y-ball_z`; shadow Y is `ball_y`.
 
 For shot gather and release, `$7F37` supplies those inputs. Its exact `$7FC7`
-tables are `[+7,-2],[+10,-2]` for action `$0A` and `[+7,+10],[-2,+8]`
-for the other shot family. Display frames `$00` and `$0C` suppress the
+and `$7FCB` tables are both `[+7,-2],[+10,-2]`; the former native
+`[+7,+10],[-2,+8]` decode for action `$12` was a row/column error. Display
+frames `$00` and `$0C` suppress the
 separate ball because the player frame already includes it.
 
 During ordinary held-ball movement, `$6F2A` runs after `$7F37` and is the

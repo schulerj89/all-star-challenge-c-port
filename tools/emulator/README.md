@@ -9,7 +9,9 @@ The script captures a gameplay savestate and checks both release sequences:
 - A then A: the first A enters action `$0A`; the second new-A bit releases
   directly from shot phase `0`.
 - A then B: held B sets phase `1` and `$C16A=1`; the following player update
-  clears the latch, advances to phase `2`, and releases.
+  clears the latch, advances to phase `2`, and releases through `$7F0A` with
+  zero planar velocity. The next `$6A8C:$6B34` record load must select the
+  extracted dunk/drop display frame `$13`.
 
 Run it with a valid user-supplied ROM (the ROM is never copied into the repo):
 
@@ -25,7 +27,8 @@ exit $process.ExitCode
 
 Exit code `0` and the final `TRACE PASSED` line are required. The assertions
 cover `$FFAE` new input, `$FFAF` held input, player action/shot phase,
-possession `$FFCF`, release latch `$C16A`, and nonzero ball vertical velocity.
+possession `$FFCF`, release latch `$C16A`, zero planar velocity, negative
+vertical velocity, and display frame `$13`.
 
 `trace_one_on_one_defense.lua` follows the same boot/menu route, then injects
 deterministic native contact states at the reviewed routine boundaries. It
@@ -95,6 +98,12 @@ and command `$05` at `+65`. Require exit code `0` and
 `$1CED->$1D8C/$1F4D->$2AE2->$2B88`, then bank-1 `$78E9/$796C`. It asserts
 the outer-boundary velocity stop, changed-owner `$FFD1` recovery, CPU route,
 inside-region persistence, and outside-region take-back clearance.
+
+`trace_one_on_one_take_back_violation.lua` seeds the state written by bank-1
+`$7C58` when a changed owner tries to shoot before clearing. It proves the
+next fixed-bank update takes `$C178->$2C50->$067C`, dispatches `$05A3` command
+`$04`, reaches `$20F7` at `+161`, and resumes at `+204` with possession
+awarded to the opposite player.
 
 `trace_one_on_one_rim_audio.lua` forces the exact `$53/$5E/$37` rim cell and
 follows `$1CED->$1D8C->$1F5F->$2F88->$3014`. It asserts cooldown `$08`,

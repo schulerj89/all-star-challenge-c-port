@@ -891,7 +891,8 @@ void allstar_one_on_one_foul_presentation_begin_05a3(
         int offender) {
     if (!presentation ||
         (violation != ALLSTAR_ROM_CONTACT_CHARGING &&
-         violation != ALLSTAR_ROM_CONTACT_BLOCKING) ||
+         violation != ALLSTAR_ROM_CONTACT_BLOCKING &&
+         violation != ALLSTAR_ROM_CONTACT_DIDNT_CLEAR) ||
         (offender != 1 && offender != 2)) return;
     memset(presentation, 0, sizeof(*presentation));
     presentation->active = true;

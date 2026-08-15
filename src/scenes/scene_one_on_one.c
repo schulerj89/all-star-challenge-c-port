@@ -16,6 +16,8 @@ typedef struct {
     AllStarOneOnOneRecoveryState recovery;
     float p1_shot_animation_clock;
     float p2_shot_animation_clock;
+    uint8_t p1_shot_action;
+    uint8_t p2_shot_action;
     float anim_timer;
 } SceneOneOnOneData;
 
@@ -36,6 +38,8 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     data->p2.is_jumping = false;
     data->p1_shot_animation_clock = 0.0f;
     data->p2_shot_animation_clock = 0.0f;
+    data->p1_shot_action = 0;
+    data->p2_shot_action = 0;
     allstar_one_on_one_shot_reset(&data->shot_attempt);
     allstar_physics_init_ball(&data->ball);
 }
@@ -84,11 +88,13 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         release_y += (float)release_offset.ground_y_offset;
     }
     if (shooter == 1) {
+        data->p1_shot_action = shot_action;
         if (data->p1_shot_animation_clock <= 0.0f) {
             data->p1_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
         }
     } else {
+        data->p2_shot_action = shot_action;
         if (data->p2_shot_animation_clock <= 0.0f) {
             data->p2_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
@@ -105,19 +111,39 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
 static void one_on_one_update_shot_animations(SceneOneOnOneData *data,
                                                float dt) {
     if (data->p1_shot_animation_clock > 0.0f) {
+        uint16_t elapsed_frames;
         data->p1_shot_animation_clock -= dt;
         if (data->p1_shot_animation_clock <= 0.0f) {
             data->p1_shot_animation_clock = 0.0f;
             data->p1.is_shooting = false;
             data->p1.is_jumping = false;
+            data->p1.anim_frame = 0;
+            data->p1_shot_action = 0;
+        } else {
+            elapsed_frames = (uint16_t)(
+                (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
+                 data->p1_shot_animation_clock) * 60.0f);
+            allstar_one_on_one_rom_shot_animation_frame(
+                data->p1_shot_action, 0, elapsed_frames,
+                &data->p1.anim_frame);
         }
     }
     if (data->p2_shot_animation_clock > 0.0f) {
+        uint16_t elapsed_frames;
         data->p2_shot_animation_clock -= dt;
         if (data->p2_shot_animation_clock <= 0.0f) {
             data->p2_shot_animation_clock = 0.0f;
             data->p2.is_shooting = false;
             data->p2.is_jumping = false;
+            data->p2.anim_frame = 0;
+            data->p2_shot_action = 0;
+        } else {
+            elapsed_frames = (uint16_t)(
+                (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
+                 data->p2_shot_animation_clock) * 60.0f);
+            allstar_one_on_one_rom_shot_animation_frame(
+                data->p2_shot_action, 0, elapsed_frames,
+                &data->p2.anim_frame);
         }
     }
 }
@@ -254,10 +280,16 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         uint32_t shot_events = allstar_one_on_one_shot_press(
             &data->shot_attempt, 1);
         if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER) {
+            uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
+                data->p1.x, data->p1.y);
             data->p1.is_jumping = true;
             data->p1.is_shooting = true;
+            data->p1_shot_action = shot_variant == 1
+                ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
             data->p1_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+            allstar_one_on_one_rom_shot_animation_frame(
+                data->p1_shot_action, 1, 0, &data->p1.anim_frame);
         } else if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
             one_on_one_launch_shot(data, game, 1);
             allstar_one_on_one_shot_reset(&data->shot_attempt);

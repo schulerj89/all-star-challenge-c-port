@@ -129,6 +129,53 @@ bool allstar_one_on_one_rom_release_offset(
     return true;
 }
 
+/* Bank 1 $6A8C record advancement. Actions $0A and $12 share twelve
+   duration records totaling 67 frames; $0A ends on display frame $0C,
+   while $12 remains on $0B. Active shot phases override the record frame
+   with $12, $13, or $14 exactly as $6B34-$6B5E does. */
+bool allstar_one_on_one_rom_shot_animation_frame(
+    uint8_t action,
+    uint8_t shot_phase,
+    uint16_t elapsed_frames,
+    uint8_t *display_frame) {
+    static const uint8_t durations[12] = {
+        6, 6, 6, 6, 6, 6, 1, 6, 6, 6, 6, 6
+    };
+    static const uint8_t frames_a[12] = {
+        0x08, 0x09, 0x09, 0x09, 0x09, 0x0a,
+        0x0a, 0x0b, 0x0b, 0x0b, 0x0b, 0x0c
+    };
+    static const uint8_t frames_b[12] = {
+        0x08, 0x09, 0x09, 0x09, 0x09, 0x0a,
+        0x0a, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b
+    };
+    const uint8_t *frames;
+    uint16_t record_start = 0;
+    size_t record;
+
+    if (!display_frame || elapsed_frames >=
+            ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_FRAMES || shot_phase > 3) {
+        return false;
+    }
+    if (action == ALLSTAR_ROM_SHOT_ACTION_A) frames = frames_a;
+    else if (action == ALLSTAR_ROM_SHOT_ACTION_B) frames = frames_b;
+    else return false;
+
+    if (shot_phase != 0) {
+        *display_frame = (uint8_t)(0x12 + shot_phase - 1);
+        return true;
+    }
+
+    for (record = 0; record < 12; record++) {
+        if (elapsed_frames < record_start + durations[record]) {
+            *display_frame = frames[record];
+            return true;
+        }
+        record_start = (uint16_t)(record_start + durations[record]);
+    }
+    return false;
+}
+
 static bool allstar_one_on_one_rom_position_in_table(
     uint8_t player_x,
     uint8_t player_y,

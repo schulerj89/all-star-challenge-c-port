@@ -127,6 +127,11 @@ bool allstar_one_on_one_rom_release_offset(
     uint8_t shot_variant,
     bool facing_left,
     AllStarOneOnOneReleaseOffset *offset);
+bool allstar_one_on_one_rom_shot_animation_frame(
+    uint8_t action,
+    uint8_t shot_phase,
+    uint16_t elapsed_frames,
+    uint8_t *display_frame);
 uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
                                             float player_ground_y);
 bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,

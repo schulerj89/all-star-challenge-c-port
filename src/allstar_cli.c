@@ -561,6 +561,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
     AllStarGame game;
     uint32_t events;
     AllStarOneOnOneReleaseOffset release;
+    uint8_t animation_frame;
     int frame;
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
@@ -635,6 +636,39 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_one_on_one_rom_release_offset(
             ALLSTAR_ROM_SHOT_ACTION_A, 3, 0, false, &release)) {
         fprintf(stderr, "[Test] $7F37 release-offset table mapping was incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 0, &animation_frame) ||
+        animation_frame != 0x08 ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 5, &animation_frame) ||
+        animation_frame != 0x08 ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 6, &animation_frame) ||
+        animation_frame != 0x09 ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 36, &animation_frame) ||
+        animation_frame != 0x0a ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 61, &animation_frame) ||
+        animation_frame != 0x0c ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_B, 0, 66, &animation_frame) ||
+        animation_frame != 0x0b ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 1, 0, &animation_frame) ||
+        animation_frame != 0x12 ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 2, 0, &animation_frame) ||
+        animation_frame != 0x13 ||
+        !allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 3, 0, &animation_frame) ||
+        animation_frame != 0x14 ||
+        allstar_one_on_one_rom_shot_animation_frame(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 67, &animation_frame)) {
+        fprintf(stderr, "[Test] $6A8C shot animation record sequence was incorrect\n");
         return 1;
     }
 

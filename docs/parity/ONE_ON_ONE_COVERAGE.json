@@ -38,8 +38,8 @@
     {"id":"shooting.gather_input_702d","group":"shooting","status":"partial","note":"Raw player input-bit meanings still need trace confirmation."},
     {"id":"shooting.release_input_702d","group":"shooting","status":"partial","note":"Native uses a provisional second-press window."},
     {"id":"shooting.traveling_timing","group":"shooting","status":"partial","note":"Rule exists; exact landing frame is not traced."},
-    {"id":"shooting.animation_duration_6945","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
-    {"id":"shooting.animation_frames_6945","group":"shooting","status":"partial","note":"Renderer does not consume the recovered per-record frame sequence."},
+    {"id":"shooting.animation_duration_6a8c","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.animation_frames_6a8c","group":"shooting","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.jump_height_7f37","group":"shooting","status":"partial","note":"Player field +$05 is not represented in the release height."},
     {"id":"shooting.normal_trajectory_7ea9","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
     {"id":"shooting.alternate_trajectory_7c58","group":"shooting","status":"unmapped","note":"The 64-frame <<2 class and launch table selectors remain unclassified."},
@@ -67,6 +67,7 @@
   "history": [
     {"date":"2026-08-14","verified":25,"total":50,"percent":50.0,"note":"Reconstructed e9751ca checkpoint before position-derived variants and complete pickup gating."},
     {"date":"2026-08-14","verified":30,"total":50,"percent":60.0,"note":"Position-derived shot variant, normalized coordinates, first-contact/height recovery, player priority, and 20-frame cooldown."},
-    {"date":"2026-08-14","verified":31,"total":50,"percent":62.0,"note":"$7BE8 now executes exact 8.8 gravity, low-height planar friction, and integration order."}
+    {"date":"2026-08-14","verified":31,"total":50,"percent":62.0,"note":"$7BE8 now executes exact 8.8 gravity, low-height planar friction, and integration order."},
+    {"date":"2026-08-14","verified":32,"total":50,"percent":64.0,"note":"$6A8C action $0A/$12 record durations, display frames, and phase overrides are represented in native player state."}
   ]
 }

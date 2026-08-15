@@ -57,7 +57,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             data->p2_cursor = 0; /* Reset back to first index player */
             data->timer = 0.0f;
 
-            if (game->selected_mode == 0 || game->selected_mode == 3 || game->selected_mode == 4) {
+            if (allstar_game_mode_requires_opponent(game->selected_mode)) {
                 data->state = ROSTER_STATE_SPLASH_OPPONENT;
             } else {
                 data->state = ROSTER_STATE_MATCHUP_VS;
@@ -90,14 +90,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
         if (data->timer >= 1.5f ||
             allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
             allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-            switch (game->selected_mode) {
-                case 0: allstar_game_change_scene(game, ALLSTAR_SCENE_ONE_ON_ONE); break;
-                case 1: allstar_game_change_scene(game, ALLSTAR_SCENE_THREE_POINT); break;
-                case 2: allstar_game_change_scene(game, ALLSTAR_SCENE_FREE_THROW); break;
-                case 3: allstar_game_change_scene(game, ALLSTAR_SCENE_HORSE); break;
-                case 4: allstar_game_change_scene(game, ALLSTAR_SCENE_TOURNAMENT); break;
-                default: allstar_game_change_scene(game, ALLSTAR_SCENE_ONE_ON_ONE); break;
-            }
+            allstar_game_change_scene(game, allstar_game_mode_scene(game->selected_mode));
         }
     }
 }

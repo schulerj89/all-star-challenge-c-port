@@ -91,7 +91,7 @@ These figures are an analysis queue, not a function count. Without code/data map
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
-Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **6/25 (24.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)**; verified gameplay parity is still **0/11 (0.00%)**.
+Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **8/25 (32.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **2/11 (18.18%)**.
 
 ## 4. Current Native Architecture
 
@@ -101,6 +101,7 @@ Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.j
 | `src/scenes/` | Intro, menu, settings, roster, and game-mode scenes | Broad scaffolding; most game-mode rules are partial. |
 | `src/gameplay/allstar_physics.c` | Floating-point projectile and basket-radius check | Prototype substitute for ROM fixed-point physics. |
 | `src/gameplay/allstar_ai.c` | Six-state generic CPU controller | Prototype substitute for ROM player/CPU state machines. |
+| `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, result hold, overtime, and completion | High-level lifecycle follows reviewed ROM control flow; detailed rules are separate. |
 | `src/allstar_renderer.c` | Software pixels, tiles, court, players, and ball | Functional; several assets are compiled headers rather than asset-pack data. |
 | `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Functional mixer; ROM sequencer and most sound events are missing. |
 | `src/allstar_asset_pack.c` | Container serialization and basic tile decoding | Partial extraction pipeline. |
@@ -122,14 +123,14 @@ Input is updated by the Win32 host before this call.
 
 | Flow or mode | Current native coverage | Important missing behavior |
 |---|---|---|
-| Title and menu | Partial | The 1P/2P choice is not persisted. Mode indices 1–3 route to the wrong scenes. |
+| Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | UI only | Play-to, difficulty, winners-outs, time, and attempt count are discarded on scene change. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Prototype | Match end, score target, shot-clock turnover, steals, blocks, collision, rule options, and results flow. |
+| One-on-One | Lifecycle verified | Steals, blocks, collision, contested shots, rebound rules, winners-outs, and difficulty behavior remain. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Missing/misidentified | Current `scene_three_point.c` is a generic five-rack contest and is not routed from the Accuracy option. |
-| Tournament | Display prototype | Winner return, match advancement, round advancement, bracket mutation, and championship result. |
+| Tournament | Partial | One-on-One winner return and bracket advancement work; full bracket presentation and championship parity remain unverified. |
 | Two-player | Missing | Second input stream and two-human rules. Serial hardware transport is outside the native-port requirement. |
 
 ## 6. Audio Status
@@ -151,6 +152,8 @@ The native port currently loads three BGM WAV files and two menu SFX WAV files. 
 | `--rom-test` | Header parses and its header checksum is valid | Correct bank mapping or gameplay extraction. |
 | `--test-roster` | Hardcoded roster count and two selected entries | ROM-derived roster fidelity. |
 | `--test-physics` | A projectile can be initialized and advanced | ROM trajectory, rim interaction, or scoring parity. |
+| `--test-mode-routing` | All five ROM menu IDs reach the intended native scenes | Rules within those scenes. |
+| `--test-one-on-one-lifecycle` | Endings, shot-clock turnover, overtime, result dismissal, exit, and tournament return | Detailed rules, physics, AI, or frame parity. |
 | `--test-headless-frames` | Seven scenes can tick and draw without crashing | Input flow, rules, results, visual parity, or completion. |
 
 ### Required parity layers

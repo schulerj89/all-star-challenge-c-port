@@ -19,6 +19,7 @@ set(ALLSTAR_SOURCES
     src/allstar_game.c
     src/gameplay/allstar_physics.c
     src/gameplay/allstar_ai.c
+    src/gameplay/allstar_one_on_one.c
     src/audio/allstar_audio.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c

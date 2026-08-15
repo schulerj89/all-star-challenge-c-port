@@ -66,7 +66,9 @@
       "id": "behavior.mode_routing",
       "group": "gameplay",
       "description": "Every menu item routes to the correct native mode.",
-      "status": "identified"
+      "status": "verified",
+      "evidence": ["docs/parity/MODE_ROUTING.md", "src/allstar_game.c", "src/scenes/scene_roster_select.c"],
+      "verification_command": ".\\build\\allstar_port.exe --test-mode-routing"
     },
     {
       "id": "behavior.settings",
@@ -77,8 +79,10 @@
     {
       "id": "behavior.one_on_one_lifecycle",
       "group": "gameplay",
-      "description": "One-on-One has verified start, play, result, replay/exit, and tournament-return flow.",
-      "status": "scaffolded"
+      "description": "One-on-One has verified start, play, result dismissal/exit, overtime, and tournament-return flow.",
+      "status": "verified",
+      "evidence": ["docs/parity/ONE_ON_ONE_LIFECYCLE.md", "include/allstar_one_on_one.h", "src/gameplay/allstar_one_on_one.c", "src/scenes/scene_one_on_one.c"],
+      "verification_command": ".\\build\\allstar_port.exe --test-one-on-one-lifecycle"
     },
     {
       "id": "behavior.one_on_one_rules",
@@ -192,6 +196,13 @@
       "total": 25,
       "percent": 24.0,
       "note": "Recovered and decompiled 83 reviewed bank-aware functions and added explicit C-counterpart status."
+    },
+    {
+      "date": "2026-08-14",
+      "verified": 8,
+      "total": 25,
+      "percent": 32.0,
+      "note": "Verified five-mode routing and the ROM-backed One-on-One lifecycle, including overtime, result exit, and tournament winner return."
     }
   ]
 }

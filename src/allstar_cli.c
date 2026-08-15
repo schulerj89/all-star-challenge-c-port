@@ -61,6 +61,8 @@ static void print_usage(const char *prog_name) {
     printf("  --dump-screenshots <out_dir>       Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
+    printf("  --test-mode-routing                Verify all ROM menu IDs route correctly\n");
+    printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
     printf("  --help                             Show this help message\n");
@@ -161,6 +163,178 @@ int allstar_cli_test_physics(void) {
     }
 
     printf("[Test] PASSED: Ball trajectory physics test (final z=%.1f)\n", ball.z);
+    return 0;
+}
+
+int allstar_cli_test_mode_routing(void) {
+    static const struct {
+        AllStarGameMode mode;
+        const char *name;
+        AllStarSceneId scene_id;
+        bool requires_opponent;
+    } expected[ALLSTAR_MODE_COUNT] = {
+        { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true  },
+        { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false },
+        { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       false },
+        { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true  },
+        { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true  }
+    };
+
+    printf("[Test] Running ROM Menu Mode Routing Parity Tests...\n");
+
+    AllStarGame game;
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing game for mode routing\n");
+        return 1;
+    }
+
+    for (uint32_t menu_index = 0; menu_index < ALLSTAR_MODE_COUNT; menu_index++) {
+        AllStarGameMode mode = allstar_game_mode_from_menu_index(menu_index);
+        const AllStarSceneId scene_id = allstar_game_mode_scene(mode);
+        const bool requires_opponent = allstar_game_mode_requires_opponent(mode);
+        const char *name = allstar_game_mode_name(mode);
+
+        if (mode != expected[menu_index].mode ||
+            scene_id != expected[menu_index].scene_id ||
+            requires_opponent != expected[menu_index].requires_opponent ||
+            strcmp(name, expected[menu_index].name) != 0) {
+            fprintf(stderr,
+                    "[Test] Mode route %u mismatch: mode=%d name=%s scene=%d opponent=%d\n",
+                    menu_index, (int)mode, name, (int)scene_id, requires_opponent ? 1 : 0);
+            allstar_game_shutdown(&game);
+            return 1;
+        }
+
+        allstar_game_change_scene(&game, scene_id);
+        if (!game.active_scene || game.active_scene->id != scene_id) {
+            fprintf(stderr, "[Test] Mode route %u did not create scene %d\n",
+                    menu_index, (int)scene_id);
+            allstar_game_shutdown(&game);
+            return 1;
+        }
+    }
+
+    if (allstar_game_mode_from_menu_index(ALLSTAR_MODE_COUNT) != ALLSTAR_MODE_ONE_ON_ONE ||
+        allstar_game_mode_scene((AllStarGameMode)ALLSTAR_MODE_COUNT) != ALLSTAR_SCENE_ONE_ON_ONE) {
+        fprintf(stderr, "[Test] Invalid mode routing did not use the safe One-on-One fallback\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: All 5 ROM menu IDs route to the intended native scenes\n");
+    return 0;
+}
+
+int allstar_cli_test_one_on_one_lifecycle(void) {
+    AllStarOneOnOneMatch match;
+    uint32_t events;
+    AllStarGame game;
+    uint32_t tournament_p1;
+    uint32_t tournament_p2;
+
+    printf("[Test] Running One-on-One Lifecycle Parity Tests...\n");
+
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0);
+    events = allstar_one_on_one_match_tick(&match, 24.0f);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_SHOT_CLOCK) ||
+        match.p1_possession || match.shot_clock != 24.0f) {
+        fprintf(stderr, "[Test] Shot-clock turnover did not switch possession\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0);
+    allstar_one_on_one_match_add_score(&match, 1, 2);
+    allstar_one_on_one_match_add_score(&match, 2, 2);
+    events = allstar_one_on_one_match_tick(&match, 1.0f);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) ||
+        match.phase != ALLSTAR_ONE_ON_ONE_RESULT || match.winner != 0) {
+        fprintf(stderr, "[Test] Tied regulation did not enter the result phase\n");
+        return 1;
+    }
+    events = allstar_one_on_one_match_dismiss_result(&match);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME) ||
+        match.phase != ALLSTAR_ONE_ON_ONE_PLAYING || match.period != 2 ||
+        match.p1_score != 2 || match.p2_score != 2) {
+        fprintf(stderr, "[Test] Tied result did not preserve score into overtime\n");
+        return 1;
+    }
+    allstar_one_on_one_match_add_score(&match, 1, 2);
+    events = allstar_one_on_one_match_tick(&match, 1.0f);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) || match.winner != 1) {
+        fprintf(stderr, "[Test] Overtime winner was not detected\n");
+        return 1;
+    }
+    events = allstar_one_on_one_match_dismiss_result(&match);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE) ||
+        match.phase != ALLSTAR_ONE_ON_ONE_COMPLETE) {
+        fprintf(stderr, "[Test] Winning result did not complete the match\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0);
+    allstar_one_on_one_match_add_score(&match, 2, 2);
+    allstar_one_on_one_match_tick(&match, 1.0f);
+    events = allstar_one_on_one_match_tick(&match, ALLSTAR_ONE_ON_ONE_RESULT_SECONDS);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE) || match.winner != 2) {
+        fprintf(stderr, "[Test] Result hold did not auto-complete after 960 frames\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 3);
+    if (allstar_one_on_one_match_add_score(&match, 1, 2) != ALLSTAR_ONE_ON_ONE_EVENT_NONE ||
+        !(allstar_one_on_one_match_add_score(&match, 1, 1) & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) ||
+        match.end_reason != ALLSTAR_ONE_ON_ONE_END_SCORE || match.winner != 1) {
+        fprintf(stderr, "[Test] Configured play-to ending did not trigger at the target score\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing game for lifecycle routing\n");
+        return 1;
+    }
+    game.selected_mode = ALLSTAR_MODE_TOURNAMENT;
+    allstar_tournament_reset(&game.tournament);
+    if (!allstar_tournament_get_current_match(&game.tournament, &tournament_p1, &tournament_p2)) {
+        fprintf(stderr, "[Test] Tournament did not expose its opening match\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    game.selected_player_1 = tournament_p1;
+    game.selected_player_2 = tournament_p2;
+    game.tournament.match_in_progress = true;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    game.one_on_one.p1_score = 2;
+    game.one_on_one.game_clock = 0.01f;
+    game.input.buttons_pressed = 0;
+    allstar_game_tick(&game, 0.02f);
+    game.input.buttons_pressed = ALLSTAR_BTN_A;
+    allstar_game_tick(&game, 0.0f);
+    if (!game.active_scene || game.active_scene->id != ALLSTAR_SCENE_TOURNAMENT ||
+        game.tournament.current_match != 1 ||
+        game.tournament.semifinalists[0] != tournament_p1 ||
+        game.tournament.match_in_progress) {
+        fprintf(stderr, "[Test] Tournament match winner did not return to the advancing bracket\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    game.one_on_one.p1_score = 1;
+    game.one_on_one.game_clock = 0.01f;
+    game.input.buttons_pressed = 0;
+    allstar_game_tick(&game, 0.02f);
+    game.input.buttons_pressed = ALLSTAR_BTN_B;
+    allstar_game_tick(&game, 0.0f);
+    if (!game.active_scene || game.active_scene->id != ALLSTAR_SCENE_INTRO) {
+        fprintf(stderr, "[Test] Ordinary One-on-One result did not return to the title flow\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: clock, score, overtime, result, exit, and tournament return\n");
     return 0;
 }
 
@@ -295,6 +469,8 @@ int allstar_cli_test_all(void) {
     int failed = 0;
     failed += allstar_cli_test_roster();
     failed += allstar_cli_test_physics();
+    failed += allstar_cli_test_mode_routing();
+    failed += allstar_cli_test_one_on_one_lifecycle();
     failed += allstar_cli_test_headless_frames();
 
     if (failed == 0) {
@@ -341,6 +517,10 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_roster();
     } else if (strcmp(cmd, "--test-physics") == 0) {
         return allstar_cli_test_physics();
+    } else if (strcmp(cmd, "--test-mode-routing") == 0) {
+        return allstar_cli_test_mode_routing();
+    } else if (strcmp(cmd, "--test-one-on-one-lifecycle") == 0) {
+        return allstar_cli_test_one_on_one_lifecycle();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

@@ -3,15 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define MENU_ITEM_COUNT 5
-
-static const char *MENU_ITEMS[MENU_ITEM_COUNT] = {
-    "One On One",
-    "Free Throws",
-    "Horse",
-    "Accuracy Shootout",
-    "Tournament"
-};
+#define MENU_ITEM_COUNT ALLSTAR_MODE_COUNT
 
 typedef struct {
     int selected_index;
@@ -39,7 +31,7 @@ static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInp
     }
 
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
-        game->selected_mode = (uint32_t)data->selected_index;
+        game->selected_mode = allstar_game_mode_from_menu_index((uint32_t)data->selected_index);
         allstar_game_change_scene(game, ALLSTAR_SCENE_SETTINGS);
     }
 }

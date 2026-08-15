@@ -3,6 +3,112 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct {
+    AllStarGameMode mode;
+    const char *name;
+    AllStarSceneId scene_id;
+    bool requires_opponent;
+} AllStarModeRoute;
+
+/* ROM menu selector $FF8F uses these IDs in the displayed 0..4 order. */
+static const AllStarModeRoute ALLSTAR_MODE_ROUTES[ALLSTAR_MODE_COUNT] = {
+    { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true  },
+    { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false },
+    { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       false },
+    { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true  },
+    { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true  }
+};
+
+static const AllStarModeRoute* allstar_game_mode_route(AllStarGameMode mode) {
+    if ((int)mode < 0 || mode >= ALLSTAR_MODE_COUNT) {
+        return &ALLSTAR_MODE_ROUTES[ALLSTAR_MODE_ONE_ON_ONE];
+    }
+    return &ALLSTAR_MODE_ROUTES[mode];
+}
+
+AllStarGameMode allstar_game_mode_from_menu_index(uint32_t menu_index) {
+    if (menu_index >= ALLSTAR_MODE_COUNT) return ALLSTAR_MODE_ONE_ON_ONE;
+    return ALLSTAR_MODE_ROUTES[menu_index].mode;
+}
+
+AllStarSceneId allstar_game_mode_scene(AllStarGameMode mode) {
+    return allstar_game_mode_route(mode)->scene_id;
+}
+
+bool allstar_game_mode_requires_opponent(AllStarGameMode mode) {
+    return allstar_game_mode_route(mode)->requires_opponent;
+}
+
+const char* allstar_game_mode_name(AllStarGameMode mode) {
+    return allstar_game_mode_route(mode)->name;
+}
+
+void allstar_tournament_reset(AllStarTournamentState *tournament) {
+    static const uint32_t DEFAULT_SEEDS[8] = { 13, 2, 1, 11, 15, 18, 25, 8 };
+    if (!tournament) return;
+    memset(tournament, 0, sizeof(*tournament));
+    memcpy(tournament->seeds, DEFAULT_SEEDS, sizeof(DEFAULT_SEEDS));
+    tournament->active = true;
+}
+
+bool allstar_tournament_get_current_match(const AllStarTournamentState *tournament,
+                                          uint32_t *player_1,
+                                          uint32_t *player_2) {
+    const uint32_t *round_players;
+    int match_count;
+    if (!tournament || !tournament->active || tournament->complete) return false;
+
+    if (tournament->round == 0) {
+        round_players = tournament->seeds;
+        match_count = 4;
+    } else if (tournament->round == 1) {
+        round_players = tournament->semifinalists;
+        match_count = 2;
+    } else if (tournament->round == 2) {
+        round_players = tournament->finalists;
+        match_count = 1;
+    } else {
+        return false;
+    }
+
+    if (tournament->current_match < 0 || tournament->current_match >= match_count) return false;
+    if (player_1) *player_1 = round_players[tournament->current_match * 2];
+    if (player_2) *player_2 = round_players[tournament->current_match * 2 + 1];
+    return true;
+}
+
+bool allstar_tournament_record_winner(AllStarTournamentState *tournament,
+                                      uint32_t winner) {
+    if (!tournament || !tournament->active || tournament->complete ||
+        !tournament->match_in_progress) {
+        return false;
+    }
+
+    tournament->match_in_progress = false;
+    if (tournament->round == 0) {
+        tournament->semifinalists[tournament->current_match] = winner;
+        tournament->current_match++;
+        if (tournament->current_match == 4) {
+            tournament->round = 1;
+            tournament->current_match = 0;
+        }
+    } else if (tournament->round == 1) {
+        tournament->finalists[tournament->current_match] = winner;
+        tournament->current_match++;
+        if (tournament->current_match == 2) {
+            tournament->round = 2;
+            tournament->current_match = 0;
+        }
+    } else if (tournament->round == 2) {
+        tournament->champion = winner;
+        tournament->complete = true;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
 bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     if (!game) return false;
     memset(game, 0, sizeof(AllStarGame));
@@ -32,7 +138,10 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     game->is_running = true;
     game->selected_player_1 = 0;
     game->selected_player_2 = 1;
-    game->selected_mode = 0;
+    game->selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
+    game->one_on_one_play_to = 0;
+    game->one_on_one_time_seconds = 120.0f;
+    game->one_on_one_shot_clock_seconds = 24.0f;
 
     /* Start in Intro Scene */
     allstar_game_change_scene(game, ALLSTAR_SCENE_INTRO);

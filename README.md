@@ -10,16 +10,16 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 |---|---|---|
 | Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
 | Intro, menu, settings, and roster screens | Partial | Screen flow exists; settings are not yet carried into gameplay. |
-| One-on-One | Prototype | Basic movement, shooting, scoring, and CPU movement exist; rules and match lifecycle are incomplete. |
+| One-on-One | Lifecycle verified | Timed/score endings, shot-clock turnover, overtime, results, title exit, and tournament return work; detailed rules remain partial. |
 | Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
 | H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
-| Accuracy/three-point scene | Prototype | Currently modeled as a generic five-rack contest and is routed incorrectly from the menu. |
-| Tournament | Prototype | Bracket display exists; winner propagation and round progression do not. |
+| Accuracy/three-point scene | Prototype | Correctly routed from Accuracy Shootout, but still modeled as an unverified generic five-rack contest. |
+| Tournament | Partial | One-on-One winners return and advance the bracket; full tournament parity remains unverified. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
 | Ghidra-to-C routine coverage | 0/83 verified | 83 reviewed bank-aware functions recover and decompile cleanly; three have candidate C analogues, but none has parity evidence. |
-| Verified project milestones | 24.00% | 6 of 25 strict milestones; analysis is 6/7 and gameplay parity remains 0/11. |
+| Verified project milestones | 32.00% | 8 of 25 strict milestones; analysis is 6/7 and gameplay parity is 2/11. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -87,7 +87,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The current tests cover basic roster invariants, a projectile smoke test, and input-free scene ticking. Passing them proves that the native shell remains stable; it does not prove equivalence with the Game Boy game.
+The tests cover roster invariants, a projectile smoke test, mode routing, the One-on-One lifecycle, and input-free scene ticking. Detailed rules, physics, AI, visuals, and emulator-state parity remain unverified.
 
 For manual comparison with the original ROM:
 

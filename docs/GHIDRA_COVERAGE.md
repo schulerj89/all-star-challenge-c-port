@@ -8,9 +8,9 @@ For the current reviewed function inventory, verified Ghidra-to-C routine covera
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
-The port currently has broad native scene scaffolding, but most game-mode behavior is partial, simplified, or unverified against the ROM.
+The port currently has broad native scene scaffolding. Mode routing and the high-level One-on-One lifecycle are now verified against reviewed fixed-bank control flow; most detailed game rules remain partial, simplified, or unverified.
 
-The strict project milestone tracker is currently **6/25 (24.00%)**, increased from the audited **3/25 (12.00%)** baseline by completing bank overlays and the reviewed symbol/native-status inventory. Analysis is **6/7 (85.71%)**; gameplay remains **0/11 (0.00%) verified**.
+The strict project milestone tracker is currently **8/25 (32.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **2/11 (18.18%)** verified.
 
 ## Scope
 
@@ -40,7 +40,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Current automated parity tests | 0 | Existing tests are native smoke tests, not ROM comparisons. |
+| Current focused behavior checks | 2 | Mode routing and One-on-One lifecycle tests encode reviewed ROM control-flow expectations; emulator state/frame comparison remains missing. |
 
 ### Reviewed Ghidra recovery
 
@@ -64,6 +64,7 @@ Bank 1 `$76A7` is a confirmed call target but remains deferred because Ghidra fo
 | Audited baseline | 3/25 | 12.00% | — |
 | Four-bank mapping | 5/25 | 20.00% | +8.00 points |
 | Reviewed symbol inventory | 6/25 | 24.00% | +4.00 points |
+| Mode routing + One-on-One lifecycle | 8/25 | 32.00% | +8.00 points |
 
 Run `python tools/check_coverage.py` to validate and report the current checkpoint. For future changes, use `python tools/check_coverage.py --baseline-ref HEAD --require-delta 2` to enforce the two-point commit gate against the currently committed manifest. The initial 12%→20% checkpoint uses the recorded history because the manifest did not exist at the prior Git revision.
 
@@ -99,11 +100,11 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | No | UI only; values are discarded |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | No | Gameplay prototype |
+| One-on-One | Yes | Lifecycle only | Endings, overtime, result dismissal, exit, and tournament return are covered; rules remain partial. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
-| Tournament | Display only | No | Progression missing |
+| Tournament | Yes | One-on-One return only | Winner return and bracket advancement work; complete tournament parity remains unverified. |
 | Two-player gameplay | No | No | Missing |
 | Ball physics | Yes | No | Generic floating-point substitute |
 | Player collision and possession rules | Minimal | No | Mostly missing |
@@ -123,9 +124,7 @@ No subsystem should currently be labeled 100% ROM-equivalent.
 |---|---|---|
 | P0 | Four-bank Ghidra function recovery | 83 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
-| P0 | Mode routing | Align the menu's Free Throws, H-O-R-S-E, and Accuracy selections with their intended scenes. |
 | P0 | Settings | Persist play-to, difficulty, winners-outs, time, and attempt count into the game state and consume them in each mode. |
-| P0 | One-on-One lifecycle | Add score/time endings, shot-clock turnover, results, replay/exit flow, and tournament return. |
 | P0 | One-on-One rules | Port possession changes, steals, blocks, collisions, rebounding, shot contest, winners-outs, and difficulty behavior. |
 | P0 | Free Throws | Correct the shot/basket coordinate model, enforce the configured attempt count, and implement results/exit flow. |
 | P0 | Tournament | Record winners, advance matches and rounds, mutate the bracket, and complete the championship flow. |

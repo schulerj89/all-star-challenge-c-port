@@ -69,7 +69,7 @@
       "status": "candidate",
       "native_symbol": "allstar_one_on_one_rom_animation_tick_6a8c",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "All 24 $6C60 action lists, three-byte record timing, loops, transitions, idle, steal, and shot subsets are native and trace-tested. Whole-routine credit remains withheld because $6A8C movement side effects and all controller action-selection callers are not yet equivalent."
+      "note": "All 24 $6C60 action lists, three-byte record timing, loops, transitions, idle, steal, shot, and $782E directional subsets are native and trace-tested. Whole-routine credit remains withheld because movement side effects and contact/rebound action callers are not yet equivalent."
     },
     "rom_b00_0100": {
       "status": "candidate",
@@ -202,6 +202,12 @@
       "native_symbol": "allstar_ai_rom_direction_74bb",
       "source": "src/gameplay/allstar_ai.c",
       "note": "Exact four-pixel target dead zones and direction bits are boundary-tested; surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
+    },
+    "rom_b01_782e": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_select_movement_action_782e",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The full record-boundary gates, +$14/+07/+10 direction priority, held/no-ball action table, and +$02 bit-4 side effect are native, integrated, and trace-tested. Whole-routine credit remains withheld because the $2F88 action-change sound command is not yet sequenced equivalently."
     },
     "rom_b01_78e9": {
       "status": "candidate",

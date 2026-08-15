@@ -43,6 +43,7 @@ exit code `0` plus `TRACE PASSED: $FFFB writer and 32 One-on-One frame values`.
 
 `trace_one_on_one_animation.lua` follows bank 1 `$6A8C` under controlled
 held-ball movement, no-ball movement, defensive jump, and steal inputs. It
-asserts the observed action IDs, both idle families, and a six-frame record
-reload through player fields `+$00..+$04`. Require exit code `0` and `TRACE
-PASSED: $6A8C action semantics and record cadence`.
+asserts all four `$782E` direction branches in both possession families,
+directional idle, `$70FD`'s middle-family jump, the following steal family,
+and a six-frame record reload through player fields `+$00..+$04`. Require exit
+code `0` and `TRACE PASSED: $782E/$6A8C directional actions and record cadence`.

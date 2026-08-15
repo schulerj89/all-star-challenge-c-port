@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **26/50 (52.00%)** overall, comprising RNG **10/10**, animation/assets **8/20**, and collision/reaction **8/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
+One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **28/50 (56.00%)** overall, comprising RNG **10/10**, animation/assets **10/20**, and collision/reaction **8/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
 
 ## 4. Current Native Architecture
 
@@ -104,7 +104,7 @@ One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE
 | `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` uses exact 8.8 gravity/friction/integration operations; `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
 | `src/gameplay/allstar_ai.c` | CPU targets, decisions, defense, and shared ROM RNG consumption | Scoped One-on-One decisions are verified; collision branches and the rest of `$7170` remain incomplete. |
 | `src/gameplay/allstar_rng.c` | Fixed `$0714/$072F` shared-frame RNG and BCD entropy | Exact low-byte recurrence/cadence is Ghidra- and Mesen-verified. |
-| `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, overtime, possession, staged shot state, and `$6A8C` animation records | High-level lifecycle and record-state engine are verified for their scoped paths; directional selection and remaining collision reactions are incomplete. |
+| `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, overtime, possession, staged shot state, and `$782E/$6A8C` movement animation | High-level lifecycle, record-state engine, and directional selection are verified for their scoped paths; graphics and remaining collision reactions are incomplete. |
 | `src/allstar_renderer.c` | Software pixels, tiles, court, players, and ball | Functional; several assets are compiled headers rather than asset-pack data. |
 | `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Functional mixer; ROM sequencer and most sound events are missing. |
 | `src/allstar_asset_pack.c` | Versioned container, basic tile decoding, and `$6C60` animation-list extraction | All 24 animation control lists are extracted; graphics region/composition extraction remains partial. |
@@ -129,7 +129,7 @@ Input is updated by the Win32 host before this call.
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Scoped gameplay 50/50; remaining focus 26/50 | Core rules, shooting, steals, contests, recovery, RNG, and the 24-list animation record engine are verified. Remaining work is directional selection, graphics extraction, and player collision-reaction behavior. |
+| One-on-One | Scoped gameplay 50/50; remaining focus 28/50 | Core rules, shooting, steals, contests, recovery, RNG, the 24-list animation engine, and `$782E` directional walk/dribble selection are verified. Remaining work is graphics extraction and player collision-reaction behavior. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |

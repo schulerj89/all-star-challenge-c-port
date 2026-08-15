@@ -24,8 +24,8 @@
     {"id":"animation.defense_jump_records_6c4d","group":"animation_assets","status":"verified","rom":"bank 1 table $6C4D","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
     {"id":"animation.full_action_pointer_map","group":"animation_assets","status":"verified","rom":"bank 1 $6C59/$6C60: 24 actions $6787..$6940","evidence":["docs/parity/ONE_ON_ONE_ANIMATION.md","tools/ghidra/function_seeds.json","tools/emulator/trace_one_on_one_animation.lua","src/allstar_asset_pack.c","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
     {"id":"animation.idle_sequence","group":"animation_assets","status":"verified","rom":"bank 1 $6A8C actions $0D/$13","evidence":["docs/parity/ONE_ON_ONE_ANIMATION.md","tools/emulator/trace_one_on_one_animation.lua","src/allstar_asset_pack.c","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
-    {"id":"animation.walk_sequence","group":"animation_assets","status":"unmapped","rom":"bank 1 $6A8C family","evidence":[]},
-    {"id":"animation.dribble_sequence","group":"animation_assets","status":"unmapped","rom":"bank 1 $6A8C family","evidence":[]},
+    {"id":"animation.walk_sequence","group":"animation_assets","status":"verified","rom":"bank 1 $782E/$6A8C actions $02/$09/$11","evidence":["docs/parity/ONE_ON_ONE_ANIMATION.md","tools/ghidra/function_seeds.json","tools/emulator/trace_one_on_one_animation.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
+    {"id":"animation.dribble_sequence","group":"animation_assets","status":"verified","rom":"bank 1 $782E/$6A8C actions $01/$08/$10","evidence":["docs/parity/ONE_ON_ONE_ANIMATION.md","tools/ghidra/function_seeds.json","tools/emulator/trace_one_on_one_animation.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
     {"id":"animation.steal_sequence","group":"animation_assets","status":"verified","rom":"bank 0 $2B14 actions $07/$0F/$17; bank 1 $6A8C transitions","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md","docs/parity/ONE_ON_ONE_ANIMATION.md","tools/emulator/trace_one_on_one_animation.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
     {"id":"animation.contact_hit_sequence","group":"animation_assets","status":"unmapped","rom":"remaining bank 1 $7170/$6A8C branches","evidence":[]},
     {"id":"animation.rebound_pickup_sequence","group":"animation_assets","status":"unmapped","rom":"bank 0 $2AE2; bank 1 $6A8C records","evidence":[]},
@@ -63,6 +63,7 @@
   "history": [
     {"date":"2026-08-15","verified":12,"total":50,"percent":24.0,"note":"Reconstructed pre-RNG baseline: four animation subsets and eight ball/steal/recovery collision requirements were already verified."},
     {"date":"2026-08-15","verified":22,"total":50,"percent":44.0,"note":"Added exact $0714/$072F shared-frame RNG, BCD entropy, two-frame cadence, and live CPU integration with a 32-frame Mesen assertion."},
-    {"date":"2026-08-15","verified":26,"total":50,"percent":52.0,"note":"Extracted all 24 $6C60 action lists into asset-pack v3, ported $6A8C record state, and integrated traced idle and steal sequences into live One-on-One presentation."}
+    {"date":"2026-08-15","verified":26,"total":50,"percent":52.0,"note":"Extracted all 24 $6C60 action lists into asset-pack v3, ported $6A8C record state, and integrated traced idle and steal sequences into live One-on-One presentation."},
+    {"date":"2026-08-15","verified":28,"total":50,"percent":56.0,"note":"Ported the complete $782E directional/idle selector, integrated held-ball and no-ball movement actions, and traced every direction plus $70FD family-preserving jump/steal transitions."}
   ]
 }

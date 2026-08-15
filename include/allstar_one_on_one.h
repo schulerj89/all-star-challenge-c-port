@@ -163,6 +163,15 @@ void allstar_one_on_one_rom_animation_set_action_6a8c(
     AllStarRomAnimationState *state, uint8_t action);
 bool allstar_one_on_one_rom_animation_tick_6a8c(
     const AllStarAssetPack *pack, AllStarRomAnimationState *state);
+/* Bank 1 $782E: record-boundary movement/idle action selection. */
+bool allstar_one_on_one_rom_select_movement_action_782e(
+    AllStarRomAnimationState *state,
+    uint8_t input_direction,
+    uint8_t override_direction,
+    uint8_t previous_direction,
+    bool without_ball,
+    bool reaction_locked,
+    bool *horizontal_flip);
 uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
                                             float player_ground_y);
 /* Bank 1 $07B4/$7EC4/$2F40/$7C58 launch selectors. */
@@ -177,6 +186,7 @@ bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float ball_x,
                                                 float ball_y);
 bool allstar_one_on_one_rom_action_eligible_0a78(uint8_t action);
+uint8_t allstar_one_on_one_rom_defense_jump_action_70fd(uint8_t action);
 uint8_t allstar_one_on_one_rom_steal_action_2b14(uint8_t action);
 bool allstar_one_on_one_rom_steal_contact_2b14(
     bool possession_active,

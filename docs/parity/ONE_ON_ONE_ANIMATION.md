@@ -48,18 +48,38 @@ pointer map recovered from Ghidra and extracted from the user ROM is:
 `trace_one_on_one_animation.lua` establishes action semantics using controlled
 live input rather than names inferred from similar-looking data. It observes
 held-ball idle `$13`; right/left/up/down held-ball motion `$10/$10/$08/$01`;
-no-ball idle `$0D`; right no-ball motion `$11`; defensive jump `$14`; and the
-post-jump `$17` steal action. It also asserts the six-frame record reload seen
-at `$6A8C`.
+no-ball right/left/up/down motion `$11/$11/$09/$02`; direction-dependent idle
+`$0D`; middle-family defensive jump `$0C`; and post-jump `$0F` steal. It also
+asserts the six-frame record reload seen at `$6A8C`.
+
+## `$782E` action selection
+
+Ghidra recovers the complete selector called immediately before `$6A8C`.
+It runs only when animation timer `+$04` is one, reaction lock `+$17` is zero,
+and `$0A78` accepts the current action. Direction override `+$14` wins over
+input `+$07`; with neither set, prior direction `+$10` chooses the idle pose.
+Player `+$09` selects the no-ball member of each pair.
+
+| Direction | Held-ball moving | No-ball moving | Held-ball idle | No-ball idle |
+|---|---:|---:|---:|---:|
+| Right | `$10` | `$11` | `$13` | `$15` |
+| Left | `$10` | `$11` | `$13` | `$15` |
+| Up | `$08` | `$09` | `$0B` | `$0D` |
+| Down/default | `$01` | `$02` | `$04` | `$06` |
+
+Right sets player `+$02` bit 4; all other branches clear it. A changed action
+is reset through `$6C90`. Bank 1 `$70FD` separately preserves the same
+eight-action family for defense jumps: `$05`, `$0C`, or `$14`.
 
 ## Native implementation
 
 `AllStarRomAnimationState` mirrors the five animation fields, and
 `allstar_one_on_one_rom_animation_tick_6a8c` implements record timing, looping,
-completion, and action transitions. One-on-One stores one state per player,
-ticks it at 60 Hz, uses `$2B14`'s action-family selector for steals, enters the
-reviewed `$14` defensive-jump family, and passes the resulting display-frame
-byte to the renderer.
+completion, and action transitions. The live scene calls
+`allstar_one_on_one_rom_select_movement_action_782e` at the same record
+boundary, retaining prior direction and the horizontal-flip bit per player.
+It uses `$70FD`'s family selector for defense jumps, `$2B14`'s family selector
+for steals, and passes the resulting display-frame byte to the renderer.
 
 Asset-pack version 3 adds 24 `AllStarRomAnimationAction` entries. Building a
 pack reads the `$6C60` pointers and their control lists directly from the
@@ -71,6 +91,7 @@ fallback; it does not contain extracted sprite sheets.
 This checkpoint does **not** claim the remaining graphics work. The renderer
 still maps ROM display-frame IDs onto its existing compiled derived art. Player
 tile regions, frame tilemaps, OAM composition, court tiles/tilemap, and ball
-sprite extraction remain open. Full directional walk/dribble action selection
-also remains open until every controller branch selecting `$00..$11` is mapped
-and integrated, even though their record lists are now extracted exactly.
+sprite extraction remain open. `$782E` remains a whole-routine candidate rather
+than verified because its `$2F88` action-change sound command is not yet
+sequenced equivalently; this does not affect the verified movement action and
+record-state subsets.

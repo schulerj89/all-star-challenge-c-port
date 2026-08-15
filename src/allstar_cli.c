@@ -701,6 +701,19 @@ int allstar_cli_test_one_on_one_shooting(void) {
     AllStarRomRng rng;
     AllStarAssetPack animation_pack;
     AllStarRomAnimationState animation_state;
+    bool animation_flip;
+    static const uint8_t movement_cases[4][3] = {
+        {ALLSTAR_BTN_RIGHT, 0x10, 0x11},
+        {ALLSTAR_BTN_LEFT,  0x10, 0x11},
+        {ALLSTAR_BTN_UP,    0x08, 0x09},
+        {ALLSTAR_BTN_DOWN,  0x01, 0x02}
+    };
+    static const uint8_t idle_cases[4][3] = {
+        {ALLSTAR_BTN_RIGHT, 0x13, 0x15},
+        {ALLSTAR_BTN_LEFT,  0x13, 0x15},
+        {ALLSTAR_BTN_UP,    0x0b, 0x0d},
+        {ALLSTAR_BTN_DOWN,  0x04, 0x06}
+    };
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
 
@@ -765,6 +778,72 @@ int allstar_cli_test_one_on_one_shooting(void) {
         animation_state.display_frame != 0x11 ||
         animation_state.record_index != 1 || animation_state.timer != 6) {
         fprintf(stderr, "[Test] $6A8C loose-player idle record was incorrect\n");
+        return 1;
+    }
+
+    for (frame = 0; frame < 4; frame++) {
+        animation_flip = false;
+        allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+        if (!allstar_one_on_one_rom_select_movement_action_782e(
+                &animation_state, movement_cases[frame][0], 0, 0,
+                false, false, &animation_flip) ||
+            animation_state.action != movement_cases[frame][1] ||
+            animation_flip != (frame == 0)) {
+            fprintf(stderr, "[Test] $782E held-ball movement selector was incorrect\n");
+            return 1;
+        }
+        allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+        if (!allstar_one_on_one_rom_select_movement_action_782e(
+                &animation_state, movement_cases[frame][0], 0, 0,
+                true, false, &animation_flip) ||
+            animation_state.action != movement_cases[frame][2]) {
+            fprintf(stderr, "[Test] $782E no-ball movement selector was incorrect\n");
+            return 1;
+        }
+        allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+        if (!allstar_one_on_one_rom_select_movement_action_782e(
+                &animation_state, 0, 0, idle_cases[frame][0],
+                false, false, &animation_flip) ||
+            animation_state.action != idle_cases[frame][1]) {
+            fprintf(stderr, "[Test] $782E held-ball idle selector was incorrect\n");
+            return 1;
+        }
+        allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+        if (!allstar_one_on_one_rom_select_movement_action_782e(
+                &animation_state, 0, 0, idle_cases[frame][0],
+                true, false, &animation_flip) ||
+            animation_state.action != idle_cases[frame][2]) {
+            fprintf(stderr, "[Test] $782E no-ball idle selector was incorrect\n");
+            return 1;
+        }
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+    if (!allstar_one_on_one_rom_select_movement_action_782e(
+            &animation_state, ALLSTAR_BTN_RIGHT, ALLSTAR_BTN_DOWN,
+            ALLSTAR_BTN_UP, false, false, &animation_flip) ||
+        animation_state.action != 0x01) {
+        fprintf(stderr, "[Test] $782E +$14 direction override was incorrect\n");
+        return 1;
+    }
+    animation_state.timer = 2;
+    if (allstar_one_on_one_rom_select_movement_action_782e(
+            &animation_state, ALLSTAR_BTN_RIGHT, 0, 0,
+            false, false, &animation_flip)) {
+        fprintf(stderr, "[Test] $782E record-boundary gate was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x14);
+    if (allstar_one_on_one_rom_select_movement_action_782e(
+            &animation_state, ALLSTAR_BTN_RIGHT, 0, 0,
+            false, false, &animation_flip)) {
+        fprintf(stderr, "[Test] $782E protected-action gate was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x00);
+    if (allstar_one_on_one_rom_select_movement_action_782e(
+            &animation_state, ALLSTAR_BTN_RIGHT, 0, 0,
+            false, true, &animation_flip)) {
+        fprintf(stderr, "[Test] $782E reaction gate was incorrect\n");
         return 1;
     }
 
@@ -858,6 +937,9 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_one_on_one_rom_action_eligible_0a78(0x14) ||
         allstar_one_on_one_rom_action_eligible_0a78(0x0e) ||
         allstar_one_on_one_rom_action_eligible_0a78(0x16) ||
+        allstar_one_on_one_rom_defense_jump_action_70fd(0x00) != 0x05 ||
+        allstar_one_on_one_rom_defense_jump_action_70fd(0x08) != 0x0c ||
+        allstar_one_on_one_rom_defense_jump_action_70fd(0x10) != 0x14 ||
         allstar_one_on_one_rom_steal_action_2b14(0x00) != 0x07 ||
         allstar_one_on_one_rom_steal_action_2b14(0x08) != 0x0f ||
         allstar_one_on_one_rom_steal_action_2b14(0x10) != 0x17) {

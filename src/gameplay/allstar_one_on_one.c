@@ -258,6 +258,58 @@ bool allstar_one_on_one_rom_animation_tick_6a8c(
     return true;
 }
 
+/* Bank 1 $782E runs immediately before $6A8C. It only replaces an eligible
+   action when +$04 is about to expire, prefers the +$14 direction override
+   over +$07 input, falls back to +$10's prior direction while idle, and
+   mirrors player +$02 bit 4. Player +$09 is zero while holding the ball. */
+bool allstar_one_on_one_rom_select_movement_action_782e(
+    AllStarRomAnimationState *state,
+    uint8_t input_direction,
+    uint8_t override_direction,
+    uint8_t previous_direction,
+    bool without_ball,
+    bool reaction_locked,
+    bool *horizontal_flip) {
+    uint8_t direction;
+    uint8_t action;
+
+    if (!state || state->timer != 1 || reaction_locked ||
+        !allstar_one_on_one_rom_action_eligible_0a78(state->action)) {
+        return false;
+    }
+
+    direction = override_direction != 0
+        ? override_direction : input_direction;
+    if ((direction & ALLSTAR_BTN_RIGHT) != 0) {
+        if (horizontal_flip) *horizontal_flip = true;
+        action = without_ball ? 0x11 : 0x10;
+    } else if ((direction & ALLSTAR_BTN_LEFT) != 0) {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x11 : 0x10;
+    } else if ((direction & ALLSTAR_BTN_UP) != 0) {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x09 : 0x08;
+    } else if ((direction & ALLSTAR_BTN_DOWN) != 0) {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x02 : 0x01;
+    } else if ((previous_direction & ALLSTAR_BTN_RIGHT) != 0) {
+        if (horizontal_flip) *horizontal_flip = true;
+        action = without_ball ? 0x15 : 0x13;
+    } else if ((previous_direction & ALLSTAR_BTN_LEFT) != 0) {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x15 : 0x13;
+    } else if ((previous_direction & ALLSTAR_BTN_UP) != 0) {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x0d : 0x0b;
+    } else {
+        if (horizontal_flip) *horizontal_flip = false;
+        action = without_ball ? 0x06 : 0x04;
+    }
+
+    allstar_one_on_one_rom_animation_set_action_6a8c(state, action);
+    return true;
+}
+
 static bool allstar_one_on_one_rom_position_in_table(
     uint8_t player_x,
     uint8_t player_y,
@@ -440,6 +492,13 @@ bool allstar_one_on_one_rom_action_eligible_0a78(uint8_t action) {
         if (action == protected_actions[i]) return false;
     }
     return true;
+}
+
+/* Bank 1 $70FD keeps defensive jumps in the actor's eight-action family. */
+uint8_t allstar_one_on_one_rom_defense_jump_action_70fd(uint8_t action) {
+    if (action < 0x08) return 0x05;
+    if (action < 0x10) return 0x0c;
+    return 0x14;
 }
 
 /* $2B14 selects the steal animation from the actor's eight-action family. */

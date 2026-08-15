@@ -5,10 +5,27 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 2
+#define ALLSTAR_ASSET_VERSION 3
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
+#define ALLSTAR_ROM_ANIMATION_ACTION_COUNT 24
+#define ALLSTAR_ROM_ANIMATION_MAX_RECORDS 13
+
+/* Bank 1 $6A8C consumes the lists selected by the pointer table at $6C60.
+   Normal records use all three bytes. Loop records use only control; action
+   transitions use control and value. */
+typedef struct {
+    uint8_t control;
+    uint8_t value;
+    uint8_t display_frame;
+} AllStarRomAnimationRecord;
+
+typedef struct {
+    uint16_t rom_pointer;
+    uint8_t record_count;
+    AllStarRomAnimationRecord records[ALLSTAR_ROM_ANIMATION_MAX_RECORDS];
+} AllStarRomAnimationAction;
 
 typedef struct {
     char name[24];
@@ -34,6 +51,7 @@ typedef struct {
     uint32_t tile_count;
     uint32_t player_count;
     uint32_t audio_sequence_count;
+    uint32_t animation_action_count;
     uint32_t checksum;
 } AllStarAssetHeader;
 
@@ -43,6 +61,8 @@ typedef struct {
     AllStarPlayerStats players[ALLSTAR_MAX_ROSTER];
     uint8_t court_tilemap[32 * 32];
     uint8_t menu_tilemap[32 * 32];
+    AllStarRomAnimationAction
+        animation_actions[ALLSTAR_ROM_ANIMATION_ACTION_COUNT];
     bool is_loaded;
 } AllStarAssetPack;
 

@@ -17,11 +17,11 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
-| ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
+| ROM asset pack | Partial | Version 3 extracts all 24 `$6C60` animation-control lists plus basic 2bpp tiles; most runtime art and roster data still come from compiled C tables. |
 | Ghidra-to-C routine coverage | 8/100 verified | 100 reviewed bank-aware functions recover and decompile cleanly; exact `$0714/$072F` RNG joins six earlier narrow mappings, 26 mappings remain candidates, and 66 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. Broader collision reactions, presentation, assets, and frame parity remain outside this focused denominator. |
-| Remaining One-on-One focus | 44.00% | 22 of 50 fixed RNG/animation-asset/collision-reaction requirements: RNG 10/10, animation/assets 4/20, collision/reaction 8/20. |
+| Remaining One-on-One focus | 52.00% | 26 of 50 fixed RNG/animation-asset/collision-reaction requirements: RNG 10/10, animation/assets 8/20, collision/reaction 8/20. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -96,7 +96,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$756C` CPU targets and shot decisions, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6C4D/$2B6C/$2B88` defensive jumps and recovery locks, court limits, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, tournament flow, and input-free scene ticking. Visuals and broader emulator/native frame parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$756C` CPU targets and shot decisions, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6A8C/$6C60` animation record state, `$6C4D/$2B6C/$2B88` defensive jumps and recovery locks, court limits, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, tournament flow, and input-free scene ticking. Extracted graphics and broader emulator/native frame parity remain unverified.
 
 For manual comparison with the original ROM:
 
@@ -104,7 +104,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces now cover shot input and defense state transitions. Broader WRAM snapshots and frame-difference tests remain to be implemented.
+Automated Mesen traces now cover shot input, defense transitions, exact RNG, and `$6A8C` animation action/cadence state. Broader WRAM snapshots and frame-difference tests remain to be implemented. See [the animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md) for the complete 24-action map and its limits.
 
 ## Reverse Engineering
 

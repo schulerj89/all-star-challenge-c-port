@@ -79,6 +79,7 @@ The headless setup maps bank 0 and creates byte-verified overlays for physical b
 | Bank 0 `$20D0` | Settings defaults | High |
 | Bank 0 `$22EF` | Mode-specific settings editor | High |
 | Bank 0 approximately `$3014..$36DB` | Multi-channel audio command/sequencing region | High for audio ownership; individual routines still need names |
+| Bank 1 `$6A8C` / `$6C59` / `$6C60` | Player animation record dispatcher, selector, and 24-action pointer table | High; record engine verified, movement side effects partial |
 | Bank 1 `$6CA2` | Accuracy computer/new-position selection | High for selector; full mode remains incomplete |
 | Bank 1 approximately `$69F5..$7FFF` | Player/gameplay/rendering state region | Medium; routine-level meanings remain under audit |
 

@@ -2,6 +2,7 @@
 #define ALLSTAR_ONE_ON_ONE_H
 
 #include "allstar_types.h"
+#include "allstar_asset_pack.h"
 
 #define ALLSTAR_ONE_ON_ONE_RESULT_FRAMES 960
 #define ALLSTAR_ONE_ON_ONE_RESULT_SECONDS (ALLSTAR_ONE_ON_ONE_RESULT_FRAMES / 60.0f)
@@ -97,6 +98,15 @@ typedef struct {
 } AllStarOneOnOneRecoveryState;
 
 typedef struct {
+    uint8_t action;
+    uint8_t display_frame;
+    uint8_t record_index;
+    uint8_t timer;
+    bool finished;
+    bool new_frame;
+} AllStarRomAnimationState;
+
+typedef struct {
     uint16_t p1_score;
     uint16_t p2_score;
     int play_to;
@@ -147,6 +157,12 @@ bool allstar_one_on_one_rom_shot_animation_frame(
     uint8_t shot_phase,
     uint16_t elapsed_frames,
     uint8_t *display_frame);
+void allstar_one_on_one_rom_animation_init_6a8c(
+    AllStarRomAnimationState *state, uint8_t action);
+void allstar_one_on_one_rom_animation_set_action_6a8c(
+    AllStarRomAnimationState *state, uint8_t action);
+bool allstar_one_on_one_rom_animation_tick_6a8c(
+    const AllStarAssetPack *pack, AllStarRomAnimationState *state);
 uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
                                             float player_ground_y);
 /* Bank 1 $07B4/$7EC4/$2F40/$7C58 launch selectors. */

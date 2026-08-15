@@ -67,9 +67,9 @@
     },
     "rom_b01_6a8c": {
       "status": "candidate",
-      "native_symbol": "allstar_one_on_one_rom_shot_animation_frame",
+      "native_symbol": "allstar_one_on_one_rom_animation_tick_6a8c",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "The native helper verifies the action $0A/$12 shot-record subset and phase overrides; movement, dribble, collision-reaction, and other action families remain unported, so whole-dispatcher credit is withheld."
+      "note": "All 24 $6C60 action lists, three-byte record timing, loops, transitions, idle, steal, and shot subsets are native and trace-tested. Whole-routine credit remains withheld because $6A8C movement side effects and all controller action-selection callers are not yet equivalent."
     },
     "rom_b00_0100": {
       "status": "candidate",

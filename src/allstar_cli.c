@@ -699,8 +699,74 @@ int allstar_cli_test_one_on_one_shooting(void) {
     float court_y;
     int frame;
     AllStarRomRng rng;
+    AllStarAssetPack animation_pack;
+    AllStarRomAnimationState animation_state;
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
+
+    allstar_asset_pack_init_default(&animation_pack);
+    if (animation_pack.header.animation_action_count != 24 ||
+        animation_pack.animation_actions[0x00].rom_pointer != 0x6787 ||
+        animation_pack.animation_actions[0x0a].rom_pointer != 0x6837 ||
+        animation_pack.animation_actions[0x17].rom_pointer != 0x6940 ||
+        animation_pack.animation_actions[0x0a].record_count != 13) {
+        fprintf(stderr, "[Test] $6C60 action pointer map was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x10);
+    if (!allstar_one_on_one_rom_animation_tick_6a8c(
+            &animation_pack, &animation_state) ||
+        animation_state.display_frame != 0 ||
+        animation_state.record_index != 1 || animation_state.timer != 6 ||
+        !animation_state.new_frame) {
+        fprintf(stderr, "[Test] $6A8C first dribble record was incorrect\n");
+        return 1;
+    }
+    for (frame = 0; frame < 6; frame++) {
+        if (!allstar_one_on_one_rom_animation_tick_6a8c(
+                &animation_pack, &animation_state)) {
+            fprintf(stderr, "[Test] $6A8C rejected a valid dribble record\n");
+            return 1;
+        }
+    }
+    if (animation_state.display_frame != 0 ||
+        animation_state.record_index != 2 || animation_state.timer != 6 ||
+        !animation_state.new_frame) {
+        fprintf(stderr, "[Test] $6A8C six-frame cadence was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_set_action_6a8c(
+        &animation_state, 0x07);
+    if (!allstar_one_on_one_rom_animation_tick_6a8c(
+            &animation_pack, &animation_state) ||
+        animation_state.display_frame != 0x0f || animation_state.timer != 15) {
+        fprintf(stderr, "[Test] $6A8C steal setup record was incorrect\n");
+        return 1;
+    }
+    for (frame = 0; frame < 15; frame++)
+        allstar_one_on_one_rom_animation_tick_6a8c(
+            &animation_pack, &animation_state);
+    if (animation_state.action != 0x06 ||
+        animation_state.record_index != 0 || animation_state.timer != 1) {
+        fprintf(stderr, "[Test] $6A8C steal transition was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x13);
+    if (!allstar_one_on_one_rom_animation_tick_6a8c(
+            &animation_pack, &animation_state) ||
+        animation_state.display_frame != 0x0c ||
+        animation_state.record_index != 1 || animation_state.timer != 6) {
+        fprintf(stderr, "[Test] $6A8C held-ball idle record was incorrect\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x0d);
+    if (!allstar_one_on_one_rom_animation_tick_6a8c(
+            &animation_pack, &animation_state) ||
+        animation_state.display_frame != 0x11 ||
+        animation_state.record_index != 1 || animation_state.timer != 6) {
+        fprintf(stderr, "[Test] $6A8C loose-player idle record was incorrect\n");
+        return 1;
+    }
 
     /* Ghidra $0714/$072F plus the Mesen $FFFB trace: the low-byte stream
        holds for two frames and then follows 18,03,46,A1,D4,9F... */

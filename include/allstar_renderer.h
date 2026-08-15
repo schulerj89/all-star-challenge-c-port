@@ -40,7 +40,7 @@ void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y,
 void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time);
 void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y);
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time);
-void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left);
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_display_frame, float anim_time, bool facing_left);
 void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32_t hoop_y);
 void allstar_renderer_draw_court(AllStarRenderer *renderer);
 void allstar_renderer_present(AllStarRenderer *renderer);

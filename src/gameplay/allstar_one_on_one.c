@@ -188,6 +188,76 @@ bool allstar_one_on_one_rom_shot_animation_frame(
     return false;
 }
 
+void allstar_one_on_one_rom_animation_init_6a8c(
+    AllStarRomAnimationState *state, uint8_t action) {
+    if (!state) return;
+    memset(state, 0, sizeof(*state));
+    state->action = action;
+    state->timer = 1;
+}
+
+void allstar_one_on_one_rom_animation_set_action_6a8c(
+    AllStarRomAnimationState *state, uint8_t action) {
+    if (!state || action >= ALLSTAR_ROM_ANIMATION_ACTION_COUNT ||
+        state->action == action) return;
+    state->action = action;
+    state->record_index = 0;
+    state->timer = 1;
+    state->finished = false;
+    state->new_frame = false;
+}
+
+/* Bank 1 $6A8C->$6C59: decrement +$04 first, select action through the
+   $6C60 pointer map, index three-byte records by +$03, and implement the
+   normal/loop/transition/end control bytes. Movement and shot-only side
+   effects remain in their native gameplay helpers; this function owns the
+   exact record, duration, frame, and action-transition state. */
+bool allstar_one_on_one_rom_animation_tick_6a8c(
+    const AllStarAssetPack *pack, AllStarRomAnimationState *state) {
+    const AllStarRomAnimationAction *action;
+    const AllStarRomAnimationRecord *record;
+
+    if (!pack || !state ||
+        pack->header.animation_action_count !=
+            ALLSTAR_ROM_ANIMATION_ACTION_COUNT ||
+        state->action >= ALLSTAR_ROM_ANIMATION_ACTION_COUNT) return false;
+
+    state->new_frame = false;
+    if (state->timer > 0) state->timer--;
+    if (state->timer != 0) return true;
+
+    action = &pack->animation_actions[state->action];
+    if (state->record_index >= action->record_count) return false;
+    record = &action->records[state->record_index];
+
+    if (record->control == 0xff) {
+        state->finished = true;
+        state->record_index = 0;
+        state->timer = 1;
+        return true;
+    }
+    if ((record->control & 0x01) != 0) {
+        state->record_index = 0;
+        state->timer = 1;
+        return true;
+    }
+    if ((record->control & 0x02) != 0) {
+        if (record->value >= ALLSTAR_ROM_ANIMATION_ACTION_COUNT) return false;
+        state->action = record->value;
+        state->record_index = 0;
+        state->timer = 1;
+        state->finished = false;
+        return true;
+    }
+
+    if (record->value == 0) return false;
+    state->timer = record->value;
+    state->display_frame = record->display_frame;
+    state->new_frame = true;
+    state->record_index++;
+    return true;
+}
+
 static bool allstar_one_on_one_rom_position_in_table(
     uint8_t player_x,
     uint8_t player_y,

@@ -40,3 +40,9 @@ used by One-on-One. It asserts the first 32 gameplay-frame values of `$FFFB`,
 records the writer PC and `$702D/$74BB/$75CD` consumers, and verifies that the
 stream advances every other frame. Run it with the same command and require
 exit code `0` plus `TRACE PASSED: $FFFB writer and 32 One-on-One frame values`.
+
+`trace_one_on_one_animation.lua` follows bank 1 `$6A8C` under controlled
+held-ball movement, no-ball movement, defensive jump, and steal inputs. It
+asserts the observed action IDs, both idle families, and a six-frame record
+reload through player fields `+$00..+$04`. Require exit code `0` and `TRACE
+PASSED: $6A8C action semantics and record cadence`.

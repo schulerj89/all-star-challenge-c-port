@@ -369,7 +369,7 @@ void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t 
     }
 }
 
-void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, float anim_time, bool facing_left) {
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_display_frame, float anim_time, bool facing_left) {
     if (!renderer) return;
     (void)is_p1;
 
@@ -387,13 +387,13 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         frame_data = ALLSTAR_ANIM_SHOOT_APEX;
         jump_y = -12;
     } else if (is_defending) {
-        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DEFEND_COUNT;
+        int f = rom_display_frame % ALLSTAR_ANIM_DEFEND_COUNT;
         frame_data = ALLSTAR_ANIM_DEFEND[f];
     } else if (has_ball) {
-        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DRIBBLE_COUNT;
+        int f = rom_display_frame % ALLSTAR_ANIM_DRIBBLE_COUNT;
         frame_data = ALLSTAR_ANIM_DRIBBLE[f];
     } else {
-        int f = ((int)(anim_time * 8.0f)) % ALLSTAR_ANIM_DRIBBLE_COUNT;
+        int f = rom_display_frame % ALLSTAR_ANIM_DRIBBLE_COUNT;
         frame_data = ALLSTAR_ANIM_DRIBBLE[f];
     }
 
@@ -429,10 +429,9 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
 }
 
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
-    allstar_renderer_draw_player_ex(renderer, x, y, is_p1, is_p1 ? 0x90 : 0x91, has_ball, is_shooting, false, anim_time, false);
+    allstar_renderer_draw_player_ex(renderer, x, y, is_p1, is_p1 ? 0x90 : 0x91, has_ball, is_shooting, false, 0, anim_time, false);
 }
 
 void allstar_renderer_present(AllStarRenderer *renderer) {
     (void)renderer;
 }
-

@@ -59,14 +59,15 @@ Banks 2 and 3 must not be analyzed as CPU addresses `$8000..$FFFF`; those ranges
 
 ### Current Ghidra result
 
-The current headless export contains 16 functions:
+The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for physical banks 1, 2, and 3, then recovers a conservative seed set rather than sweeping unknown data as code. The validated inventory contains 83 functions that all create and decompile successfully:
 
-- reset/interrupt vectors and thunks;
-- the serial handler at `$0061`;
-- boot/init at `$0100`/`$0150`;
-- the VBlank handler at `$2729`.
+- 29 fixed-bank functions in bank 0;
+- 46 functions in bank 1's coherent `$6945..$7FFF` gameplay region;
+- 8 functions in bank 2's reviewed `$4000..$42A1` code region.
 
-The headless setup now creates and byte-verifies separate `$4000..$7FFF` overlays for physical banks 1, 2, and 3. No complete gameplay subsystem has yet been exported as a reliable Ghidra function set: the legacy decompiler pass still sweeps only the default `$0000..$7FFF` space and does not recover functions in the new overlays.
+The generated C listing contains 96 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
+
+`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 80 functions as unmapped and three as candidate native analogues; none is verified ROM-equivalent.
 
 ### Current `mgbdis` result
 
@@ -90,7 +91,7 @@ These figures are an analysis queue, not a function count. Without code/data map
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
-Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **5/25 (20.00%)**, up from the audited **3/25 (12.00%)** baseline after verifying the bank 2 and bank 3 overlays. Verified gameplay parity is still **0/11 (0.00%)**.
+Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **6/25 (24.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)**; verified gameplay parity is still **0/11 (0.00%)**.
 
 ## 4. Current Native Architecture
 

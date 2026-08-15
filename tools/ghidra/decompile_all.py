@@ -1,9 +1,8 @@
 # Ghidra Headless Script: decompile_all.py
-# Auto-disassembles Game Boy binary, resolves functions, and exports full C decompilation
+# Exports reviewed Game Boy functions to a single preliminary C listing.
 from ghidra.app.decompiler import DecompInterface
 from ghidra.util.task import ConsoleTaskMonitor
 from ghidra.app.cmd.disassemble import DisassembleCommand
-from ghidra.program.model.symbol import SourceType
 import os
 
 print("[Ghidra] Initializing Game Boy disassembler & decompiler...")
@@ -31,30 +30,9 @@ for off in entry_offsets:
     cmd = DisassembleCommand(addr, None, True)
     cmd.applyTo(currentProgram, monitor)
 
-# Sweep through ROM space 0x0000..0x7FFF to auto-disassemble remaining instructions
-mem = currentProgram.getMemory()
 listing = currentProgram.getListing()
 
-addr = space.getAddress(0x0000)
-end_addr = space.getAddress(0x7FFF)
-
-while addr.compareTo(end_addr) < 0:
-    inst = listing.getInstructionAt(addr)
-    if inst is not None:
-        addr = addr.add(inst.getLength())
-    else:
-        # Try disassembling
-        cmd = DisassembleCommand(addr, None, True)
-        if cmd.applyTo(currentProgram, monitor):
-            inst = listing.getInstructionAt(addr)
-            if inst is not None:
-                addr = addr.add(inst.getLength())
-            else:
-                addr = addr.add(1)
-        else:
-            addr = addr.add(1)
-
-# Auto-create functions at all disassembled instructions that are call/jump targets
+# Ensure the standard cartridge entry points and vectors exist.
 createFunction(space.getAddress(0x0100), "entry_boot")
 createFunction(space.getAddress(0x0150), "init_game")
 
@@ -100,4 +78,4 @@ for func in funcs:
             count += 1
 
 f.close()
-print("[Ghidra] Full Decompilation Succeeded! Exported %d functions to %s" % (count, out_file))
+print("[Ghidra] Reviewed decompilation export wrote %d functions to %s" % (count, out_file))

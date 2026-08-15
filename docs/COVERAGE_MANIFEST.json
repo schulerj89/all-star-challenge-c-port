@@ -57,8 +57,10 @@
     {
       "id": "analysis.symbol_manifest",
       "group": "analysis",
-      "description": "Confirmed ROM functions have stable banked symbols and machine-readable native mappings.",
-      "status": "unmapped"
+      "description": "Reviewed ROM function entry points have stable banked symbols and a machine-readable inventory with explicit native-counterpart status.",
+      "status": "verified",
+      "evidence": ["tools/ghidra/function_seeds.json", "tools/ghidra/recover_banked_functions.py", "tools/check_ghidra_functions.py"],
+      "verification_command": ".\\tools\\ghidra\\run_ghidra_decomp.ps1"
     },
     {
       "id": "behavior.mode_routing",
@@ -183,6 +185,13 @@
       "total": 25,
       "percent": 20.0,
       "note": "MBC1 overlays added and byte-verified for physical banks 2 and 3."
+    },
+    {
+      "date": "2026-08-14",
+      "verified": 6,
+      "total": 25,
+      "percent": 24.0,
+      "note": "Recovered and decompiled 83 reviewed bank-aware functions and added explicit C-counterpart status."
     }
   ]
 }

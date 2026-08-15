@@ -7,7 +7,10 @@ $RomPath = "F:\Games\GBA\GB\NBA All-Star Challenge\NBA All-Star Challenge (USA, 
 $GhidraProjectsDir = Join-Path $ProjectRoot "build\ghidra_project"
 $GhidraScriptDir = Join-Path $ProjectRoot "tools\ghidra"
 $BankInventoryPath = Join-Path $ProjectRoot "build\ghidra_bank_inventory.json"
+$FunctionSeedPath = Join-Path $ProjectRoot "tools\ghidra\function_seeds.json"
+$FunctionInventoryPath = Join-Path $ProjectRoot "build\ghidra_function_inventory.json"
 $BankCheckScript = Join-Path $ProjectRoot "tools\check_ghidra_banks.py"
+$FunctionCheckScript = Join-Path $ProjectRoot "tools\check_ghidra_functions.py"
 
 New-Item -ItemType Directory -Force -Path $GhidraProjectsDir | Out-Null
 
@@ -25,6 +28,7 @@ Write-Host "Running Ghidra Headless Decompiler on NBA All-Star Challenge ($Clean
     -processor "SM83:LE:16:default" `
     -scriptPath "$GhidraScriptDir" `
     -postScript "setup_banked_rom.py" "$BankInventoryPath" `
+    -postScript "recover_banked_functions.py" "$FunctionSeedPath" "$FunctionInventoryPath" `
     -postScript "decompile_all.py" `
     -overwrite
 
@@ -37,4 +41,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Ghidra bank inventory verification failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Ghidra four-bank setup and preliminary decompilation finished." -ForegroundColor Green
+python "$FunctionCheckScript" "$FunctionInventoryPath" --seeds "$FunctionSeedPath"
+if ($LASTEXITCODE -ne 0) {
+    throw "Ghidra function inventory verification failed with exit code $LASTEXITCODE"
+}
+
+Write-Host "Ghidra four-bank setup and reviewed function recovery finished." -ForegroundColor Green

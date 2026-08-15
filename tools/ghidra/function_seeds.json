@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "rom_sha256": "2ba24f2c5b692caff2d2fd09e0ee75e2b843d96f676ce7288b2ec3aacb62a1e2",
+  "naming": "rom_b<physical-bank>_<cpu-address>",
+  "native_mapping_default": {
+    "status": "unmapped",
+    "native_symbol": null,
+    "source": null
+  },
+  "banks": [
+    {
+      "bank": 0,
+      "space": "default",
+      "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
+      "addresses": [
+        "0100", "0150", "0444", "045e", "047e", "0496", "050f",
+        "053c", "06c0", "0749", "0b35", "1f7a", "1fe1", "1ffa",
+        "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
+        "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79", "2f88",
+        "3014"
+      ]
+    },
+    {
+      "bank": 1,
+      "space": "ROM_BANK_1",
+      "basis": "Direct call/jump targets in the coherent $6945-$7fff gameplay code region; earlier generated labels remain excluded as data false positives.",
+      "addresses": [
+        "6945", "69f5", "6bad", "6bba", "6bc7", "6bd4", "6c59",
+        "6c90", "6c9b", "6ca2", "6cab", "6d57", "6e1b", "6e3c",
+        "6ec0", "6eea", "6ff3", "7015", "702d", "714d", "7170",
+        "74bb", "75cd", "761b", "7712", "7721", "772d",
+        "780a", "782e", "78e9", "7914", "791d", "794b", "79ee",
+        "7a71", "7a90", "7aea", "7afd", "7b7a", "7ba8", "7bc0",
+        "7be8", "7c58", "7ea9", "7ec4", "7f37"
+      ]
+    },
+    {
+      "bank": 2,
+      "space": "ROM_BANK_2",
+      "basis": "Bank-2 entry selected immediately before calls to $4000, plus direct call targets before the reviewed data boundary at $42a2.",
+      "addresses": [
+        "4000", "4034", "4045", "4053", "406a", "40b1", "40f4",
+        "414b"
+      ]
+    }
+  ],
+  "deferred_candidates": [
+    {
+      "bank": 1,
+      "address": "76a7",
+      "reason": "Confirmed call target, but Ghidra follows unresolved flows into an invalid oversized body and times out during decompilation; boundary review is still required."
+    }
+  ],
+  "native_mappings": {
+    "rom_b00_0100": {
+      "status": "candidate",
+      "native_symbol": "allstar_game_init",
+      "source": "src/allstar_game.c",
+      "note": "Lifecycle analogue only; no state-parity evidence."
+    },
+    "rom_b00_2639": {
+      "status": "candidate",
+      "native_symbol": "allstar_controls_poll",
+      "source": "src/allstar_controls.c",
+      "note": "Native edge-state utility; Game Boy register polling itself is platform-native and excluded."
+    },
+    "rom_b00_3014": {
+      "status": "candidate",
+      "native_symbol": "allstar_audio_update",
+      "source": "src/audio/allstar_audio.c",
+      "note": "Subsystem analogue only; the ROM command sequencer is not ported."
+    }
+  }
+}

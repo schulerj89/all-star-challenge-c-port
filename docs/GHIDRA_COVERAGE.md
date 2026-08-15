@@ -4,11 +4,13 @@ Last audited: **2026-08-14**
 
 ## Executive Result
 
-Authentic routine-level coverage is **not yet measurable**. The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **0/83 (0.00%)**. All 83 entry points have stable bank-aware symbols and decompile successfully; 80 are explicitly unmapped and three have candidate native analogues without parity evidence. This is a conservative reviewed subset, not a claim that the entire ROM contains only 83 functions.
+
+The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
 The port currently has broad native scene scaffolding, but most game-mode behavior is partial, simplified, or unverified against the ROM.
 
-The strict project milestone tracker is currently **5/25 (20.00%)**, increased from the audited **3/25 (12.00%)** baseline by completing byte-verified overlays for physical banks 2 and 3. Gameplay milestones remain **0/11 (0.00%) verified**.
+The strict project milestone tracker is currently **6/25 (24.00%)**, increased from the audited **3/25 (12.00%)** baseline by completing bank overlays and the reviewed symbol/native-status inventory. Analysis is **6/7 (85.71%)**; gameplay remains **0/11 (0.00%) verified**.
 
 ## Scope
 
@@ -30,7 +32,9 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Current Ghidra export | 16 functions | Mostly reset/interrupt vectors, thunks, boot/init, serial, and VBlank; overlay function recovery remains. |
+| Reviewed Ghidra functions | 83 functions | 29 in bank 0, 46 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 96 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed routine-to-C parity | 0 of 83 | Three candidate analogues exist, but none has trace/test evidence. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
@@ -38,19 +42,18 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
 | Current automated parity tests | 0 | Existing tests are native smoke tests, not ROM comparisons. |
 
-### Ghidra limitation
+### Reviewed Ghidra recovery
 
-`tools/ghidra/setup_banked_rom.py` now creates the correct bank overlays and verifies mapped bytes against the physical ROM file. `tools/ghidra/decompile_all.py` still sweeps only the default `$0000..$7FFF` space, so it has not yet disassembled or recovered functions in the three switchable-bank overlays.
+`tools/ghidra/setup_banked_rom.py` creates and verifies the bank overlays. `recover_banked_functions.py` then consumes `function_seeds.json`, creates stable names such as `rom_b01_69f5`, decompiles each reviewed seed, and writes `build/ghidra_function_inventory.json`. `tools/check_ghidra_functions.py` rejects missing functions, wrong bank spaces, empty bodies, decompiler failures, and invalid native mapping records.
 
-The exported functions are:
+The current conservative boundaries are:
 
-- `vec_0000`, `vec_0008`, `vec_0010`, `vec_0018`, `vec_0020`, `vec_0028`, `vec_0038`;
-- VBlank, LCD, timer, serial, and joypad vector functions/thunks;
-- `FUN_0061` for serial handling;
-- boot/init at `$0100` and `$0150`;
-- `FUN_2729` for the VBlank handler.
+- bank 0: 29 boot and cross-bank anchor routines;
+- bank 1: coherent code beginning at `$6945`, with generated labels before that region excluded as likely data false positives;
+- bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
+- bank 3: no reviewed functions yet; observed uses are asset-copy sources.
 
-This is not enough to calculate routine-level gameplay coverage.
+Bank 1 `$76A7` is a confirmed call target but remains deferred because Ghidra follows unresolved flows into an oversized invalid function and times out. It receives no recovered-function or coverage credit.
 
 ### Percentage tracker
 
@@ -60,6 +63,7 @@ This is not enough to calculate routine-level gameplay coverage.
 |---|---:|---:|---:|
 | Audited baseline | 3/25 | 12.00% | — |
 | Four-bank mapping | 5/25 | 20.00% | +8.00 points |
+| Reviewed symbol inventory | 6/25 | 24.00% | +4.00 points |
 
 Run `python tools/check_coverage.py` to validate and report the current checkpoint. For future changes, use `python tools/check_coverage.py --baseline-ref HEAD --require-delta 2` to enforce the two-point commit gate against the currently committed manifest. The initial 12%→20% checkpoint uses the recorded history because the manifest did not exist at the prior Git revision.
 
@@ -117,8 +121,8 @@ No subsystem should currently be labeled 100% ROM-equivalent.
 
 | Priority | Area | Required work for verified coverage |
 |---|---|---|
-| P0 | Four-bank Ghidra function recovery | Bank overlays are complete; recover functions in each overlay, separate code from data, and export stable symbols/call graphs. |
-| P0 | Coverage tooling | Milestone tracking is complete; add the routine-level mapping manifest after stable banked functions exist. |
+| P0 | Four-bank Ghidra function recovery | 83 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
+| P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | P0 | Mode routing | Align the menu's Free Throws, H-O-R-S-E, and Accuracy selections with their intended scenes. |
 | P0 | Settings | Persist play-to, difficulty, winners-outs, time, and attempt count into the game state and consume them in each mode. |
 | P0 | One-on-One lifecycle | Add score/time endings, shot-clock turnover, results, replay/exit flow, and tournament return. |
@@ -159,4 +163,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-Until that manifest exists, report structural and feature status rather than a numeric routine-coverage percentage.
+The manifest now exists, so report its verified subset explicitly: **0/83 routine mappings verified**. Do not use 83 as a whole-ROM function denominator until the remaining code/data review is complete.

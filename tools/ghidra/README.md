@@ -1,8 +1,8 @@
 # Ghidra Tooling for NBA All-Star Challenge
 
-This directory contains the preliminary headless Ghidra export script and an optional HTTP/MCP bridge helper for reverse engineering the Game Boy ROM.
+This directory contains the bank-aware headless Ghidra recovery/export scripts and an optional HTTP/MCP bridge helper for reverse engineering the Game Boy ROM.
 
-The current setup maps and verifies all four banks correctly. The decompiler export remains useful mainly for boot and interrupt discovery and is **not yet a complete four-bank gameplay decompilation**.
+The current setup maps and verifies all four banks correctly and validates 83 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
 
 ## Verified Cartridge Layout
 
@@ -38,28 +38,32 @@ The script copies the user ROM into the ignored `build/` directory, invokes `ana
 tools/decomp/ghidra_decompiled.c
 ```
 
-It also writes `build/ghidra_bank_inventory.json` and validates that all four banks have the correct source offsets, CPU windows, sizes, overlay flags, and byte digests.
+It also writes and validates:
 
-### Known limitations
+- `build/ghidra_bank_inventory.json` for source offsets, CPU windows, sizes, overlay flags, and byte digests;
+- `build/ghidra_function_inventory.json` for reviewed bank-aware functions, decompiler status, and explicit native-counterpart status.
+
+### Current result and limitations
 
 - `setup_banked_rom.py` constructs and byte-verifies overlays for physical banks 1–3.
-- `decompile_all.py` still sweeps only the default `$0000..$7FFF` space and does not recover overlay functions.
-- It explicitly creates only boot/vector functions; auto-analysis currently discovers very few additional functions.
-- The audited export contains 16 functions, mostly vectors, thunks, boot/init, serial handling, and VBlank.
-- Function names are mostly generic and WRAM/HRAM fields are unnamed.
-- No complete gameplay subsystem has been recovered by this script.
+- `recover_banked_functions.py` creates and decompiles 83 checked-in seeds: bank 0 = 29, bank 1 = 46, bank 2 = 8.
+- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (96 functions in the current run).
+- Stable names preserve physical bank identity, for example `rom_b02_4000`.
+- Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout.
+- Bank 3 has no reviewed function seeds; observed references currently use it as an asset-copy source.
+- WRAM/HRAM fields are still unnamed, call graphs/memory references are not exported, and no complete gameplay subsystem has parity evidence.
 
 The generated file must therefore be treated as preliminary evidence, not as a coverage denominator.
 
 ## Four-Bank Setup and Remaining Analysis
 
-The headless setup now maps bank 0 and creates byte-verified overlays for physical banks 1–3. Function recovery still needs to:
+The headless setup maps bank 0 and creates byte-verified overlays for physical banks 1–3. Function recovery still needs to:
 
 1. Preserve bank identity in every function name and cross-reference.
-2. Create functions at confirmed direct-call targets and indirect dispatch targets.
+2. Expand the reviewed seed set with confirmed direct-call targets and indirect dispatch targets.
 3. Use dynamic traces and `mgbdis` labels to find entry points, while independently verifying boundaries.
 4. Mark tile, text, pointer, roster, animation, and audio regions as data before decompiling.
-5. Export functions, call graphs, symbols, and memory references in a machine-readable manifest.
+5. Extend the function/native-status inventory with call graphs, symbols, and memory references.
 
 `mgbdis` currently reports 246 `Call_*` labels, 116 `Jump_*` labels, and 251 unique direct call targets across the four banks. These are candidates only: without a code/data map, generated assembly can interpret data as instructions.
 

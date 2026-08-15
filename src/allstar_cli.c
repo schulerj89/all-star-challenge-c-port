@@ -61,7 +61,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
-    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav>\n");
+    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav> <09.wav>\n");
     printf("                                        Export decoded ROM cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
@@ -458,7 +458,8 @@ int allstar_cli_test_physics(void) {
     if (!(contacts & ALLSTAR_BALL_CONTACT_RIM_BACKBOARD) ||
         contact.rom_step_state.vx != 0x0046 ||
         contact.rom_step_state.vz != -1 ||
-        contact.rom_contact_cooldown_frames != 8) {
+        contact.rom_contact_cooldown_frames != 8 ||
+        contact.recoverable) {
         fprintf(stderr, "[Test] $1CED left-rim impulse was incorrect\n");
         return 1;
     }
@@ -1411,7 +1412,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
     court_x = 0.0f;
     court_y = 0.0f;
     allstar_one_on_one_rom_clamp_player_court(&court_x, &court_y);
-    if (court_x != 16.0f || court_y != 98.0f) {
+    if (court_x != 12.0f || court_y != 96.0f) {
         fprintf(stderr, "[Test] ROM player minimum court bounds were incorrect\n");
         return 1;
     }
@@ -1427,6 +1428,19 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_one_on_one_rom_clamp_player_court(&court_x, &court_y);
     if (court_x != 80.0f || court_y != 120.0f) {
         fprintf(stderr, "[Test] In-bounds ROM player coordinate was disturbed\n");
+        return 1;
+    }
+    court_x = 16.0f;
+    court_y = 100.0f;
+    if (!allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_LEFT | ALLSTAR_BTN_UP, 0,
+            &court_x, &court_y, 140.0f, 140.0f, NULL) ||
+        court_x != 12.0f || court_y != 96.0f ||
+        allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_LEFT | ALLSTAR_BTN_UP, 0,
+            &court_x, &court_y, 140.0f, 140.0f, NULL)) {
+        fprintf(stderr,
+                "[Test] $6BBA/$6BD4 did not preserve final edge step 16,100->12,96\n");
         return 1;
     }
 
@@ -2120,13 +2134,15 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
                                const char *squeak_path,
                                const char *dribble_path,
                                const char *navigation_path,
-                               const char *confirm_path) {
+                               const char *confirm_path,
+                               const char *rim_path) {
     AllStarAssetPack pack;
     const AllStarRomSfxProgram *squeak;
     const AllStarRomSfxProgram *score;
     const AllStarRomSfxProgram *dribble;
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
+    const AllStarRomSfxProgram *rim;
     if (!allstar_asset_pack_load_file(&pack, pack_path)) return 1;
     if (pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
         return 1;
@@ -2135,11 +2151,13 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
     dribble = &pack.rom_sfx_programs[2];
     navigation = &pack.rom_sfx_programs[3];
     confirm = &pack.rom_sfx_programs[4];
+    rim = &pack.rom_sfx_programs[5];
     if (!allstar_audio_export_rom_sfx_wav(&pack, 0x05, score_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0c, dribble_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0f, navigation_path) ||
-        !allstar_audio_export_rom_sfx_wav(&pack, 0x0e, confirm_path)) {
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0e, confirm_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x09, rim_path)) {
         fprintf(stderr, "[ROM SFX] Failed to export decoded WAV proof\n");
         return 1;
     }
@@ -2168,16 +2186,29 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
            confirm->program_id, confirm->priority_frames,
            confirm->stream_pointer_1, confirm->frame_count,
            confirm->source_checksum);
-    printf("[ROM SFX] Exported %s, %s, %s, %s, and %s\n",
+    printf("[ROM SFX] command $09 -> program $%02X, priority %u, "
+           "stream $%04X, %u frames, NR41/42/43/44=%02X/%02X/%02X/%02X, "
+           "source FNV-1a %08X\n",
+           rim->program_id, rim->priority_frames,
+           rim->stream_pointer_1, rim->frame_count,
+           rim->noise_length, rim->noise_envelope,
+           rim->frames[0].noise_polynomial, rim->noise_control,
+           rim->source_checksum);
+    printf("[ROM SFX] Exported %s, %s, %s, %s, %s, and %s\n",
            score_path, squeak_path, dribble_path,
-           navigation_path, confirm_path);
+           navigation_path, confirm_path, rim_path);
     return 0;
 }
 
 int allstar_cli_test_one_on_one_presentation(void) {
     AllStarGame game;
     AllStarRomInboundPlacement inbound;
+    AllStarOneOnOneDebugState debug;
     bool dribble_heard = false;
+    bool cpu_reached_route = false;
+    bool cpu_released = false;
+    bool defender_recovered = false;
+    float defender_start_x;
     int frame;
     printf("[Test] Running One-on-One Presentation/Audio Integration Tests...\n");
     allstar_one_on_one_rom_inbound_placement_20f7(1, &inbound);
@@ -2217,6 +2248,98 @@ int allstar_cli_test_one_on_one_presentation(void) {
     }
     if (!dribble_heard) {
         fprintf(stderr, "[Test] $6FE5 command-$0C dribble cadence was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    /* Scene-level bank-1 $72BF->$72EA->$732C->$755D->$756C proof. */
+    if (!allstar_scene_one_on_one_set_test_possession(
+            game.active_scene, &game, 2)) {
+        fprintf(stderr, "[Test] Could not seed CPU possession\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < 1200; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (!allstar_scene_one_on_one_get_debug_state(
+                game.active_scene, &debug)) break;
+        if (debug.cpu_offense_stage >= 2) cpu_reached_route = true;
+        if (debug.ball_in_flight && !debug.p2_has_ball) {
+            cpu_released = true;
+            break;
+        }
+    }
+    if (!cpu_reached_route || !cpu_released) {
+        fprintf(stderr,
+                "[Test] CPU stalled in $72EA/$732C/$756C path "
+                "(frame=%d state=%u stage=%u target=%u,%u p2=%.0f,%.0f "
+                "action=$%02X record=%u)\n",
+                frame, debug.cpu_state, debug.cpu_offense_stage,
+                debug.cpu_target_x, debug.cpu_target_y,
+                debug.p2_x, debug.p2_y,
+                debug.p2_action, debug.p2_record);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    printf("  CPU route released at scene frame %d after reaching stage 2\n",
+           frame);
+
+    /* Fixed $70FD->$6A8C action $05 must land into $06 and accept movement. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(
+        game.active_scene, &game, 2);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 20.0f, 128.0f, 132.0f, 128.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < ALLSTAR_ROM_DEFENSE_JUMP_FRAMES + 18; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    defender_start_x = debug.p1_x;
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    for (frame = 0; frame < 24; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    defender_recovered = !debug.p1_defense_jump_active &&
+        debug.p1_action != 0x05 && debug.p1_action != 0x0c &&
+        debug.p1_action != 0x14 && debug.p1_x > defender_start_x;
+    if (!defender_recovered) {
+        fprintf(stderr,
+                "[Test] Defender froze after $70FD/$6A8C block jump "
+                "(action=$%02X record=%u active=%d x=%.0f->%.0f)\n",
+                debug.p1_action, debug.p1_record,
+                debug.p1_defense_jump_active ? 1 : 0,
+                defender_start_x, debug.p1_x);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    printf("  Defender recovered $05->$06 and moved %.0f->%.0f\n",
+           defender_start_x, debug.p1_x);
+
+    /* Exact $1F5F rim cell: the scene emits command $09 but preserves the
+       $FFF8-equivalent first-flight lock until $1E5B/$1E77 ground bounce. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    if (!allstar_scene_one_on_one_set_test_ball_rom(
+            game.active_scene, 0x5300, 0x5e00, 0x370f,
+            0, 0, 0, 1)) {
+        fprintf(stderr, "[Test] Could not seed exact rim-audio fixture\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (debug.rim_audio_events != 1 || debug.ball_recoverable) {
+        fprintf(stderr,
+                "[Test] $1F5F rim contact did not dispatch command-$09 "
+                "or incorrectly changed first flight "
+                "(events=%u last_sfx=%d recoverable=%d)\n",
+                (unsigned)debug.rim_audio_events,
+                (int)game.audio.last_sfx,
+                debug.ball_recoverable ? 1 : 0);
         allstar_game_shutdown(&game);
         return 1;
     }
@@ -2272,7 +2395,8 @@ int allstar_cli_test_one_on_one_presentation(void) {
     }
 
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: $0C/$0D gameplay cues and $0F/$0E roster cues\n");
+    printf("[Test] PASSED: CPU release, defender recovery, $09 rim, "
+           "$0C/$0D gameplay, and $0F/$0E roster cues\n");
     return 0;
 }
 
@@ -2453,6 +2577,76 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 4m-4n. Scene-level proof of the corrected $74BB dead zone and the
+       complete $72EA->$732C->$755D->$756C CPU route/release. */
+    {
+        AllStarOneOnOneDebugState debug;
+        allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+        allstar_scene_one_on_one_set_test_possession(
+            game.active_scene, &game, 2);
+        allstar_scene_one_on_one_set_test_positions(
+            game.active_scene, 140.0f, 128.0f, 84.0f, 152.0f);
+        allstar_input_update(&game.input, 0);
+        for (int i = 0; i < 900; i++) {
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+            allstar_scene_one_on_one_get_debug_state(
+                game.active_scene, &debug);
+            if (debug.cpu_offense_stage >= 2) break;
+        }
+        snprintf(path, sizeof(path),
+                 "%s\\04m_one_on_one_cpu_route_grounded.bmp", out_dir);
+        save_bmp_file(path, game.renderer->pixels,
+                      ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+        for (int i = 0; i < 900; i++) {
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+            allstar_scene_one_on_one_get_debug_state(
+                game.active_scene, &debug);
+            if (debug.ball_in_flight && !debug.p2_has_ball) break;
+        }
+        snprintf(path, sizeof(path),
+                 "%s\\04n_one_on_one_cpu_release.bmp", out_dir);
+        save_bmp_file(path, game.renderer->pixels,
+                      ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    }
+
+    /* 4o-4p. $70FD jump completes through action $05->$06, then movement
+       resumes; both frames also expose the corrected player-foot baseline. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(
+        game.active_scene, &game, 2);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 20.0f, 128.0f, 132.0f, 128.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 30; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04o_one_on_one_defender_block.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    for (int i = 30; i < ALLSTAR_ROM_DEFENSE_JUMP_FRAMES + 18; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    for (int i = 0; i < 24; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04p_one_on_one_defender_recovered.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4q. Exact $53/$5E/$37 miss cell after $1F5F installs VX=$0046,
+       cooldown 8, preserves the recovery lock, and dispatches command $09. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_ball_rom(
+        game.active_scene, 0x5300, 0x5e00, 0x370f, 0, 0, 0, 1);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04q_one_on_one_rim_bounce.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 5. Three Point */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
@@ -2529,13 +2723,14 @@ int allstar_cli_main(int argc, char **argv) {
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
     } else if (strcmp(cmd, "--export-rom-sfx") == 0) {
-        if (argc < 8) {
+        if (argc < 9) {
             fprintf(stderr, "Error: --export-rom-sfx requires <pack>, "
-                    "<05.wav>, <0D.wav>, <0C.wav>, <0F.wav>, and <0E.wav>\n");
+                    "<05.wav>, <0D.wav>, <0C.wav>, <0F.wav>, <0E.wav>, "
+                    "and <09.wav>\n");
             return 1;
         }
         return allstar_cli_export_rom_sfx(
-            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");

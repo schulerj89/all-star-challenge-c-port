@@ -16,7 +16,7 @@ the made-ball motion before the fade.
 |---|---|---|
 | Move before releasing | `$7015->$702D->$714D->$782E->$6A8C->$6B72`; `$714D` changes action to `$0A/$12` but does not clear player `+$07`. | The scene preserves held direction during gather, ticks `$6A8C` while shooting, and calls `allstar_one_on_one_rom_player_move_6b72` at every normal record boundary. |
 | Full run and shot frames | `$6A8C` indexes `$6C60`, reloads the record timer, writes display frame `+$01`, moves, then increments `+$03`. | The extracted 24-action record map remains authoritative; the live scene no longer suspends it during shot actions. |
-| Dribble-floor sound | `$6F2A->$6FE5->$2F88`: record `+$03=6` selects command `$0C`; `$2FB0` maps it to program `$02`, priority `$13`. `$3014` retriggers channel 2 for all six record frames. | Asset-pack v8 stores stream `$3D7F`, instrument state `NR21=$7A/NR22=$F1`, zero frequency `$000`, and six frames. `ALLSTAR_SFX_DRIBBLE` is bound to this decoded program and retains same-voice restart semantics. |
+| Dribble-floor sound | `$6F2A->$6FE5->$2F88`: record `+$03=6` selects command `$0C`; `$2FB0` maps it to program `$02`, priority `$13`. `$3014` retriggers channel 2 for all six record frames. | Asset-pack v9 stores stream `$3D7F`, instrument state `NR21=$7A/NR22=$F1`, zero frequency `$000`, and six frames. `ALLSTAR_SFX_DRIBBLE` is bound to this decoded program and retains same-voice restart semantics. |
 | Shoe cue cadence | `$782E->$78DD` compares the selected action with the current action and returns equal before `$78E0->$2F88`. | C now reports an action change only when the byte differs, eliminating the former command-`$0D` restart every record boundary. |
 | Real-time host cadence | Cartridge logic runs at 59.7275 Hz; normal animation records observed by Mesen last six frames. | Win32 now keeps an absolute 59.7275 Hz deadline with 1 ms timer resolution, so `Sleep(1)` overshoot no longer accumulates as visible slowdown. |
 | CPU does not instantly shoot | `$7170->$72BF->$72EA->$74BB` drives to a side target; arrival advances through `$732C/$738D/$763B` to a roster-specific second target. `$755D` then presses A once to gather. | `AllStarAIController` has explicit first-target, route-target, and gather stages. `allstar_ai_rom_route_target_732c` contains the exact 27 roster keys, route families, thresholds, and coordinate tables. |
@@ -52,14 +52,15 @@ second bounce `Z=$0000,VZ=$0117` at `+121`, and fade entry at `+180`.
 .\build\allstar_port.exe --test-all
 python tools\check_one_on_one_live_flow_coverage.py
 
-.\build\allstar_port.exe --build-assetpack "<NBA All-Star Challenge.gb>" build\one_on_one_v8.pack
-.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v8.pack `
+.\build\allstar_port.exe --build-assetpack "<NBA All-Star Challenge.gb>" build\one_on_one_v9.pack
+.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v9.pack `
   build\live_flow_proof\command_05_score.wav `
   build\live_flow_proof\command_0D_squeak.wav `
   build\live_flow_proof\command_0C_dribble.wav `
   build\live_flow_proof\command_0F_roster_navigation.wav `
-  build\live_flow_proof\command_0E_player_select_match_start.wav
+  build\live_flow_proof\command_0E_player_select_match_start.wav `
+  build\live_flow_proof\command_09_rim.wav
 ```
 
-The five WAVs are decoded from the same reviewed ROM source region and carry
+The six WAVs are decoded from the same reviewed ROM source region and carry
 FNV-1a checksum `A0245071` in the serialized pack.

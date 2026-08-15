@@ -44,4 +44,38 @@ bool allstar_scene_one_on_one_set_test_positions(AllStarScene *scene,
                                                  float p1_x, float p1_y,
                                                  float p2_x, float p2_y);
 
+typedef struct {
+    float p1_x;
+    float p1_y;
+    float p2_x;
+    float p2_y;
+    float ball_x;
+    float ball_y;
+    float ball_z;
+    uint8_t p1_action;
+    uint8_t p2_action;
+    uint8_t p1_record;
+    uint8_t p2_record;
+    uint8_t cpu_state;
+    uint8_t cpu_offense_stage;
+    uint8_t cpu_target_x;
+    uint8_t cpu_target_y;
+    uint32_t rim_audio_events;
+    bool p1_has_ball;
+    bool p2_has_ball;
+    bool ball_in_flight;
+    bool ball_recoverable;
+    bool p1_defense_jump_active;
+    bool p2_defense_jump_active;
+} AllStarOneOnOneDebugState;
+
+/* Deterministic scene integration probes used by the CLI regression suite. */
+bool allstar_scene_one_on_one_set_test_possession(
+    AllStarScene *scene, struct AllStarGame *game, int player);
+bool allstar_scene_one_on_one_get_debug_state(
+    const AllStarScene *scene, AllStarOneOnOneDebugState *state);
+bool allstar_scene_one_on_one_set_test_ball_rom(
+    AllStarScene *scene, uint16_t x, uint16_t y, uint16_t z,
+    int16_t vx, int16_t vy, int16_t vz, int shooter);
+
 #endif /* ALLSTAR_SCENE_H */

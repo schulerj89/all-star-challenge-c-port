@@ -600,10 +600,12 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     (void)is_shooting;
     (void)is_defending;
 
-    /* Dynamic Floor Shadow beneath player feet */
+    /* Native ground Y is player +$15. $2945's 48-pixel OBJ stack ends at
+       ground-8 after the DMG OAM Y bias; anchor this optional native shadow
+       directly below that baseline instead of leaving a floating gap. */
     for (int sx = -8; sx <= 8; sx++) {
         uint8_t shade = (abs(sx) >= 6) ? 1 : 2;
-        allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
+        allstar_renderer_set_pixel(renderer, x + sx, y - 8, shade);
     }
 
     pack = renderer->asset_pack;

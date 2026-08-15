@@ -328,8 +328,9 @@ static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
 /* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
    $2FB0, program pointers at $3849, instrument records at $3888, duration
    table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
-   This intentionally decodes the five focused square programs used by score,
-   dribble-ground contact, movement, roster navigation, and roster accept. */
+   This intentionally decodes the six focused square/noise programs used by
+   score, rim contact, dribble-ground contact, movement, roster navigation,
+   and roster accept. */
 static bool decode_rom_square_stream(const AllStarRom *rom,
                                      size_t stream,
                                      int channel,
@@ -399,10 +400,60 @@ static bool decode_rom_square_stream(const AllStarRom *rom,
     return true;
 }
 
+/* Program $0B, selected by rim command $09, is a DMG noise-channel stream.
+   $3327 installs NR41/NR42 from descriptor bytes +3/+4, masks NR43's
+   trigger marker to seven bits, and writes descriptor +6 to NR44. */
+static bool decode_rom_noise_stream(const AllStarRom *rom,
+                                    size_t stream,
+                                    AllStarRomSfxProgram *program,
+                                    size_t *next_stream) {
+    size_t cursor = stream;
+    size_t output_frame = 0;
+    uint8_t instrument;
+    size_t descriptor;
+    if (!rom || !program || !next_stream || stream >= rom->size) return false;
+    instrument = rom->data[cursor++];
+    if ((instrument & 0x80) == 0) return false;
+    descriptor = 0x3888u + (size_t)(instrument & 0x7f) * 8u;
+    if (descriptor + 7 >= rom->size) return false;
+    program->noise_length = rom->data[descriptor + 3];
+    program->noise_envelope = rom->data[descriptor + 4];
+    program->noise_control = rom->data[descriptor + 6];
+
+    while (cursor < rom->size && rom->data[cursor] != 0xff) {
+        uint8_t note;
+        uint8_t duration_code;
+        uint8_t duration;
+        uint8_t polynomial;
+        size_t local_frame;
+        if (cursor + 1 >= rom->size) return false;
+        note = rom->data[cursor++];
+        duration_code = rom->data[cursor++];
+        (void)note;
+        if ((size_t)duration_code + 0x312bu >= rom->size) return false;
+        duration = rom->data[0x312b + duration_code];
+        if (duration == 0 || output_frame + duration >
+                ALLSTAR_ROM_SFX_MAX_FRAMES) return false;
+        polynomial = (uint8_t)(rom->data[descriptor + 5] & 0x7f);
+        for (local_frame = 0; local_frame < duration; local_frame++) {
+            AllStarRomSfxFrame *frame =
+                &program->frames[output_frame + local_frame];
+            frame->noise_polynomial = polynomial;
+            frame->flags |= ALLSTAR_ROM_SFX_CHANNEL_4;
+            if (local_frame == 0) frame->flags |= ALLSTAR_ROM_SFX_TRIGGER_4;
+        }
+        output_frame += duration;
+    }
+    if (cursor >= rom->size || rom->data[cursor++] != 0xff) return false;
+    program->frame_count = (uint8_t)output_frame;
+    *next_stream = cursor;
+    return true;
+}
+
 static bool extract_one_on_one_audio(AllStarAssetPack *pack,
                                      const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c, 0x0f, 0x0e};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -419,9 +470,12 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         program->stream_pointer_1 = stream;
         program->source_checksum = fnv1a_bytes(
             rom->data + 0x2fb0, 0x3fa6 - 0x2fb0);
-        if (!decode_rom_square_stream(
-                rom, stream, command == 0x0c ? 2 : 1,
-                program, &next_stream)) return false;
+        if (command == 0x09) {
+            if (!decode_rom_noise_stream(
+                    rom, stream, program, &next_stream)) return false;
+        } else if (!decode_rom_square_stream(
+                       rom, stream, command == 0x0c ? 2 : 1,
+                       program, &next_stream)) return false;
         if (command == 0x05) {
             program->stream_pointer_2 = (uint16_t)next_stream;
             if (!decode_rom_square_stream(
@@ -478,7 +532,19 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[4].frames[0].square1_frequency != 0x0783 ||
         pack->rom_sfx_programs[4].frames[6].square1_frequency != 0x0791 ||
         pack->rom_sfx_programs[4].frames[12].square1_frequency != 0x079d ||
-        pack->rom_sfx_programs[4].frames[24].square1_frequency != 0x07ad)
+        pack->rom_sfx_programs[4].frames[24].square1_frequency != 0x07ad ||
+        pack->rom_sfx_programs[5].command != 0x09 ||
+        pack->rom_sfx_programs[5].program_id != 0x0b ||
+        pack->rom_sfx_programs[5].priority_frames != 0x23 ||
+        pack->rom_sfx_programs[5].stream_pointer_1 != 0x3ef2 ||
+        pack->rom_sfx_programs[5].frame_count != 24 ||
+        pack->rom_sfx_programs[5].noise_length != 0xeb ||
+        pack->rom_sfx_programs[5].noise_envelope != 0xf2 ||
+        pack->rom_sfx_programs[5].noise_control != 0xbf ||
+        pack->rom_sfx_programs[5].frames[0].noise_polynomial != 0x5a ||
+        (pack->rom_sfx_programs[5].frames[0].flags &
+            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4)) !=
+            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4))
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -492,6 +558,7 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *dribble;
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
+    const AllStarRomSfxProgram *rim;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
@@ -499,6 +566,7 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     dribble = &pack->rom_sfx_programs[2];
     navigation = &pack->rom_sfx_programs[3];
     confirm = &pack->rom_sfx_programs[4];
+    rim = &pack->rom_sfx_programs[5];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -539,7 +607,17 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         movement->source_checksum == score->source_checksum &&
         movement->source_checksum == dribble->source_checksum &&
         movement->source_checksum == navigation->source_checksum &&
-        movement->source_checksum == confirm->source_checksum;
+        movement->source_checksum == confirm->source_checksum &&
+        rim->command == 0x09 && rim->program_id == 0x0b &&
+        rim->priority_frames == 0x23 && rim->frame_count == 24 &&
+        rim->stream_pointer_1 == 0x3ef2 &&
+        rim->noise_length == 0xeb && rim->noise_envelope == 0xf2 &&
+        rim->noise_control == 0xbf &&
+        rim->frames[0].noise_polynomial == 0x5a &&
+        (rim->frames[0].flags &
+            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4)) ==
+            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4) &&
+        movement->source_checksum == rim->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {

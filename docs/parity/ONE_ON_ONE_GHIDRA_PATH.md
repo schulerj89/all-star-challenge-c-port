@@ -26,7 +26,7 @@ the cartridge.
 | `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
 | `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
-| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0C/$0D/$0E/$0F` select programs `$0C/$02/$11/$12/$07`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v8 decodes all five focused programs, including dribble retriggers and the 48-frame accepted-player chime that carries into match start. |
+| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$09/$0C/$0D/$0E/$0F` select programs `$0C/$0B/$02/$11/$12/$07`; the driver loads instruments, notes, durations, pitch modulation, and square/noise APU registers. | Asset-pack v9 decodes all six focused programs, including command-$09's 24-frame noise cue, dribble retriggers, and the 48-frame accepted-player chime that carries into match start. |
 | `$1E0E->$7BE8->$1E5B/$1E77->$27C7` | Made ball holds gravity 35 frames, bounces at `+76/+121/+158`, and begins fade at `+180`. | Score presentation advances the shared 8.8 integrator with the exact gravity delay and hard-first-bounce state. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
@@ -85,7 +85,7 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation reads exact player `+$05/+$06` (visual Y is ground minus 40) and uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-8 asset pack. The old
+The extracted bytes exist only in a user-built version-9 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 
@@ -94,9 +94,9 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v8.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v8.pack
-.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v8.pack build\command_05.wav build\command_0D.wav build\command_0C.wav build\command_0F.wav build\command_0E.wav
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v9.pack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v9.pack
+.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v9.pack build\command_05.wav build\command_0D.wav build\command_0C.wav build\command_0F.wav build\command_0E.wav build\command_09.wav
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 

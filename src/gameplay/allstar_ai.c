@@ -137,8 +137,8 @@ bool allstar_ai_rom_should_shoot_756c(uint8_t profile,
            animation_record >= 5 && animation_record < 8;
 }
 
-/* $71EE gates the CPU A/contest input on an opponent flight and the same
-   $07B4 hoop rectangle with margin $0E. */
+/* $71EE gates the CPU A/contest input while the opponent's initial-flight
+   flag remains active and inside the same $07B4 hoop rectangle margin $0E. */
 bool allstar_ai_rom_should_contest_71ee(float cpu_x, float cpu_y,
                                        bool opponent_shot_in_flight) {
     if (!opponent_shot_in_flight) return false;
@@ -281,7 +281,8 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
 
             if (allstar_ai_rom_should_contest_71ee(
                     cpu->x, cpu->y,
-                    ball->in_flight && ball->shooter_id != 2)) {
+                    ball->in_flight && !ball->recoverable &&
+                    ball->shooter_id != 2)) {
                 ai->state = ALLSTAR_AI_STATE_CONTEST_SHOT;
                 cpu->is_jumping = true;
             } else if (fabsf(cpu->x - human->x) < 12.0f &&
@@ -293,7 +294,8 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
         case ALLSTAR_AI_STATE_CONTEST_SHOT:
             cpu->is_jumping = allstar_ai_rom_should_contest_71ee(
                 cpu->x, cpu->y,
-                ball->in_flight && ball->shooter_id != 2);
+                ball->in_flight && !ball->recoverable &&
+                ball->shooter_id != 2);
             if (!cpu->is_jumping) ai->state = ALLSTAR_AI_STATE_REBOUND;
             break;
         case ALLSTAR_AI_STATE_DRIVE_TO_HOOP: {

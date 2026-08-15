@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 8
+#define ALLSTAR_ASSET_VERSION 9
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -18,7 +18,7 @@
 #define ALLSTAR_BALL_OAM_PAIR_COUNT 32
 #define ALLSTAR_COURT_TILE_COUNT 86
 #define ALLSTAR_NET_TILE_COUNT 17
-#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 5
+#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 6
 #define ALLSTAR_ROM_SFX_MAX_FRAMES 72
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO (1u << 1)
@@ -27,6 +27,8 @@
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
 #define ALLSTAR_ROM_SFX_TRIGGER_1 (1u << 2)
 #define ALLSTAR_ROM_SFX_TRIGGER_2 (1u << 3)
+#define ALLSTAR_ROM_SFX_CHANNEL_4 (1u << 4)
+#define ALLSTAR_ROM_SFX_TRIGGER_4 (1u << 5)
 
 /* Bank 1 $6A8C consumes the lists selected by the pointer table at $6C60.
    Normal records use all three bytes. Loop records use only control; action
@@ -55,12 +57,13 @@ typedef struct {
 } AllStarRomOamPair;
 
 /* Focused $3014 APU-program decode for One-on-One commands
-   $05/$0C/$0D/$0E/$0F.
+   $05/$09/$0C/$0D/$0E/$0F.
    Frequencies are the DMG 11-bit NR13/NR14 and NR23/NR24 values after the
    ROM's $3244 pitch modulation has been applied for that 59.7 Hz frame. */
 typedef struct {
     uint16_t square1_frequency;
     uint16_t square2_frequency;
+    uint8_t noise_polynomial;
     uint8_t flags;
 } AllStarRomSfxFrame;
 
@@ -74,6 +77,9 @@ typedef struct {
     uint8_t square1_envelope;
     uint8_t square2_duty_length;
     uint8_t square2_envelope;
+    uint8_t noise_length;
+    uint8_t noise_envelope;
+    uint8_t noise_control;
     uint16_t stream_pointer_1;
     uint16_t stream_pointer_2;
     uint32_t source_checksum;

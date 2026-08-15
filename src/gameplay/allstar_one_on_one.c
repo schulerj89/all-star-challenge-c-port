@@ -637,8 +637,9 @@ bool allstar_one_on_one_rom_jump_recovery_2b6c(
            ball_height <= reach;
 }
 
-/* Bank 1 $6BAD/$6BBA bounds field +$06 to 8..148 and $6BC7/$6BD4
-   bounds field +$15 to 98..152. Native X stores +$06 plus eight. */
+/* Bank 1 $6BAD/$6BBA tests field +$06 before each four-pixel move. From
+   valid modulo-four positions this permits raw X 8->4 and reaches centered
+   X 12; $6BC7/$6BD4 similarly reaches ground Y 96. */
 void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
                                                float *player_ground_y) {
     if (!player_center_x || !player_ground_y) return;

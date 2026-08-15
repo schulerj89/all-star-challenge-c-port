@@ -16,7 +16,8 @@ goaltending violation or a live-shot block/possession branch in this path.
 | `$71B3`, table `$762C` | On held-ball contact, skill levels 1/2/3 press B when random byte `<$04/$19/$46`. | `allstar_ai_rom_should_steal_71b3` supplies the exact thresholds at the existing skill cadence. |
 | `$702D->$6C90`, table `$6C4D` | New A while defending selects jump action `$05/$0C/$14`; twelve six-frame records produce cumulative heights `0,9,16,21,24,26,26,24,19,12,4,0`. | Human contest input and CPU `$71EE` contests start the same 72-frame defensive jump. |
 | `$70BF->$2B6C` | A jumping player needs `$077D` planar contact and ball height strictly above `reach-8` and at or below `reach`. | `allstar_one_on_one_rom_jump_recovery_2b6c` preserves the strict eight-pixel band. |
-| `$2B6C->$2B88` | `$FFF8=1` rejects possession during the shot's initial flight. Rim, backboard, court, or boundary contact clears `$FFF8`, after which the identical jump contact can recover the ball. | The scene passes `!ball.recoverable` as the first-flight lock, so contests do not invent live blocks or goaltending calls; post-contact jump catches remain possible. |
+| `$2B6C->$2B88` | `$FFF8=1` rejects possession during the shot's initial flight. `$1F5F` rim contact preserves `$FFF8`; `$1E5B/$1E77` clears it at the first ground bounce, after which the identical jump contact can recover the ball. | The scene passes `!ball.recoverable` as the first-flight lock, so contests do not invent live blocks or goaltending calls; post-ground-contact jump catches remain possible. |
+| `$70FD->$6A8C` landing | Jump families `$05/$0C/$14` contain twelve six-frame records followed by action transitions to `$06/$0D/$15`. The ROM does not cancel the pose early on rim contact. | The scene preserves all 72 frames, then the integration regression holds Right and proves the defender leaves the jump family and moves from X 20 to 36. The former apparent permanent freeze is now guarded by this end-to-end test. |
 
 ## Emulator and native verification
 
@@ -26,7 +27,7 @@ into One-on-One and injects deterministic native contact states. It proves:
 - `$2B14` transfers owner 2 to owner 1 when vulnerability, collision, and
   opposing-facing gates pass;
 - `$2B88` leaves owner zero for the same jump contact while `$FFF8=1`;
-- clearing `$FFF8` allows the post-contact `$2B6C` jump recovery.
+- the first `$1E5B/$1E77` ground bounce clears `$FFF8` and allows the post-contact `$2B6C` jump recovery.
 
 Run the cartridge trace and native tests:
 

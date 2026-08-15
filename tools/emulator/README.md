@@ -96,6 +96,13 @@ and command `$05` at `+65`. Require exit code `0` and
 the outer-boundary velocity stop, changed-owner `$FFD1` recovery, CPU route,
 inside-region persistence, and outside-region take-back clearance.
 
+`trace_one_on_one_rim_audio.lua` forces the exact `$53/$5E/$37` rim cell and
+follows `$1CED->$1D8C->$1F5F->$2F88->$3014`. It asserts cooldown `$08`,
+that `$1F5F` preserves initial-flight `$FFF8`, command `$09`, program `$0B`,
+priority `$23`, and captures noise-channel
+`NR41/42/43/44=$EB/$F2/$5A/$BF`. Fixed `$1E5B/$1E77`, covered by the physics
+regressions, clears `$FFF8` later on the first ground bounce.
+
 `trace_one_on_one_live_flow.lua` holds a direction through a complete run
 cycle and through shot gather. It asserts all run display frames, continued
 `$6A8C->$6B72` movement under action `$0A`, and release only on the second A.

@@ -26,7 +26,7 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | Miss travels behind the hoop (`y<$5C`) | Apply `$1CED`: return it to `y=$5E` with the recovered small positive court velocity. |
 | Ball reaches `x<$0A`, `x>=$A0`, or `y>=$97` | Apply `$1CED->$1F4D`: zero planar velocity and leave possession unresolved until recovery. |
 | Loose ball recovery | Use `$077D`'s strict `|dx|<12`, `|dy|<8` collision limits, then apply possession through the existing match state. |
-| Defender jumps into a live shot | `$2B6C` can reach the shared transfer gate, but `$2B88` rejects it while `$FFF8=1`; the ROM has no separate goaltending call or live-block award. After first contact clears `$FFF8`, the jump-height catch band can recover the rebound. |
+| Defender jumps into a live shot | `$2B6C` can reach the shared transfer gate, but `$2B88` rejects it while `$FFF8=1`; the ROM has no separate goaltending call or live-block award. Rim contact preserves `$FFF8`; after the first ground bounce clears it, the jump-height catch band can recover the rebound. |
 
 The pure shot state machine and possession penalty are covered by:
 

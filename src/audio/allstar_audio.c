@@ -209,8 +209,8 @@ static float dmg_square_hz(uint16_t frequency) {
 /* Render the exact per-frame register program extracted from $3014's ROM
    data. Timing uses one Game Boy frame (70224 clocks at 4194304 Hz), and
    square-1 sweep reproduces NR10 for command $0D between register writes. */
-static bool generate_rom_square_program(PcmSound *out,
-                                        const AllStarRomSfxProgram *program) {
+static bool generate_rom_program(PcmSound *out,
+                                 const AllStarRomSfxProgram *program) {
     const double frame_seconds = 70224.0 / 4194304.0;
     uint32_t total_samples;
     uint32_t sample;
@@ -221,6 +221,11 @@ static bool generate_rom_square_program(PcmSound *out,
     double next_sweep_time = 0.0;
     float phase1 = 0.0f;
     float phase2 = 0.0f;
+    float noise_phase = 0.0f;
+    uint16_t noise_lfsr = 0x7fff;
+    uint8_t noise_polynomial = 0;
+    uint8_t noise_volume = 0;
+    double next_noise_envelope_time = 0.0;
     float duty1;
     float duty2;
     float volume1;
@@ -264,6 +269,17 @@ static bool generate_rom_square_program(PcmSound *out,
                 if ((frame->flags & ALLSTAR_ROM_SFX_TRIGGER_2) != 0)
                     phase2 = 0.0f;
             }
+            if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_4) != 0) {
+                noise_polynomial = frame->noise_polynomial;
+                if ((frame->flags & ALLSTAR_ROM_SFX_TRIGGER_4) != 0) {
+                    uint8_t pace = program->noise_envelope & 7u;
+                    noise_lfsr = 0x7fff;
+                    noise_phase = 0.0f;
+                    noise_volume = program->noise_envelope >> 4;
+                    next_noise_envelope_time = pace != 0
+                        ? time + (double)pace / 64.0 : 1.0e30;
+                }
+            }
             previous_frame = frame_index;
         }
 
@@ -290,6 +306,37 @@ static bool generate_rom_square_program(PcmSound *out,
             mixed += (phase2 < duty2 ? 1.0f : -1.0f) * volume2;
             phase2 += dmg_square_hz(frequency2) / MIX_SAMPLE_RATE;
             if (phase2 >= 1.0f) phase2 -= floorf(phase2);
+        }
+        if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_4) != 0) {
+            uint8_t divisor_code = noise_polynomial & 7u;
+            uint8_t shift = noise_polynomial >> 4;
+            float divisor = divisor_code == 0
+                ? 0.5f : (float)divisor_code;
+            float noise_hz = 262144.0f /
+                (divisor * (float)(1u << shift));
+            uint8_t pace = program->noise_envelope & 7u;
+            while (pace != 0 && time >= next_noise_envelope_time) {
+                if ((program->noise_envelope & 0x08) != 0) {
+                    if (noise_volume < 15) noise_volume++;
+                } else if (noise_volume > 0) {
+                    noise_volume--;
+                }
+                next_noise_envelope_time += (double)pace / 64.0;
+            }
+            noise_phase += noise_hz / MIX_SAMPLE_RATE;
+            while (noise_phase >= 1.0f) {
+                uint16_t feedback = (uint16_t)(
+                    (noise_lfsr ^ (noise_lfsr >> 1)) & 1u);
+                noise_lfsr = (uint16_t)((noise_lfsr >> 1) |
+                                        (feedback << 14));
+                if ((noise_polynomial & 0x08) != 0) {
+                    noise_lfsr = (uint16_t)(
+                        (noise_lfsr & ~(1u << 6)) | (feedback << 6));
+                }
+                noise_phase -= 1.0f;
+            }
+            mixed += (noise_lfsr & 1u ? 1.0f : -1.0f) *
+                ((float)noise_volume / 15.0f);
         }
         if (mixed > 1.8f) mixed = 1.8f;
         if (mixed < -1.8f) mixed = -1.8f;
@@ -505,6 +552,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *dribble;
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
+    const AllStarRomSfxProgram *rim;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) == 0 ||
@@ -515,6 +563,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     dribble = &pack->rom_sfx_programs[2];
     navigation = &pack->rom_sfx_programs[3];
     confirm = &pack->rom_sfx_programs[4];
+    rim = &pack->rom_sfx_programs[5];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -532,11 +581,18 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         confirm->command != 0x0e || confirm->program_id != 0x12 ||
         confirm->priority_frames != 0x32 || confirm->frame_count != 48 ||
         confirm->stream_pointer_1 != 0x3fa6 ||
+        rim->command != 0x09 || rim->program_id != 0x0b ||
+        rim->priority_frames != 0x23 || rim->frame_count != 24 ||
+        rim->stream_pointer_1 != 0x3ef2 ||
+        rim->noise_length != 0xeb || rim->noise_envelope != 0xf2 ||
+        rim->noise_control != 0xbf ||
+        rim->frames[0].noise_polynomial != 0x5a ||
         movement->source_checksum == 0 ||
         movement->source_checksum != score->source_checksum ||
         movement->source_checksum != dribble->source_checksum ||
         movement->source_checksum != navigation->source_checksum ||
-        movement->source_checksum != confirm->source_checksum) return false;
+        movement->source_checksum != confirm->source_checksum ||
+        movement->source_checksum != rim->source_checksum) return false;
 #ifdef _WIN32
     {
         PcmSound movement_pcm = {0};
@@ -544,16 +600,19 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         PcmSound dribble_pcm = {0};
         PcmSound navigation_pcm = {0};
         PcmSound confirm_pcm = {0};
-        if (!generate_rom_square_program(&movement_pcm, movement) ||
-            !generate_rom_square_program(&score_pcm, score) ||
-            !generate_rom_square_program(&dribble_pcm, dribble) ||
-            !generate_rom_square_program(&navigation_pcm, navigation) ||
-            !generate_rom_square_program(&confirm_pcm, confirm)) {
+        PcmSound rim_pcm = {0};
+        if (!generate_rom_program(&movement_pcm, movement) ||
+            !generate_rom_program(&score_pcm, score) ||
+            !generate_rom_program(&dribble_pcm, dribble) ||
+            !generate_rom_program(&navigation_pcm, navigation) ||
+            !generate_rom_program(&confirm_pcm, confirm) ||
+            !generate_rom_program(&rim_pcm, rim)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
             free_pcm_sound(&navigation_pcm);
             free_pcm_sound(&confirm_pcm);
+            free_pcm_sound(&rim_pcm);
             return false;
         }
         EnterCriticalSection(&g_audio_lock);
@@ -562,11 +621,13 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_DRIBBLE]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_MOVE]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_SELECT]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_RIM_CLANK]);
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
         g_sfx[ALLSTAR_SFX_MENU_MOVE] = navigation_pcm;
         g_sfx[ALLSTAR_SFX_MENU_SELECT] = confirm_pcm;
+        g_sfx[ALLSTAR_SFX_RIM_CLANK] = rim_pcm;
         LeaveCriticalSection(&g_audio_lock);
     }
 #endif
@@ -599,7 +660,7 @@ bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
             break;
         }
     }
-    if (!program || !generate_rom_square_program(&sound, program)) return false;
+    if (!program || !generate_rom_program(&sound, program)) return false;
     file = NULL;
     fopen_s(&file, filepath, "wb");
     if (!file) {

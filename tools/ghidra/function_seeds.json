@@ -147,7 +147,7 @@
       "status": "verified",
       "native_symbol": "allstar_renderer_rom_ball_presentation_6945",
       "source": "src/allstar_renderer.c",
-      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v8."
+      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v9."
     },
     "rom_b01_6f2a": {
       "status": "verified",
@@ -225,13 +225,13 @@
       "status": "candidate",
       "native_symbol": "extract_one_on_one_audio",
       "source": "src/allstar_asset_pack.c",
-      "note": "Focused partial mapping: exact command-table words $05->$640C and $0D->$1411 are extracted and live-traced. Other command priorities and dispatch behavior keep whole-routine credit withheld."
+      "note": "Focused partial mapping: exact command-table words for $05/$09/$0C/$0D/$0E/$0F are extracted and live-traced, including $09->$230B. Other command priorities and dispatch behavior keep whole-routine credit withheld."
     },
     "rom_b00_3014": {
       "status": "candidate",
       "native_symbol": "allstar_audio_bind_rom_sfx",
       "source": "src/audio/allstar_audio.c",
-      "note": "Focused partial mapping: command $05 program $0C and command $0D program $11 are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep PCM. The remaining programs, channels, and music keep whole-routine credit withheld."
+      "note": "Focused partial mapping: six One-on-One programs are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep/noise PCM; command $09 program $0B includes its exact 24-frame noise registers. Remaining programs, channels, and music keep whole-routine credit withheld."
     },
     "rom_b00_0b80": {
       "status": "candidate",
@@ -369,7 +369,7 @@
       "status": "candidate",
       "native_symbol": "allstar_ai_rom_direction_74bb",
       "source": "src/gameplay/allstar_ai.c",
-      "note": "Exact four-pixel target dead zones and direction bits are boundary-tested; surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
+      "note": "Exact asymmetric byte dead zones (+3 accepted, +4 moves, -4 accepted, -5 moves) are boundary-tested; a scene regression pairs them with $6BBA's raw-X $08->$04 edge step and proves $72EA->$732C->$756C release. Surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
     },
     "rom_b01_782e": {
       "status": "verified",

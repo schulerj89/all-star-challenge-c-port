@@ -22,16 +22,16 @@ corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
-The expanded One-on-One presentation/audio manifest is **40/40 (100.00%)**.
+The expanded One-on-One presentation/audio manifest is **46/46 (100.00%)**.
 The new live-flow manifest is **18/18 (100.00%)**; it covers shot-gather
 movement, complete run/shot records, decoded command `$0C`, CPU drive/gather
 decisions, and the made-ball bounce through fade entry.
 It now covers `$1ECC` net animation, sound commands `$05/$08/$0C/$0D/$0E/$0F`,
-focused `$3014` program `$0C/$02/$11/$12/$07` extraction and square/sweep
+focused `$3014` program `$0C/$0B/$02/$11/$12/$07` extraction and square/sweep/noise
 rendering, corrected `$6F2A` held-ball placement, `$20F7/$21C8/$21E1`
 post-score take-out, and `$2B88/$78E9/$796C` defensive-rebound take-back. The
 whole bank-0 `$3014` interpreter remains a candidate mapping because only the
-five focused programs are converted; whole-engine waveform/music parity
+six focused programs are converted; whole-engine waveform/music parity
 is not claimed.
 
 ## Scope
@@ -62,7 +62,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Headless Mesen trace scripts | 13 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, miss/boundary/take-back, input, shot, defense, RNG, animation, collision, and contact-rule assertions. |
+| Headless Mesen trace scripts | 14 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, miss/boundary/take-back, exact rim-noise, input, shot, defense, RNG, animation, collision, and contact-rule assertions. |
 
 ### Reviewed Ghidra recovery
 
@@ -124,7 +124,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | Scoped audio behavior | Navigation command `$0F`/program `$07` and accepted-player command `$0E`/five-step program `$12` are live-traced, extracted, and integrated; data and screen art remain hardcoded/partial. |
-| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 40/40 presentation/audio | Lifecycle, possession, shooting, RNG, record-boundary movement, charging/blocking, CPU contact response, miss/boundary recovery, changed-possession take-back, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
+| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 46/46 presentation/audio | Lifecycle, possession, shooting, RNG, record-boundary movement, charging/blocking, CPU route completion/contact response, defender landing, grounded OAM baseline, rim bounce/noise/recovery, changed-possession take-back, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
@@ -134,10 +134,10 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
 | CPU AI | Yes | Scoped One-on-One behavior | The prior target/shot/steal/contest/RNG paths plus `$75CD` owner reroute/fourteenth-contact shot and defender ten-count saved-position hold are integrated; unrelated `$7170` states remain incomplete. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
-| Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net, player, ball, and shadow tiles/composition load from asset-pack v8; other screens retain separate presentation work. |
+| Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net, player, ball, and shadow tiles/composition load from asset-pack v9; other screens retain separate presentation work. |
 | ROM asset extraction | Yes | One-on-One scoped | Exact player/frame/net/court/ball sources, `$050F` RLE, composition maps, endpoint validation, and runtime loading are implemented. |
 | PCM output/mixing | Yes | Not applicable to original implementation | Native platform layer |
-| ROM music/SFX sequencing | Partial | Event-level One-on-One subset | Commands `$05/$08/$0C/$0D/$0E/$0F` are dispatched at traced events; programs `$0C/$02/$11/$12/$07` are extracted, but the complete `$3014` command/APU sequencer and waveform tables are not ported. |
+| ROM music/SFX sequencing | Partial | Event-level One-on-One subset | Commands `$05/$08/$09/$0C/$0D/$0E/$0F` are dispatched at traced events; programs `$0C/$0B/$02/$11/$12/$07` are extracted, but the complete `$3014` command/APU sequencer and waveform tables are not ported. |
 | Emulator/state/frame parity suite | No | No | Missing |
 
 No whole subsystem should currently be labeled 100% ROM-equivalent; the

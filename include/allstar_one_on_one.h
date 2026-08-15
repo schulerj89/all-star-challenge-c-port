@@ -141,6 +141,12 @@ bool allstar_one_on_one_rom_shot_animation_frame(
     uint8_t *display_frame);
 uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
                                             float player_ground_y);
+/* Bank 1 $07B4/$7EC4/$2F40/$7C58 launch selectors. */
+uint8_t allstar_one_on_one_rom_shot_distance_class(float player_center_x,
+                                                   float player_ground_y);
+uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index);
+int16_t allstar_one_on_one_rom_shot_vertical_velocity(
+    uint8_t roster_index, uint8_t distance_class, uint8_t pose_index);
 bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,
                                                 float ball_x,

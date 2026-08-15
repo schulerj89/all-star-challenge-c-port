@@ -20,7 +20,9 @@
 typedef enum {
     ALLSTAR_BALL_CONTACT_NONE = 0,
     ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY = (1 << 0),
-    ALLSTAR_BALL_CONTACT_BACK_COURT = (1 << 1)
+    ALLSTAR_BALL_CONTACT_BACK_COURT = (1 << 1),
+    ALLSTAR_BALL_CONTACT_RIM_BACKBOARD = (1 << 2),
+    ALLSTAR_BALL_CONTACT_SCORE = (1 << 3)
 } AllStarBallContact;
 
 typedef struct {
@@ -55,6 +57,9 @@ typedef struct {
     int point_value;
     AllStarRomBallStepState rom_step_state;
     bool rom_step_state_valid;
+    uint8_t rom_contact_cooldown_frames;
+    bool rom_player_shot_phase_active;
+    bool rom_hard_bounce_pending;
 } AllStarBall;
 
 typedef struct {
@@ -89,6 +94,11 @@ void allstar_physics_shoot_ball_from_height(
 void allstar_physics_launch_shot(AllStarBall *ball, float start_x, float start_y,
                                  float target_x, float target_y, float target_z,
                                  int shooter_id, int point_value);
+void allstar_physics_shoot_ball_rom_7c58(
+    AllStarBall *ball, float start_x, float start_y, float start_z,
+    float target_x, float target_y, uint8_t distance_class,
+    int16_t initial_vz, uint8_t shot_phase,
+    int shooter_id, int point_value);
 
 /* Native rim-plane crossing test; ROM collision/rim behavior is still untraced. */
 bool allstar_physics_check_basket(AllStarBall *ball, float hoop_x,

@@ -246,6 +246,83 @@ uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
     return 1;
 }
 
+/* $07B4 tests three expanding rectangles around the hoop. $7EC4 then
+   recognizes six-by-three exact corner coordinates as class four; every
+   other position outside the rectangles is class three. Native X is the
+   player center, eight pixels beyond ROM field +$06. */
+uint8_t allstar_one_on_one_rom_shot_distance_class(float player_center_x,
+                                                   float player_ground_y) {
+    static const uint8_t margins[3] = {24, 40, 56};
+    static const uint8_t corner_x[6] = {4, 8, 12, 148, 144, 140};
+    static const uint8_t corner_y[3] = {156, 152, 148};
+    int raw_x = (int)player_center_x - (int)ALLSTAR_ROM_PLAYER_X_TO_CENTER;
+    int raw_y = (int)player_ground_y;
+    size_t i;
+    size_t j;
+
+    for (i = 0; i < 3; i++) {
+        int margin = margins[i];
+        if (raw_y < 92 + margin && raw_x + 8 >= 85 - margin &&
+            raw_x + 8 < 84 + margin) {
+            return (uint8_t)i;
+        }
+    }
+    for (i = 0; i < sizeof(corner_x); i++) {
+        for (j = 0; j < sizeof(corner_y); j++) {
+            if (raw_x == corner_x[i] && raw_y == corner_y[j]) return 4;
+        }
+    }
+    return 3;
+}
+
+/* $2F40 maps the roster byte at player +$0F to one of three launch-table
+   profiles. */
+uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index) {
+    static const uint8_t profile_zero[] = {2, 13, 11, 5, 15};
+    static const uint8_t profile_one[] = {25, 17, 18, 26, 4, 1, 8, 9, 14, 6};
+    size_t i;
+    for (i = 0; i < sizeof(profile_zero); i++) {
+        if (roster_index == profile_zero[i]) return 0;
+    }
+    for (i = 0; i < sizeof(profile_one); i++) {
+        if (roster_index == profile_one[i]) return 1;
+    }
+    return 2;
+}
+
+/* $7C58 indexes profile -> distance class -> the twelve-entry player-pose
+   row. Class zero uses a zero high byte; classes one through four use one. */
+int16_t allstar_one_on_one_rom_shot_vertical_velocity(
+    uint8_t roster_index, uint8_t distance_class, uint8_t pose_index) {
+    static const uint8_t low[3][5][12] = {
+        {
+            {0xb0,0xb2,0xb4,0xb7,0xe9,0xd5,0xc5,0xf0,0xc5,0xd5,0xe9,0xb7},
+            {0xba,0xbc,0xbe,0xc0,0xc2,0xd4,0xcc,0xe4,0xcc,0xd4,0xc2,0xc0},
+            {0xa0,0xa0,0xa0,0xa2,0xa4,0xa8,0xcd,0xc8,0xd0,0xa8,0xa4,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xb8,0xc8,0xa8,0xa4,0xa0,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xa8,0xc8,0xa8,0xa4,0xa0,0xa0}
+        },
+        {
+            {0xb0,0xb2,0xb4,0xb7,0xe9,0xd5,0xd0,0xf0,0xd0,0xd5,0xe9,0xb7},
+            {0xba,0xbc,0xbe,0xc0,0xc2,0xd4,0xcc,0xe4,0xcc,0xd4,0xc2,0xc0},
+            {0xa0,0xa0,0xa0,0xa2,0xa4,0xa8,0xcd,0xc8,0xd0,0xa8,0xa4,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xa8,0xc8,0xa8,0xa4,0xa0,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xa8,0xb4,0xa8,0xa4,0xa0,0xa0}
+        },
+        {
+            {0xb0,0xb2,0xb4,0xb7,0xe9,0xc3,0xd0,0xf4,0xcc,0xc3,0xe9,0xb7},
+            {0xba,0xbc,0xbe,0xc0,0xc2,0xd4,0xd8,0xe4,0xd8,0xd4,0xc2,0xc0},
+            {0xa0,0xa0,0xa0,0xa2,0xa4,0xa8,0xcd,0xd8,0xcd,0xa8,0xa4,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xa8,0xc8,0xa8,0xa4,0xa0,0xa0},
+            {0x90,0x94,0x98,0x9c,0xa0,0xa4,0xa8,0xb4,0xa8,0xa4,0xa0,0xa0}
+        }
+    };
+    uint8_t profile = allstar_one_on_one_rom_shot_profile(roster_index);
+    if (distance_class > 4 || pose_index > 11) return 0;
+    return (int16_t)((distance_class == 0 ? 0 : 0x0100) |
+                     low[profile][distance_class][pose_index]);
+}
+
 /* Fixed-bank $077D uses strict unsigned-distance limits of 12 by 8. */
 bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,

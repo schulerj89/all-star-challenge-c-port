@@ -186,6 +186,55 @@ int allstar_cli_test_physics(void) {
     }
     allstar_physics_init_ball(&ball);
 
+    if (allstar_one_on_one_rom_shot_distance_class(61.0f, 115.0f) != 0 ||
+        allstar_one_on_one_rom_shot_distance_class(60.0f, 115.0f) != 1 ||
+        allstar_one_on_one_rom_shot_distance_class(45.0f, 131.0f) != 1 ||
+        allstar_one_on_one_rom_shot_distance_class(44.0f, 131.0f) != 2 ||
+        allstar_one_on_one_rom_shot_distance_class(29.0f, 147.0f) != 2 ||
+        allstar_one_on_one_rom_shot_distance_class(28.0f, 147.0f) != 3 ||
+        allstar_one_on_one_rom_shot_distance_class(12.0f, 148.0f) != 4 ||
+        allstar_one_on_one_rom_shot_distance_class(13.0f, 148.0f) != 3 ||
+        allstar_one_on_one_rom_shot_profile(2) != 0 ||
+        allstar_one_on_one_rom_shot_profile(25) != 1 ||
+        allstar_one_on_one_rom_shot_profile(0) != 2 ||
+        allstar_one_on_one_rom_shot_vertical_velocity(0, 3, 2) != 0x0198 ||
+        allstar_one_on_one_rom_shot_vertical_velocity(2, 0, 7) != 0x00f0 ||
+        allstar_one_on_one_rom_shot_vertical_velocity(25, 4, 7) != 0x01b4) {
+        fprintf(stderr, "[Test] $07B4/$7EC4/$2F40/$7C58 launch selectors were incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_shoot_ball_rom_7c58(
+        &ball, 83.0f, 150.0f, 48.0f, 84.0f, 92.0f,
+        3, 0x0198, 0, 1, 2);
+    if (ball.rom_step_state.vx != 4 || ball.rom_step_state.vy != -232 ||
+        ball.rom_step_state.vz != 0x0198) {
+        fprintf(stderr, "[Test] $7C58 64-frame launch vector was incorrect\n");
+        return 1;
+    }
+    for (frame = 0; frame < 64; frame++) {
+        allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (ball.rom_step_state.x != 0x5400 ||
+        ball.rom_step_state.y != 0x5c00) {
+        fprintf(stderr, "[Test] $7EA9 class-three vector did not reach $54/$5C at frame 64\n");
+        return 1;
+    }
+
+    allstar_physics_shoot_ball_rom_7c58(
+        &ball, 83.0f, 150.0f, 43.0f, 84.0f, 92.0f,
+        3, 0x0198, 2, 1, 2);
+    if (ball.rom_step_state.vx != 0 || ball.rom_step_state.vy != 0 ||
+        ball.rom_step_state.vz != -0x0100) {
+        fprintf(stderr, "[Test] $7F0A phase-two launch vector was incorrect\n");
+        return 1;
+    }
+    allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (ball.rom_step_state.vz != (int16_t)0xfef1) {
+        fprintf(stderr, "[Test] $7F0A first integrated VZ did not match trace $FEF1\n");
+        return 1;
+    }
+
     allstar_physics_shoot_ball(&ball, 80.0f, 130.0f, 80.0f, 82.0f,
                                ALLSTAR_HOOP_HEIGHT, 1, 2);
     if (!ball.in_flight || ball.z != ALLSTAR_BALL_RELEASE_HEIGHT ||
@@ -282,6 +331,7 @@ int allstar_cli_test_physics(void) {
     contact.y = 100.0f;
     contact.vx = -30.0f;
     contact.vy = 30.0f;
+    contact.rom_step_state_valid = false;
     if (!(allstar_physics_apply_rom_court_contacts(&contact) &
           ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY) ||
         contact.vx != 0.0f || contact.vy != 0.0f) {
@@ -293,6 +343,7 @@ int allstar_cli_test_physics(void) {
     contact.y = 151.0f;
     contact.vx = 30.0f;
     contact.vy = 30.0f;
+    contact.rom_step_state_valid = false;
     if (!(allstar_physics_apply_rom_court_contacts(&contact) &
           ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY) ||
         contact.vx != 0.0f || contact.vy != 0.0f) {
@@ -304,6 +355,7 @@ int allstar_cli_test_physics(void) {
     contact.y = 150.0f;
     contact.vx = 60.0f;
     contact.vy = 60.0f;
+    contact.rom_step_state_valid = false;
     if (allstar_physics_apply_rom_court_contacts(&contact) !=
             ALLSTAR_BALL_CONTACT_NONE) {
         fprintf(stderr, "[Test] $1CED accepted-boundary values collided\n");
@@ -314,11 +366,89 @@ int allstar_cli_test_physics(void) {
     contact.y = 91.0f;
     contact.vx = -60.0f;
     contact.vy = -60.0f;
+    contact.rom_step_state_valid = false;
     contacts = allstar_physics_apply_rom_court_contacts(&contact);
     if (!(contacts & ALLSTAR_BALL_CONTACT_BACK_COURT) ||
         contact.y != ALLSTAR_ROM_BACK_COURT_RETURN_Y ||
         contact.vx >= 0.0f || contact.vy <= 0.0f) {
         fprintf(stderr, "[Test] $1CED back-court return response was incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.rom_step_state_valid = true;
+    contact.rom_step_state.x = 0x5400;
+    contact.rom_step_state.y = 0x5d00;
+    contact.rom_step_state.z = 0x3700;
+    contact.rom_step_state.vx = 12;
+    contact.rom_step_state.vy = -20;
+    contact.rom_step_state.vz = -80;
+    contacts = allstar_physics_apply_rom_court_contacts(&contact);
+    if (!(contacts & ALLSTAR_BALL_CONTACT_SCORE) || !contact.made_basket ||
+        contact.rom_step_state.vx != 0 || contact.rom_step_state.vy != 0 ||
+        contact.rom_step_state.vz != 0) {
+        fprintf(stderr, "[Test] $1CED exact $54/$5D/$37 score branch was incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.rom_step_state_valid = true;
+    contact.rom_step_state.x = 0x5300;
+    contact.rom_step_state.y = 0x5e00;
+    contact.rom_step_state.z = 0x3700;
+    contact.rom_step_state.vz = -80;
+    contacts = allstar_physics_apply_rom_court_contacts(&contact);
+    if (!(contacts & ALLSTAR_BALL_CONTACT_RIM_BACKBOARD) ||
+        contact.rom_step_state.vx != 0x0046 ||
+        contact.rom_step_state.vz != -1 ||
+        contact.rom_contact_cooldown_frames != 8) {
+        fprintf(stderr, "[Test] $1CED left-rim impulse was incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.rom_step_state_valid = true;
+    contact.rom_step_state.x = 0x5400;
+    contact.rom_step_state.y = 0x5f00;
+    contact.rom_step_state.z = 0x3900;
+    contact.rom_step_state.vz = -100;
+    contacts = allstar_physics_apply_rom_court_contacts(&contact);
+    if (!(contacts & ALLSTAR_BALL_CONTACT_RIM_BACKBOARD) ||
+        contact.rom_step_state.vz != 43 ||
+        contact.rom_contact_cooldown_frames != 8) {
+        fprintf(stderr, "[Test] $1CED back-rim bounce was incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.rom_step_state_valid = true;
+    contact.rom_step_state.x = 0x5000;
+    contact.rom_step_state.y = 0x7000;
+    contact.rom_step_state.z = 0x0010;
+    contact.rom_step_state.vz = -0x0100;
+    allstar_physics_update_ball(&contact, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (!contact.recoverable || contact.rom_step_state.z != 0 ||
+        contact.rom_step_state.vz != 214) {
+        fprintf(stderr, "[Test] $1E5B/$1E77 raw ground bounce was incorrect\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.rom_step_state_valid = true;
+    contact.rom_hard_bounce_pending = true;
+    contact.rom_step_state.x = 0x5000;
+    contact.rom_step_state.y = 0x7000;
+    contact.rom_step_state.z = 0x0010;
+    contact.rom_step_state.vz = -0x0200;
+    allstar_physics_update_ball(&contact, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (contact.rom_hard_bounce_pending ||
+        contact.rom_step_state.vz != 227) {
+        fprintf(stderr, "[Test] $FFD4 one-shot $012C bounce loss was incorrect\n");
         return 1;
     }
 
@@ -811,11 +941,11 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     allstar_input_update(&game.input, 0);
-    for (frame = 0; frame < ALLSTAR_SHOT_FLIGHT_FRAMES; frame++) {
+    for (frame = 0; frame < 120 && game.one_on_one.p1_possession; frame++) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     }
-    if (game.one_on_one.p1_score != 2 || game.one_on_one.p1_possession) {
-        fprintf(stderr, "[Test] Clean staged shot did not score through scene physics\n");
+    if (game.one_on_one.p1_score != 0 || game.one_on_one.p1_possession) {
+        fprintf(stderr, "[Test] Traced class-one shot did not resolve through ROM contacts\n");
         allstar_game_shutdown(&game);
         return 1;
     }

@@ -135,7 +135,7 @@
       "status": "candidate",
       "native_symbol": "allstar_physics_apply_rom_court_contacts",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native code ports the exact outer-boundary and y<$5C return branches; rim, backboard, and bounce branches remain incomplete."
+      "note": "Native code ports the One-on-One outer-boundary, y<$5C return, exact score window, rim/backboard impulses, cooldown, and normal/$FFD4 bounce branches. Whole-routine credit remains withheld because non-One-on-One mode/effect branches are incomplete."
     },
     "rom_b00_1f4d": {
       "status": "verified",
@@ -177,7 +177,7 @@
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "Staged shot-launch analogue supported by the recovered shot/jump-state branch; exact fixed-point vectors, release offsets, and emulator/native traces remain missing."
+      "note": "One-on-One launch ports $07B4/$7EC4 distance classes, $2F40 profiles, all five-by-twelve vertical tables, $7EA9 32/64-frame vectors, and the $7F0A phase path. Whole-routine credit remains withheld for other mode/player-state branches."
     },
     "rom_b01_7be8": {
       "status": "candidate",
@@ -189,7 +189,7 @@
       "status": "candidate",
       "native_symbol": "allstar_physics_shoot_ball",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native normal launch reaches its target in 32 frames, matching the routine's signed displacement <<3 in 8.8 state; the alternate <<2 class remains unclassified."
+      "note": "Native One-on-One launch uses the recovered class-zero signed displacement <<3 and class-one-through-four <<2 vectors, covered by exact raw-state boundary and 64-frame endpoint tests."
     },
     "rom_b01_7f37": {
       "status": "candidate",

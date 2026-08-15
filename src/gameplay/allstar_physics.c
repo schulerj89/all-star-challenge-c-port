@@ -7,12 +7,7 @@
 #define ROM_GRAVITY \
     (ROM_GRAVITY_PER_FRAME * ALLSTAR_PHYSICS_FRAMES_PER_SECOND * \
      ALLSTAR_PHYSICS_FRAMES_PER_SECOND)
-#define BALL_GROUND_RESTITUTION 0.5f
-#define BALL_GROUND_DRAG 0.8f
-#define BALL_STOP_VELOCITY 10.0f
 #define RIM_RADIUS 5.0f
-#define ROM_BACK_COURT_RETURN_Y_VELOCITY ((40.0f / 256.0f) * 60.0f)
-#define ROM_BACK_COURT_RETURN_X_VELOCITY ((36.0f / 256.0f) * 60.0f)
 
 static int16_t allstar_physics_to_rom_velocity(float velocity_per_second) {
     return (int16_t)lroundf(
@@ -34,6 +29,28 @@ static float allstar_physics_from_rom_unsigned_position(uint16_t position) {
 
 static float allstar_physics_from_rom_signed_position(uint16_t position) {
     return (float)(int16_t)position / 256.0f;
+}
+
+static void allstar_physics_sync_ball_from_rom(AllStarBall *ball) {
+    ball->vx = allstar_physics_from_rom_velocity(ball->rom_step_state.vx);
+    ball->vy = allstar_physics_from_rom_velocity(ball->rom_step_state.vy);
+    ball->vz = allstar_physics_from_rom_velocity(ball->rom_step_state.vz);
+    ball->x = allstar_physics_from_rom_unsigned_position(ball->rom_step_state.x);
+    ball->y = allstar_physics_from_rom_unsigned_position(ball->rom_step_state.y);
+    ball->z = allstar_physics_from_rom_signed_position(ball->rom_step_state.z);
+}
+
+/* $1E5B/$1E77 negates raw VZ and subtracts $39. $FFD4 substitutes
+   $012C for the first hard bounce. */
+static void allstar_physics_rom_bounce_1e77(AllStarBall *ball,
+                                            bool force_ground) {
+    int16_t loss;
+    if (force_ground) ball->rom_step_state.z = 0;
+    ball->recoverable = true;
+    loss = ball->rom_hard_bounce_pending ? 0x012c : 0x0039;
+    ball->rom_hard_bounce_pending = false;
+    ball->rom_step_state.vz = (int16_t)(-ball->rom_step_state.vz - loss);
+    allstar_physics_sync_ball_from_rom(ball);
 }
 
 void allstar_physics_init_ball(AllStarBall *ball) {
@@ -94,12 +111,7 @@ void allstar_physics_update_ball(AllStarBall *ball, float dt) {
             ball->rom_step_state_valid = true;
         }
         allstar_physics_rom_step_7be8(&ball->rom_step_state);
-        ball->vx = allstar_physics_from_rom_velocity(ball->rom_step_state.vx);
-        ball->vy = allstar_physics_from_rom_velocity(ball->rom_step_state.vy);
-        ball->vz = allstar_physics_from_rom_velocity(ball->rom_step_state.vz);
-        ball->x = allstar_physics_from_rom_unsigned_position(ball->rom_step_state.x);
-        ball->y = allstar_physics_from_rom_unsigned_position(ball->rom_step_state.y);
-        ball->z = allstar_physics_from_rom_signed_position(ball->rom_step_state.z);
+        allstar_physics_sync_ball_from_rom(ball);
         ball->step_accumulator -= ALLSTAR_PHYSICS_STEP_SECONDS;
         if (ball->step_accumulator < 0.0f) ball->step_accumulator = 0.0f;
 
@@ -115,24 +127,9 @@ void allstar_physics_update_ball(AllStarBall *ball, float dt) {
             ball->target_plane_crossed = true;
         }
 
-        /* The ROM's ground/contact dispatcher is not recovered; keep a
-           deterministic native rebound after the traced flight integration. */
-        if (ball->z <= 0.0f) {
-            ball->z = 0.0f;
-            /* $1E77 clears $FFF8 at the first ground contact, enabling the
-               later $2AE2 low-ball recovery checks while bounces continue. */
-            ball->recoverable = true;
-            ball->vz = -ball->vz * BALL_GROUND_RESTITUTION;
-            ball->vx *= BALL_GROUND_DRAG;
-            ball->vy *= BALL_GROUND_DRAG;
-            ball->rom_step_state_valid = false;
-
-            if (fabsf(ball->vz) < BALL_STOP_VELOCITY) {
-                ball->vz = 0.0f;
-                ball->in_flight = false;
-                ball->step_accumulator = 0.0f;
-                break;
-            }
+        if ((ball->rom_step_state.z >> 8) >= 0xe0 ||
+            ball->rom_step_state.z == 0) {
+            allstar_physics_rom_bounce_1e77(ball, true);
         }
     }
 }
@@ -142,32 +139,102 @@ void allstar_physics_update_ball(AllStarBall *ball, float dt) {
    than an out-of-bounds turnover. */
 uint32_t allstar_physics_apply_rom_court_contacts(AllStarBall *ball) {
     uint32_t contacts = ALLSTAR_BALL_CONTACT_NONE;
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
     if (!ball || !ball->in_flight) return contacts;
 
-    if (ball->x < ALLSTAR_ROM_BALL_MIN_X ||
-        ball->x >= ALLSTAR_ROM_BALL_MAX_X ||
-        ball->y >= ALLSTAR_ROM_BALL_MAX_Y) {
-        ball->vx = 0.0f;
-        ball->vy = 0.0f;
-        if (ball->rom_step_state_valid) {
-            ball->rom_step_state.vx = 0;
-            ball->rom_step_state.vy = 0;
-        }
+    if (!ball->rom_step_state_valid) {
+        ball->rom_step_state.vx = allstar_physics_to_rom_velocity(ball->vx);
+        ball->rom_step_state.vy = allstar_physics_to_rom_velocity(ball->vy);
+        ball->rom_step_state.vz = allstar_physics_to_rom_velocity(ball->vz);
+        ball->rom_step_state.x = allstar_physics_to_rom_position(ball->x);
+        ball->rom_step_state.y = allstar_physics_to_rom_position(ball->y);
+        ball->rom_step_state.z = allstar_physics_to_rom_position(ball->z);
+        ball->rom_step_state_valid = true;
+    }
+    x = (uint8_t)(ball->rom_step_state.x >> 8);
+    y = (uint8_t)(ball->rom_step_state.y >> 8);
+    z = (uint8_t)(ball->rom_step_state.z >> 8);
+
+    if (x < 0x0a || x >= 0xa0 || y >= 0x97) {
+        ball->rom_step_state.vx = 0;
+        ball->rom_step_state.vy = 0;
         contacts |= ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY;
     }
 
-    if (ball->y < ALLSTAR_ROM_BACK_COURT_Y) {
-        ball->y = ALLSTAR_ROM_BACK_COURT_RETURN_Y;
-        ball->vy = ROM_BACK_COURT_RETURN_Y_VELOCITY;
-        if (ball->vx > 0.0f) {
-            ball->vx = ROM_BACK_COURT_RETURN_X_VELOCITY;
-        } else if (ball->vx < 0.0f) {
-            ball->vx = -ROM_BACK_COURT_RETURN_X_VELOCITY;
+    if (y < 0x5c) {
+        ball->rom_step_state.y = 0x5e00;
+        ball->rom_step_state.vy = 0x0028;
+        if (ball->rom_step_state.vx > 0) {
+            ball->rom_step_state.vx = 0x0024;
+        } else if (ball->rom_step_state.vx < 0) {
+            ball->rom_step_state.vx = -0x0024;
         }
-        ball->rom_step_state_valid = false;
+        ball->recoverable = true;
         contacts |= ALLSTAR_BALL_CONTACT_BACK_COURT;
+        allstar_physics_sync_ball_from_rom(ball);
+        return contacts;
     }
 
+    if (ball->rom_contact_cooldown_frames != 0) {
+        ball->rom_contact_cooldown_frames--;
+        allstar_physics_sync_ball_from_rom(ball);
+        return contacts;
+    }
+    if (ball->made_basket) {
+        allstar_physics_sync_ball_from_rom(ball);
+        return contacts;
+    }
+
+    if (y == 0x5f && z >= 0x39 && z < 0x3e && x >= 0x53 && x < 0x56) {
+        ball->rom_contact_cooldown_frames = 8;
+        allstar_physics_rom_bounce_1e77(ball, false);
+        return contacts | ALLSTAR_BALL_CONTACT_RIM_BACKBOARD;
+    }
+
+    if (y < 0x5f && z >= 0x37 && z < 0x3a) {
+        if (x == 0x54 && y != 0x5e) {
+            ball->rom_step_state.vx = 0;
+            ball->rom_step_state.vy = 0;
+            ball->rom_step_state.vz = 0;
+            ball->made_basket = true;
+            ball->recoverable = true;
+            allstar_physics_sync_ball_from_rom(ball);
+            return contacts | ALLSTAR_BALL_CONTACT_SCORE;
+        }
+        if ((x == 0x53 || x == 0x55) &&
+            ball->rom_player_shot_phase_active) {
+            ball->rom_step_state.vx = 0;
+            ball->rom_step_state.vy = 0;
+            ball->rom_step_state.vz = 0;
+            ball->made_basket = true;
+            ball->recoverable = true;
+            allstar_physics_sync_ball_from_rom(ball);
+            return contacts | ALLSTAR_BALL_CONTACT_SCORE;
+        }
+        if (x == 0x53 || x == 0x55) {
+            ball->rom_step_state.vx = x == 0x53 ? 0x0046 : -0x0032;
+            ball->rom_step_state.vz = -1;
+            ball->rom_contact_cooldown_frames = 8;
+            contacts |= ALLSTAR_BALL_CONTACT_RIM_BACKBOARD;
+        } else if (x == 0x52 || x == 0x56 ||
+                   (x == 0x54 && y == 0x5e)) {
+            ball->rom_contact_cooldown_frames = 8;
+            allstar_physics_rom_bounce_1e77(ball, false);
+            return contacts | ALLSTAR_BALL_CONTACT_RIM_BACKBOARD;
+        } else if (x >= 0x4d && x < 0x52) {
+            ball->rom_step_state.vx = -0x001e;
+            ball->rom_contact_cooldown_frames = 8;
+            contacts |= ALLSTAR_BALL_CONTACT_RIM_BACKBOARD;
+        } else if (x >= 0x56 && x < 0x5b) {
+            ball->rom_step_state.vx = 0x001e;
+            ball->rom_contact_cooldown_frames = 8;
+            contacts |= ALLSTAR_BALL_CONTACT_RIM_BACKBOARD;
+        }
+    }
+
+    allstar_physics_sync_ball_from_rom(ball);
     return contacts;
 }
 
@@ -239,6 +306,59 @@ void allstar_physics_launch_shot(AllStarBall *ball, float start_x, float start_y
                                  int shooter_id, int point_value) {
     allstar_physics_shoot_ball(ball, start_x, start_y, target_x, target_y,
                                target_z, shooter_id, point_value);
+}
+
+/* $7C58 uses the selected $7EA9 displacement shift directly in 8.8
+   velocity: class zero is <<3 (32 frames), all other classes are <<2
+   (64 frames). A pre-existing nonzero shot phase takes $7F0A instead,
+   zeroing planar motion and setting raw vertical velocity to -$0100. */
+void allstar_physics_shoot_ball_rom_7c58(
+    AllStarBall *ball, float start_x, float start_y, float start_z,
+    float target_x, float target_y, uint8_t distance_class,
+    int16_t initial_vz, uint8_t shot_phase,
+    int shooter_id, int point_value) {
+    int shift;
+    int start_x_pixel;
+    int start_y_pixel;
+    int target_x_pixel;
+    int target_y_pixel;
+    if (!ball || distance_class > 4) return;
+
+    allstar_physics_init_ball(ball);
+    ball->x = start_x;
+    ball->y = start_y;
+    ball->z = start_z;
+    ball->previous_x = start_x;
+    ball->previous_y = start_y;
+    ball->previous_z = start_z;
+    ball->target_z = ALLSTAR_HOOP_HEIGHT;
+    ball->shooter_id = shooter_id;
+    ball->point_value = point_value;
+    ball->in_flight = true;
+    ball->rom_player_shot_phase_active = shot_phase != 0;
+    ball->rom_step_state.x = allstar_physics_to_rom_position(start_x);
+    ball->rom_step_state.y = allstar_physics_to_rom_position(start_y);
+    ball->rom_step_state.z = allstar_physics_to_rom_position(start_z);
+    if (shot_phase != 0) {
+        ball->rom_step_state.vx = 0;
+        ball->rom_step_state.vy = 0;
+        ball->rom_step_state.vz = -0x0100;
+    } else {
+        shift = distance_class == 0 ? 3 : 2;
+        start_x_pixel = (int)start_x;
+        start_y_pixel = (int)start_y;
+        target_x_pixel = (int)target_x;
+        target_y_pixel = (int)target_y;
+        ball->rom_step_state.vx = (int16_t)(
+            (target_x_pixel - start_x_pixel) * (1 << shift));
+        ball->rom_step_state.vy = (int16_t)(
+            (target_y_pixel - start_y_pixel) * (1 << shift));
+        ball->rom_step_state.vz = initial_vz;
+    }
+    ball->rom_step_state_valid = true;
+    ball->vx = allstar_physics_from_rom_velocity(ball->rom_step_state.vx);
+    ball->vy = allstar_physics_from_rom_velocity(ball->rom_step_state.vy);
+    ball->vz = allstar_physics_from_rom_velocity(ball->rom_step_state.vz);
 }
 
 bool allstar_physics_check_basket(AllStarBall *ball, float hoop_x,

@@ -1,6 +1,6 @@
 # NBA All-Star Challenge — Ghidra-to-C Coverage Audit
 
-Last audited: **2026-08-14**
+Last audited: **2026-08-15**
 
 ## Executive Result
 
@@ -12,7 +12,7 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
 
-The separate One-on-One behavior manifest is **38/50 (76.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
+The separate One-on-One behavior manifest is **43/50 (86.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
 
 ## Scope
 
@@ -104,13 +104,13 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | Lifecycle plus narrow shot/contact helpers | Endings, result/overtime flow, score comparison, `$791D/$794B` shot variants, `$7F37` release offsets, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; the full shot/contact state machine remains partial. |
+| One-on-One | Yes | Lifecycle plus scoped launch/contact parity | Endings, result/overtime flow, score comparison, `$791D/$794B` shot variants, `$7F37` origins, `$07B4/$7EC4/$2F40/$7C58/$7EA9` launch selection, `$1CED/$1E77` contact/bounce, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; AI/defense and point-distance selection remain partial. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
-| Ball physics | Yes | Narrow contact helpers | Partial 60 Hz flight plus exact `$1CED` outer-limit/back-court branches and `$1F4D` velocity stop; remaining rim, backboard, bounce, and fixed-point traces are missing. |
+| Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, 32/64-frame launch vectors and tables, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes and upstream accuracy/point selection remain incomplete. |
 | Player collision and possession rules | Partial | Possession subset | Shot-clock, rebound possession, winners-outs, traveling, and exact `$077D` pickup limits exist; steals, blocks, penalties, and the remaining recovery gates are missing. |
 | CPU AI | Yes | No | Generic six-state substitute |
 | Player animation selection | Yes | No | Limited generic states |
@@ -129,13 +129,13 @@ No subsystem should currently be labeled 100% ROM-equivalent.
 | P0 | Four-bank Ghidra function recovery | 94 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | Complete | Settings | Session persistence, ROM value cycles, and downstream consumption are verified; full Accuracy and Free Throw mode parity remain tracked separately. |
-| P0 | One-on-One rules | Possession, rebounds, winners-outs, staged shooting/traveling, exact release offsets, outer court response, pickup limits, and difficulty cadence exist; finish contact/recovery gates, then port steals, blocks, penalties, and shot contests. |
+| P0 | One-on-One rules | Possession, rebounds, winners-outs, staged shooting/traveling, exact launch/contact/bounce, outer court response, pickup limits, and difficulty cadence exist; next port point-distance selection, CPU behavior, steals, blocks, penalties, and shot contests. |
 | P0 | Free Throws | Correct the shot/basket coordinate model, enforce the configured attempt count, and implement results/exit flow. |
 | Complete | Tournament | Seven-match winner propagation, bracket rounds, champion lock, and title return are verified; presentation remains outside this gameplay milestone. |
 | P1 | H-O-R-S-E | Store the called shot, require a matching attempt, apply letters to the matching player, support CPU/human turns, and end the game. |
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
-| P1 | Physics | Trace the recovered 8.8 flight state and alternate launch tables against the emulator, then finish the remaining `$1CED` rim/backboard, bounce, and rebound branches. |
+| P1 | Physics | One-on-One launch/contact/bounce is covered; recover the upstream `$FFD7` 2/3-point selector and accuracy-to-launch-index logic, then extend equivalent evidence to other modes. |
 | P1 | AI | Recover CPU state transitions, difficulty tables, player-rating effects, defense, steals, blocks, shot selection, and rebound logic. |
 | P1 | Animation | Recover ROM animation/state tables and map movement, dribble, gather, shot, block, rebound, hit, and idle sequences. |
 | P1 | Audio sequencing | Recover the bank-0 audio command interpreter, song/SFX tables, channel timing, pitch, envelope, and event mappings. |

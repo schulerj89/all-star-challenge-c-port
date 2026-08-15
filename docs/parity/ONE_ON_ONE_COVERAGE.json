@@ -42,18 +42,18 @@
     {"id":"shooting.animation_frames_6a8c","group":"shooting","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.jump_height_7f37","group":"shooting","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.normal_trajectory_7ea9","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
-    {"id":"shooting.alternate_trajectory_7c58","group":"shooting","status":"unmapped","note":"The 64-frame <<2 class and launch table selectors remain unclassified."},
+    {"id":"shooting.alternate_trajectory_7c58","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_one_on_one.c","src/gameplay/allstar_physics.c"],"test":"--test-physics"},
 
     {"id":"physics.fixed_step_invariance","group":"physics","status":"verified","evidence":["src/allstar_cli.c"],"test":"--test-physics"},
     {"id":"physics.gravity_7be8","group":"physics","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/allstar_cli.c"],"test":"--test-physics"},
-    {"id":"physics.descending_rim_crossing","group":"physics","status":"partial","note":"Native interpolation is deterministic but not ROM state-traced."},
-    {"id":"physics.make_radius","group":"physics","status":"partial","note":"Five-pixel native radius is not yet tied to the complete ROM contact dispatcher."},
+    {"id":"physics.descending_rim_crossing","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics","note":"Recovered $1CED proves the ROM uses an exact spatial score window and no native descending-plane predicate."},
+    {"id":"physics.make_radius","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics","note":"The former five-pixel native radius was removed from One-on-One scoring in favor of $1CED's exact byte footprint."},
     {"id":"physics.two_three_point_value","group":"physics","status":"partial","note":"Native distance threshold is not recovered from ROM scoring tables."},
     {"id":"physics.outer_boundary_1f4d","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
     {"id":"physics.backcourt_return_1ced","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
     {"id":"physics.first_ground_unlock_1e77","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-physics"},
-    {"id":"physics.rim_backboard_contacts_1ced","group":"physics","status":"partial","note":"Only outer and back-court branches are ported."},
-    {"id":"physics.ground_bounce_1ced","group":"physics","status":"partial","note":"Native restitution/drag remain provisional."},
+    {"id":"physics.rim_backboard_contacts_1ced","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics"},
+    {"id":"physics.ground_bounce_1ced","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics"},
 
     {"id":"defense.player_court_bounds","group":"defense_ai","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"defense.skill_cadence_1ffa","group":"defense_ai","status":"verified","evidence":["docs/parity/SETTINGS.md"],"test":"--test-settings"},
@@ -73,6 +73,7 @@
     {"date":"2026-08-14","verified":34,"total":50,"percent":68.0,"note":"$6BAD/$6BBA/$6BC7/$6BD4 player court bounds are normalized, centralized, and boundary-tested."},
     {"date":"2026-08-14","verified":35,"total":50,"percent":70.0,"note":"Unreleased shot possession now becomes traveling on the exact 67-frame $6A8C terminal transition."},
     {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."},
-    {"date":"2026-08-15","verified":38,"total":50,"percent":76.0,"note":"$FFEB counted-wait, $FFE2 score-event, $FFE7 transition, and $FFF8 first-ground recovery locks are mapped and gate-tested."}
+    {"date":"2026-08-15","verified":38,"total":50,"percent":76.0,"note":"$FFEB counted-wait, $FFE2 score-event, $FFE7 transition, and $FFF8 first-ground recovery locks are mapped and gate-tested."},
+    {"date":"2026-08-15","verified":43,"total":50,"percent":86.0,"note":"$07B4/$7EC4 distance classes, $2F40 profiles, all $7C58 vertical tables, 32/64-frame vectors, $1CED score/rim/backboard windows, and $1E77 raw bounce loss are implemented and boundary-tested."}
   ]
 }

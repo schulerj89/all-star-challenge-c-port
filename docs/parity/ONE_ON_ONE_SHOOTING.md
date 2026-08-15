@@ -1,6 +1,6 @@
 # One-on-One Shooting Evidence
 
-Last reviewed: **2026-08-14**
+Last reviewed: **2026-08-15**
 
 ## Implemented scope
 
@@ -13,8 +13,10 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | B held during the gather | `$702D` sets phase 1 and the one-frame `$C16A` latch; the next update advances to phase 2 and releases from the phase/variant `$7F37` origin. |
 | Gather reaches the 67-frame action terminal without release | Call traveling, award the defender possession, and reset the shot clock. |
 | CPU enters its shooting state | Use the same shot-launch path as the human player. |
-| Clean launch reaches frame 32 | Cross the hoop plane while descending, score exactly once, and apply post-score possession. |
-| Accuracy roll misses | Aim outside the five-pixel rim radius so the miss cannot be counted as a make. |
+| Shot launches | `$07B4/$7EC4` selects distance class 0..4; class 0 uses the 32-frame `<<3` vector and classes 1..4 use the 64-frame `<<2` vector. `$2F40` and the launch index select the exact `$7C58` vertical byte. |
+| Ball enters the hoop region | `$1CED` uses exact integer-byte windows around `x=$54`, `y=$5D/$5E/$5F`, and `z=$37..$3D`; One-on-One no longer uses the provisional descending plane or five-pixel radius. |
+| Rim/backboard miss | Apply the recovered raw X impulses, VZ reflection/loss, and eight-frame `$C17E` contact cooldown. |
+| Ground contact | `$1E77` clears the recovery flight lock, negates raw VZ, and subtracts `$0039` (or one `$012C` hard-bounce loss when pending). |
 | Shot action animation | Use the recovered 67 frame-duration total from the action `$0A/$12` animation tables instead of the former arbitrary 15-frame timer. |
 | Miss travels behind the hoop (`y<$5C`) | Apply `$1CED`: return it to `y=$5E` with the recovered small positive court velocity. |
 | Ball reaches `x<$0A`, `x>=$A0`, or `y>=$97` | Apply `$1CED->$1F4D`: zero planar velocity and leave possession unresolved until recovery. |
@@ -36,12 +38,13 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 |---|---|---|
 | `$702D` | In action `$0A`, new-A at player `+$11` bit 0 launches directly while phase is zero. Held-B at `+$12` bit 1 sets phase 1 and `$C16A=1`; the following update clears the latch, advances to phase 2, updates `$7F37`, and launches. | `allstar_one_on_one_shot_input` and `allstar_one_on_one_shot_tick` preserve the distinct immediate and latched paths. The scene passes the resulting ROM phase into the release-origin helper. |
 | `$7BE8` | Once per frame, subtracts `$000F` from 8.8 vertical velocity, applies raw `+/-2` planar friction while the height integer byte is zero, then integrates the three velocity/position pairs. | `allstar_physics_rom_step_7be8` reproduces the exact 16-bit operations and `allstar_physics_update_ball` uses that state as its canonical fixed step. |
-| `$7C58` | Branches on the player's existing shot/jump state, constructs shot state, and transfers possession to the in-flight ball state. | Staged `allstar_one_on_one_shot_press` plus `one_on_one_launch_shot`. |
-| `$7EA9` | For the normal shot vector, shifts signed target displacement left three bits. In 8.8 state this reaches the target in `256/8 = 32` frames. | `allstar_physics_shoot_ball` constructs a 32-frame target crossing. |
+| `$7C58` | Uses `$07B4` rectangles and `$7EC4` corner cells for distance class 0..4, `$2F40` profile 0..2, and a five-by-twelve low-byte table; class 0 has high byte 0 and classes 1..4 high byte 1. A nonzero player shot phase takes `$7F0A`, zeroes planar velocity, and launches at raw VZ `-$0100`. | `allstar_one_on_one_rom_shot_distance_class`, `allstar_one_on_one_rom_shot_profile`, `allstar_one_on_one_rom_shot_vertical_velocity`, and `allstar_physics_shoot_ball_rom_7c58` reproduce those selectors and raw launch values. |
+| `$7EA9` | Shifts signed target displacement left three bits for class 0 and left two bits for classes 1..4, reaching the target in 32 or 64 8.8 steps. | The ROM launcher constructs the exact raw vector. A deterministic class-3 test reaches `$54/$5C` on step 64 and matches the traced first-step VZ `$0189`; the phase path matches `$FEF1`. |
 | `$791D/$794B` | Classifies player field `+$16` as 0, 1, or 2 from the exact left/right court wedge tables at `$79B6/$79D2`. | `allstar_one_on_one_rom_shot_variant` applies the recovered thresholds after converting native center X back to ROM field `+$06`. |
 | `$7F37` | Chooses release offsets by action/facing while held and by shot phase/variant during the jump; computes height from player fields `+$05/+$15`; phase 3 leaves the origin unchanged. | `allstar_one_on_one_rom_release_offset` contains the signed table and `allstar_one_on_one_rom_release_height` reproduces the coordinate subtraction used by the scene launch. |
 | `$6A8C` animation dispatcher | Action `$0A/$12` advances through twelve duration/frame records totaling 67 frames, then transitions to action `$0D`; active shot phases force display frames `$12/$13/$14`. | `allstar_one_on_one_rom_shot_animation_frame` reproduces both record tables and phase overrides, and the scene stores the selected byte in native player animation state. |
-| Fixed `$1CED` | Dispatches outer limits, back-court return, hoop/backboard contact, and ground/bounce behavior. | The exact outer-limit and `y<$5C` return branches are ported; later contact branches remain partial. |
+| Fixed `$1CED` | Dispatches outer limits, back-court return, exact score cells, front/side/back rim and backboard responses, `$C17E` cooldown, and ground/bounce behavior. It does not perform a native descending-plane or circular-radius test. | `allstar_physics_apply_rom_court_contacts` works on the canonical 8.8 bytes and emits explicit score/rim/backboard events; boundary tests cover the score cell, side impulse, back-rim reflection, and cooldown. |
+| Fixed `$1E5B/$1E77` | Treats exact zero or wrapped negative height (integer `>=$E0`) as ground, clears `$FFF8`, negates raw VZ, and applies the One-on-One `$0039` loss or one `$FFD4` `$012C` loss. | The fixed-step updater applies the same raw arithmetic and exposes recovery on first ground contact. |
 | Fixed `$1F4D` | Zeroes the two planar 8.8 velocity words. | `allstar_physics_apply_rom_court_contacts` zeroes native `vx` and `vy`; deterministic boundary tests cover the semantic result. |
 | Fixed `$077D` | Tests loose-ball proximity against player reference coordinates with strict Y `<8` and X `<12` limits. | `allstar_one_on_one_player_can_pick_up_ball` reproduces the strict limits and is boundary-tested. |
 | Fixed `$2AE2/$2B07/$2B88` | Decrements the pickup cooldown, applies possession/`$FFEB`/height gates, tests player 1 then player 2 for action and collision eligibility, applies `$FFE2/$FFE7/$FFF8` final locks, and reloads a 20-frame cooldown on award. | `allstar_one_on_one_rom_recovery_dispatch` preserves that order and is boundary-tested; the scene supplies the score-event, transition, first-contact flight, and exact proximity states. |
@@ -55,14 +58,14 @@ the 67-frame action terminal remains traveling.
 
 ## Known deviations
 
-This is a **partial rules improvement**, not verified shot or physics parity:
+The scoped launch/contact path is verified, but complete gameplay parity is not:
 
-- launch selection and remaining contact state are incomplete even though the `$7BE8` step itself now uses byte-sized 8.8 state;
-- the alternate `<<2` 64-frame trajectory class and `$7C58` launch tables are not yet classified;
-- accuracy ratings, contests, blocks, the remaining `$1CED` rim/backboard/bounce branches, and full rebound gates are not trace-matched;
-- CPU shot selection still comes from the generic native AI controller.
+- the native accuracy roll chooses among recovered launch-table entries, but the ROM's rating-to-entry selection is not yet recovered;
+- the Two/Three point bit `$FFD7` is consumed correctly after a score, while its upstream court-distance selector is still provisional;
+- contests, steals, blocks, goaltending, CPU positioning/shot choice, and rating effects remain partial or unmapped;
+- `$1CED` presentation/effect sequencing and branches belonging to other game modes remain outside this One-on-One claim.
 
-The former native trajectory aimed One-on-One shots at `z=112` and could reach that coordinate while rising, making its descending-only basket check incapable of recognizing the intended target crossing. The corrected hoop plane is `z=16`, shared by the other native shooting scenes, and basket detection now interpolates the descending plane crossing rather than accepting a broad 20-pixel height band.
+The former One-on-One implementation used an interpolated descending plane at `z=16` plus a five-pixel circle. Recovered `$1CED` proves that model was not native: the ROM compares integer 8.8 bytes in discrete score/contact cells and never reads vertical-velocity sign in the score decision. One-on-One now consumes the exact contact event; the generic plane helper remains available only for the other prototype shooting scenes.
 
 The former fix treated native `y<76` and other reachability limits as an immediate out-of-bounds turnover. The traced ROM does not do that. `$1CED` treats `y<$5C` as a return contact, while only `x<$0A`, `x>=$A0`, or `y>=$97` call `$1F4D`; that helper stops planar motion without awarding possession. Possession is resolved later by `$2AE2/$2B07/$2B88` after `$077D` reports player contact. The native scene now follows that separation.
 
@@ -70,4 +73,4 @@ Native player X is a center coordinate corresponding to ROM field `+$06 + 8`; na
 
 Player movement uses the same normalized coordinates. `$6BAD/$6BBA` constrain ROM field `+$06` to `8..148`, producing native center X `16..156`; `$6BC7/$6BD4` constrain field `+$15` to `98..152`. The scene routes movement through the boundary-tested `allstar_one_on_one_rom_clamp_player_court` helper.
 
-For the remaining deviations, `behavior.one_on_one_rules`, `behavior.physics`, `behavior.ai`, and `behavior.animation` remain partial, and this work adds no strict milestone credit.
+For the remaining deviations, whole-project `behavior.one_on_one_rules`, `behavior.physics`, `behavior.ai`, and `behavior.animation` remain partial. The focused One-on-One manifest gives credit only to the exact launch/contact requirements covered here.

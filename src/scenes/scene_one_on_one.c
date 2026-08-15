@@ -62,6 +62,8 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     int rating = point_value == 3
         ? (stats ? stats->shooting_3pt : 75)
         : (stats ? stats->shooting_2pt : 85);
+    bool accuracy_success = rand() % 100 < rating;
+    uint8_t launch_index = accuracy_success ? 7 : 2;
     float target_offset = 0.0f;
     float release_x = player->x;
     float release_y = player->y;
@@ -72,9 +74,11 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
     uint8_t shot_phase = shooter == 1
         ? data->shot_attempt.rom_phase : 2;
+    uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
+        player->x, player->y);
     AllStarOneOnOneReleaseOffset release_offset;
 
-    if (rand() % 100 >= rating) {
+    if (!accuracy_success) {
         int miss = 8 + rand() % 9;
         target_offset = (rand() & 1) ? (float)miss : (float)-miss;
     }
@@ -90,7 +94,7 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
                      ALLSTAR_ROM_PLAYER_X_TO_CENTER;
         release_y += (float)release_offset.ground_y_offset;
         release_z = (float)allstar_one_on_one_rom_release_height(
-            (int)player->y - 40, (int)player->y, shot_phase,
+            (int)player->y - 48, (int)player->y, shot_phase,
             release_offset.height_offset);
     }
     if (shooter == 1) {
@@ -106,11 +110,14 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
         }
     }
-    allstar_physics_shoot_ball_from_height(
+    allstar_physics_shoot_ball_rom_7c58(
         &data->ball, release_x, release_y, release_z,
         ALLSTAR_ONE_ON_ONE_HOOP_X + target_offset,
-        ALLSTAR_ONE_ON_ONE_HOOP_Y, ALLSTAR_HOOP_HEIGHT,
+        ALLSTAR_ONE_ON_ONE_HOOP_Y, distance_class,
+        allstar_one_on_one_rom_shot_vertical_velocity(
+            (uint8_t)roster_index, distance_class, launch_index), shot_phase,
         shooter, point_value);
+    data->ball.rom_player_shot_phase_active = player->is_shooting;
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
 }
 
@@ -226,6 +233,7 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
 static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     uint32_t events;
+    uint32_t ball_contacts;
     int recovering_player;
     data->anim_timer += dt;
 
@@ -316,10 +324,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     }
 
     allstar_physics_update_ball(&data->ball, dt);
-    if (allstar_physics_check_basket(&data->ball,
-                                     ALLSTAR_ONE_ON_ONE_HOOP_X,
-                                     ALLSTAR_ONE_ON_ONE_HOOP_Y,
-                                     ALLSTAR_HOOP_HEIGHT)) {
+    ball_contacts = allstar_physics_apply_rom_court_contacts(&data->ball);
+    if (ball_contacts & ALLSTAR_BALL_CONTACT_SCORE) {
         int shooter = data->ball.shooter_id;
         int points = data->ball.point_value;
         events = allstar_one_on_one_match_add_score(&game->one_on_one, shooter, points);
@@ -333,8 +339,6 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         }
         return;
     }
-
-    allstar_physics_apply_rom_court_contacts(&data->ball);
 
     recovering_player = allstar_one_on_one_rom_recovery_dispatch(
         &data->recovery,

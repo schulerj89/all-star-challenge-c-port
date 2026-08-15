@@ -155,6 +155,24 @@
       "source": "src/scenes/scene_three_point.c",
       "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
     },
+    "rom_b01_7170": {
+      "status": "candidate",
+      "native_symbol": "allstar_ai_update",
+      "source": "src/gameplay/allstar_ai.c",
+      "note": "Mode-0 CPU target, movement, profile shot-decision, and contest subsets are ported and boundary-tested; collision, steal, and other-mode branches prevent whole-routine credit."
+    },
+    "rom_b01_74bb": {
+      "status": "candidate",
+      "native_symbol": "allstar_ai_rom_direction_74bb",
+      "source": "src/gameplay/allstar_ai.c",
+      "note": "Exact four-pixel target dead zones and direction bits are boundary-tested; surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
+    },
+    "rom_b01_78e9": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_point_value",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The $798B held-ball region and $FFD6 two/three-point result are exact and boundary-tested; the entry also performs unrelated state bookkeeping."
+    },
     "rom_b01_791d": {
       "status": "candidate",
       "native_symbol": "allstar_one_on_one_rom_shot_variant",

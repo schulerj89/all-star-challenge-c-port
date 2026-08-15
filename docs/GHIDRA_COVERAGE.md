@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 69 are explicitly unmapped, 22 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. `$702D` is now a candidate backed by an emulator-matched shot-input subset, but its other action branches prevent whole-routine credit. Shooting mappings `$791D`, `$794B`, `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 66 are explicitly unmapped, 25 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. `$702D` is a candidate backed by an emulator-matched shot-input subset; shot/contact/AI candidates now have broader scoped behavior tests, but incomplete branches prevent whole-routine promotion. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -12,7 +12,7 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
 
-The separate One-on-One behavior manifest is **43/50 (86.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
+The separate One-on-One behavior manifest is **48/50 (96.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings. Steals and block/goaltend are the two remaining scoped requirements.
 
 ## Scope
 
@@ -36,7 +36,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 94 functions | 40 in bank 0, 46 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 107 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 3 of 94 | `$077D`, `$1F4D`, and `$28E1` are verified for their narrow tested semantics; 21 candidate analogues remain below the evidence threshold. |
+| Reviewed routine-to-C parity | 3 of 94 | `$077D`, `$1F4D`, and `$28E1` are verified for their narrow tested semantics; 25 candidate analogues remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
@@ -104,7 +104,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | Lifecycle plus scoped launch/contact parity | Endings, result/overtime flow, score comparison, `$791D/$794B` shot variants, `$7F37` origins, `$07B4/$7EC4/$2F40/$7C58/$7EA9` launch selection, `$1CED/$1E77` contact/bounce, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; AI/defense and point-distance selection remain partial. |
+| One-on-One | Yes | 48/50 scoped requirements | Lifecycle, possession, input, `$798B/$FFD6` point regions, `$7C58/$7EA9` launch, `$1CED/$1E77` contact/bounce, `$72EA/$74BB/$756C` CPU positioning/shot choice, `$71EE` contest, and recovery are covered; steals and block/goaltend remain. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
@@ -112,7 +112,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Two-player gameplay | No | No | Missing |
 | Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, 32/64-frame launch vectors and tables, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes and upstream accuracy/point selection remain incomplete. |
 | Player collision and possession rules | Partial | Possession subset | Shot-clock, rebound possession, winners-outs, traveling, and exact `$077D` pickup limits exist; steals, blocks, penalties, and the remaining recovery gates are missing. |
-| CPU AI | Yes | No | Generic six-state substitute |
+| CPU AI | Yes | Scoped One-on-One behavior | `$72EA` targets, `$74BB` direction dead zones, `$756C` profile/skill shot choice, and `$71EE` contest gate are integrated; steals, blocks, and the rest of `$7170` remain incomplete. |
 | Player animation selection | Yes | No | Limited generic states |
 | Court/menu/player rendering | Yes | No | Functional presentation; much data is compiled into headers |
 | ROM asset extraction | Minimal | No | Fixed tile range plus hardcoded roster |
@@ -129,14 +129,14 @@ No subsystem should currently be labeled 100% ROM-equivalent.
 | P0 | Four-bank Ghidra function recovery | 94 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | Complete | Settings | Session persistence, ROM value cycles, and downstream consumption are verified; full Accuracy and Free Throw mode parity remain tracked separately. |
-| P0 | One-on-One rules | Possession, rebounds, winners-outs, staged shooting/traveling, exact launch/contact/bounce, outer court response, pickup limits, and difficulty cadence exist; next port point-distance selection, CPU behavior, steals, blocks, penalties, and shot contests. |
+| P0 | One-on-One rules | 48/50 scoped requirements are verified; recover and port steals plus block/goaltend without promoting incomplete whole-project milestones. |
 | P0 | Free Throws | Correct the shot/basket coordinate model, enforce the configured attempt count, and implement results/exit flow. |
 | Complete | Tournament | Seven-match winner propagation, bracket rounds, champion lock, and title return are verified; presentation remains outside this gameplay milestone. |
 | P1 | H-O-R-S-E | Store the called shot, require a matching attempt, apply letters to the matching player, support CPU/human turns, and end the game. |
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
 | P1 | Physics | One-on-One launch/contact/bounce is covered; recover the upstream `$FFD7` 2/3-point selector and accuracy-to-launch-index logic, then extend equivalent evidence to other modes. |
-| P1 | AI | Recover CPU state transitions, difficulty tables, player-rating effects, defense, steals, blocks, shot selection, and rebound logic. |
+| P1 | AI | One-on-One targets, profile/skill shot selection, and contest gating are covered; recover steals, block/goaltend, collision penalties, and remaining `$7170` states. |
 | P1 | Animation | Recover ROM animation/state tables and map movement, dribble, gather, shot, block, rebound, hit, and idle sequences. |
 | P1 | Audio sequencing | Recover the bank-0 audio command interpreter, song/SFX tables, channel timing, pitch, envelope, and event mappings. |
 | P1 | Asset pipeline | Extract actual tile regions, tilemaps, portraits, logos, animations, roster records, and audio data from the user ROM. |

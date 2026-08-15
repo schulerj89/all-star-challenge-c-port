@@ -692,11 +692,62 @@ int allstar_cli_test_one_on_one_shooting(void) {
     uint32_t events;
     AllStarOneOnOneReleaseOffset release;
     uint8_t animation_frame;
+    uint8_t target_x;
+    uint8_t target_y;
     float court_x;
     float court_y;
     int frame;
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
+
+    if (allstar_one_on_one_rom_point_value(18.0f, 92.0f) != 3 ||
+        allstar_one_on_one_rom_point_value(19.0f, 92.0f) != 2 ||
+        allstar_one_on_one_rom_point_value(145.0f, 92.0f) != 2 ||
+        allstar_one_on_one_rom_point_value(146.0f, 92.0f) != 3 ||
+        allstar_one_on_one_rom_point_value(47.0f, 144.0f) != 2 ||
+        allstar_one_on_one_rom_point_value(118.0f, 144.0f) != 3 ||
+        allstar_one_on_one_rom_point_value(84.0f, 145.0f) != 3) {
+        fprintf(stderr, "[Test] $798B/$FFD6 two/three-point region was incorrect\n");
+        return 1;
+    }
+
+    if (allstar_ai_rom_direction_74bb(83.0f, 95.0f, 80, 92) != 0 ||
+        allstar_ai_rom_direction_74bb(84.0f, 96.0f, 80, 92) != 0x60 ||
+        allstar_ai_rom_direction_74bb(75.0f, 87.0f, 80, 92) != 0x90) {
+        fprintf(stderr, "[Test] $74BB four-pixel AI target dead zone was incorrect\n");
+        return 1;
+    }
+    allstar_ai_rom_offense_target_72ea(0x53, 0x2f, &target_x, &target_y);
+    if (target_x != 0x10 || target_y != 0x68) return 1;
+    allstar_ai_rom_offense_target_72ea(0x53, 0x30, &target_x, &target_y);
+    if (target_x != 0x1c || target_y != 0x8c) return 1;
+    allstar_ai_rom_offense_target_72ea(0x54, 0x70, &target_x, &target_y);
+    if (target_x != 0x90 || target_y != 0x7c) return 1;
+    allstar_ai_rom_offense_target_72ea(0x54, 0xb0, &target_x, &target_y);
+    if (target_x != 0x78 || target_y != 0x98) {
+        fprintf(stderr, "[Test] $72EA side/random AI target tables were incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_ai_rom_should_shoot_756c(0, 0, 4, 1, 0xaf, 0) ||
+        allstar_ai_rom_should_shoot_756c(0, 0, 5, 1, 0xaf, 0xff) ||
+        allstar_ai_rom_should_shoot_756c(0, 1, 5, 1, 0xb0, 0x19) ||
+        !allstar_ai_rom_should_shoot_756c(0, 1, 5, 1, 0xb0, 0x1a) ||
+        !allstar_ai_rom_should_shoot_756c(2, 4, 7, 3, 0x3f, 0) ||
+        allstar_ai_rom_should_shoot_756c(2, 4, 8, 3, 0x3f, 0xff)) {
+        fprintf(stderr, "[Test] $756C profile/skill CPU shot decision was incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_ai_rom_should_contest_71ee(71.0f, 105.0f, true) ||
+        allstar_ai_rom_should_contest_71ee(70.0f, 105.0f, true) ||
+        allstar_ai_rom_should_contest_71ee(98.0f, 105.0f, true) ||
+        allstar_ai_rom_should_contest_71ee(71.0f, 106.0f, true) ||
+        allstar_ai_rom_should_contest_71ee(84.0f, 95.0f, false)) {
+        fprintf(stderr, "[Test] $71EE/$07B4 CPU contest gate was incorrect\n");
+        return 1;
+    }
+
     allstar_one_on_one_shot_reset(&attempt);
 
     events = allstar_one_on_one_shot_press(&attempt, 1);

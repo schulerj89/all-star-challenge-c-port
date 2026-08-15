@@ -323,6 +323,29 @@ int16_t allstar_one_on_one_rom_shot_vertical_velocity(
                      low[profile][distance_class][pose_index]);
 }
 
+/* $78E9/$794B checks the held ball against the $798B two-point region,
+   stores the inverted result in $FFD6, and $7C58 copies it to $FFD7.
+   $1F23 awards two points for zero and three for nonzero. */
+int allstar_one_on_one_rom_point_value(float ball_x, float ball_y) {
+    static const uint8_t region[][3] = {
+        {0x5c,0x12,0x91}, {0x60,0x12,0x91}, {0x64,0x12,0x91},
+        {0x68,0x12,0x91}, {0x6c,0x12,0x91}, {0x70,0x12,0x91},
+        {0x74,0x12,0x91}, {0x78,0x12,0x91},
+        {0x7c,0x16,0x8d}, {0x80,0x16,0x8d},
+        {0x84,0x1a,0x8a}, {0x88,0x1e,0x85},
+        {0x8c,0x22,0x81}, {0x90,0x2e,0x75}
+    };
+    int x = (int)ball_x;
+    int y = (int)ball_y;
+    size_t row;
+    for (row = 0; row < sizeof(region) / sizeof(region[0]); row++) {
+        if (y <= region[row][0]) {
+            return region[row][1] < x && x <= region[row][2] ? 2 : 3;
+        }
+    }
+    return 3;
+}
+
 /* Fixed-bank $077D uses strict unsigned-distance limits of 12 by 8. */
 bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,

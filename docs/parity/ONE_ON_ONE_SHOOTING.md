@@ -60,9 +60,8 @@ the 67-frame action terminal remains traveling.
 
 The scoped launch/contact path is verified, but complete gameplay parity is not:
 
-- the native accuracy roll chooses among recovered launch-table entries, but the ROM's rating-to-entry selection is not yet recovered;
-- the Two/Three point bit `$FFD7` is consumed correctly after a score, while its upstream court-distance selector is still provisional;
-- contests, steals, blocks, goaltending, CPU positioning/shot choice, and rating effects remain partial or unmapped;
+- human directional/action-to-launch-index coverage is still limited to the traced neutral index and the recovered phase paths;
+- steals, blocks, and goaltending remain unmapped;
 - `$1CED` presentation/effect sequencing and branches belonging to other game modes remain outside this One-on-One claim.
 
 The former One-on-One implementation used an interpolated descending plane at `z=16` plus a five-pixel circle. Recovered `$1CED` proves that model was not native: the ROM compares integer 8.8 bytes in discrete score/contact cells and never reads vertical-velocity sign in the score decision. One-on-One now consumes the exact contact event; the generic plane helper remains available only for the other prototype shooting scenes.

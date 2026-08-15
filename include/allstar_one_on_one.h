@@ -147,6 +147,7 @@ uint8_t allstar_one_on_one_rom_shot_distance_class(float player_center_x,
 uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index);
 int16_t allstar_one_on_one_rom_shot_vertical_velocity(
     uint8_t roster_index, uint8_t distance_class, uint8_t pose_index);
+int allstar_one_on_one_rom_point_value(float ball_x, float ball_y);
 bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,
                                                 float ball_x,

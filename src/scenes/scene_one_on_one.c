@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 typedef struct {
     AllStarPlayerState p1;
@@ -51,20 +50,8 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     AllStarPlayerState *player = shooter == 1 ? &data->p1 : &data->p2;
     uint32_t roster_index = shooter == 1
         ? game->selected_player_1 : game->selected_player_2;
-    const AllStarPlayerStats *stats = allstar_roster_get_player(
-        &game->roster, roster_index);
-    float dist = sqrtf(
-        (player->x - ALLSTAR_ONE_ON_ONE_HOOP_X) *
-            (player->x - ALLSTAR_ONE_ON_ONE_HOOP_X) +
-        (player->y - ALLSTAR_ONE_ON_ONE_HOOP_Y) *
-            (player->y - ALLSTAR_ONE_ON_ONE_HOOP_Y));
-    int point_value = dist > 45.0f ? 3 : 2;
-    int rating = point_value == 3
-        ? (stats ? stats->shooting_3pt : 75)
-        : (stats ? stats->shooting_2pt : 85);
-    bool accuracy_success = rand() % 100 < rating;
-    uint8_t launch_index = accuracy_success ? 7 : 2;
-    float target_offset = 0.0f;
+    int point_value;
+    uint8_t launch_index = shooter == 1 ? 2 : data->ai.rom_action_index;
     float release_x = player->x;
     float release_y = player->y;
     float release_z = ALLSTAR_BALL_RELEASE_HEIGHT;
@@ -73,15 +60,10 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     uint8_t shot_action = shot_variant == 1
         ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
     uint8_t shot_phase = shooter == 1
-        ? data->shot_attempt.rom_phase : 2;
+        ? data->shot_attempt.rom_phase : 0;
     uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
         player->x, player->y);
     AllStarOneOnOneReleaseOffset release_offset;
-
-    if (!accuracy_success) {
-        int miss = 8 + rand() % 9;
-        target_offset = (rand() & 1) ? (float)miss : (float)-miss;
-    }
 
     player->has_ball = false;
     player->is_shooting = true;
@@ -110,9 +92,10 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
         }
     }
+    point_value = allstar_one_on_one_rom_point_value(release_x, release_y);
     allstar_physics_shoot_ball_rom_7c58(
         &data->ball, release_x, release_y, release_z,
-        ALLSTAR_ONE_ON_ONE_HOOP_X + target_offset,
+        ALLSTAR_ONE_ON_ONE_HOOP_X,
         ALLSTAR_ONE_ON_ONE_HOOP_Y, distance_class,
         allstar_one_on_one_rom_shot_vertical_velocity(
             (uint8_t)roster_index, distance_class, launch_index), shot_phase,
@@ -190,6 +173,8 @@ static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
         one_on_one_reset_possession(data, game, true);
         allstar_ai_init(&data->ai, cpu_stats);
         allstar_ai_set_skill(&data->ai, game->settings.skill_level);
+        allstar_ai_set_rom_profile(
+            &data->ai, (uint8_t)game->selected_player_2);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
     }
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE) {
@@ -224,6 +209,8 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     cpu_stats = allstar_roster_get_player(&game->roster, game->selected_player_2);
     allstar_ai_init(&data->ai, cpu_stats);
     allstar_ai_set_skill(&data->ai, game->settings.skill_level);
+    allstar_ai_set_rom_profile(
+        &data->ai, (uint8_t)game->selected_player_2);
 
     allstar_audio_stop_bgm(&game->audio);
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);

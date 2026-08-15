@@ -48,7 +48,7 @@
     {"id":"physics.gravity_7be8","group":"physics","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/allstar_cli.c"],"test":"--test-physics"},
     {"id":"physics.descending_rim_crossing","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics","note":"Recovered $1CED proves the ROM uses an exact spatial score window and no native descending-plane predicate."},
     {"id":"physics.make_radius","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","src/gameplay/allstar_physics.c"],"test":"--test-physics","note":"The former five-pixel native radius was removed from One-on-One scoring in favor of $1CED's exact byte footprint."},
-    {"id":"physics.two_three_point_value","group":"physics","status":"partial","note":"Native distance threshold is not recovered from ROM scoring tables."},
+    {"id":"physics.two_three_point_value","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"physics.outer_boundary_1f4d","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
     {"id":"physics.backcourt_return_1ced","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
     {"id":"physics.first_ground_unlock_1e77","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-physics"},
@@ -57,10 +57,10 @@
 
     {"id":"defense.player_court_bounds","group":"defense_ai","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"defense.skill_cadence_1ffa","group":"defense_ai","status":"verified","evidence":["docs/parity/SETTINGS.md"],"test":"--test-settings"},
-    {"id":"defense.cpu_positioning","group":"defense_ai","status":"partial","note":"Generic native six-state controller is not ROM-equivalent."},
-    {"id":"defense.cpu_shot_decision","group":"defense_ai","status":"partial","note":"CPU reaches native shooting but ROM decision state is not ported."},
-    {"id":"defense.rating_accuracy","group":"defense_ai","status":"partial","note":"Native random rating roll is not recovered ROM behavior."},
-    {"id":"defense.shot_contest","group":"defense_ai","status":"unmapped"},
+    {"id":"defense.cpu_positioning","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"defense.cpu_shot_decision","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"defense.rating_accuracy","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-one-on-one-shooting","note":"The ROM uses roster profiles and launch/decision tables rather than the former generic 2PT/3PT percentage roll."},
+    {"id":"defense.shot_contest","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
     {"id":"defense.steal","group":"defense_ai","status":"unmapped"},
     {"id":"defense.block_goaltend","group":"defense_ai","status":"unmapped"}
   ],
@@ -74,6 +74,7 @@
     {"date":"2026-08-14","verified":35,"total":50,"percent":70.0,"note":"Unreleased shot possession now becomes traveling on the exact 67-frame $6A8C terminal transition."},
     {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."},
     {"date":"2026-08-15","verified":38,"total":50,"percent":76.0,"note":"$FFEB counted-wait, $FFE2 score-event, $FFE7 transition, and $FFF8 first-ground recovery locks are mapped and gate-tested."},
-    {"date":"2026-08-15","verified":43,"total":50,"percent":86.0,"note":"$07B4/$7EC4 distance classes, $2F40 profiles, all $7C58 vertical tables, 32/64-frame vectors, $1CED score/rim/backboard windows, and $1E77 raw bounce loss are implemented and boundary-tested."}
+    {"date":"2026-08-15","verified":43,"total":50,"percent":86.0,"note":"$07B4/$7EC4 distance classes, $2F40 profiles, all $7C58 vertical tables, 32/64-frame vectors, $1CED score/rim/backboard windows, and $1E77 raw bounce loss are implemented and boundary-tested."},
+    {"date":"2026-08-15","verified":48,"total":50,"percent":96.0,"note":"$798B/$FFD6 point regions plus $72EA/$74BB/$756C CPU targets, movement, roster-profile shot decisions, and $71EE contest gating are integrated and boundary-tested; steals and block/goaltend remain open."}
   ]
 }

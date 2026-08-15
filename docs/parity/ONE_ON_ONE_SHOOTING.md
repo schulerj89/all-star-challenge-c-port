@@ -33,7 +33,7 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 
 | ROM routine | Observed behavior | Native counterpart |
 |---|---|---|
-| `$7BE8` | Once per frame, subtracts `$000F` from 8.8 vertical velocity and integrates the three velocity/position pairs. | `allstar_physics_update_ball` uses a 60 Hz fixed step and the equivalent `15/256` gravity delta. |
+| `$7BE8` | Once per frame, subtracts `$000F` from 8.8 vertical velocity, applies raw `+/-2` planar friction while the height integer byte is zero, then integrates the three velocity/position pairs. | `allstar_physics_rom_step_7be8` reproduces the exact 16-bit operations and `allstar_physics_update_ball` uses that state as its canonical fixed step. |
 | `$7C58` | Branches on the player's existing shot/jump state, constructs shot state, and transfers possession to the in-flight ball state. | Staged `allstar_one_on_one_shot_press` plus `one_on_one_launch_shot`. |
 | `$7EA9` | For the normal shot vector, shifts signed target displacement left three bits. In 8.8 state this reaches the target in `256/8 = 32` frames. | `allstar_physics_shoot_ball` constructs a 32-frame target crossing. |
 | `$791D/$794B` | Classifies player field `+$16` as 0, 1, or 2 from the exact left/right court wedge tables at `$79B6/$79D2`. | `allstar_one_on_one_rom_shot_variant` applies the recovered thresholds after converting native center X back to ROM field `+$06`. |
@@ -52,7 +52,7 @@ This is a **partial rules improvement**, not verified shot or physics parity:
 
 - the native two-press/30-frame gather window is still a gameplay approximation; `$702D` input and `$C16A` phase timing need an emulator trace;
 - the `$7F37` height offset still lacks the ROM player jump-height field (`+$05`), so native release `z` remains the existing release-height constant;
-- the recovered fixed-step constants are represented with native floats rather than byte-identical 8.8 storage;
+- launch selection and remaining contact state are incomplete even though the `$7BE8` step itself now uses byte-sized 8.8 state;
 - the alternate `<<2` 64-frame trajectory class and `$7C58` launch tables are not yet classified;
 - accuracy ratings, contests, blocks, the remaining `$1CED` rim/backboard/bounce branches, and full rebound gates are not trace-matched;
 - CPU shot selection still comes from the generic native AI controller.

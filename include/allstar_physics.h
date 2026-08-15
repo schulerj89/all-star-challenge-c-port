@@ -24,6 +24,16 @@ typedef enum {
 } AllStarBallContact;
 
 typedef struct {
+    int16_t vx;
+    int16_t vy;
+    int16_t vz;
+    uint16_t x;
+    uint16_t y;
+    uint16_t z;
+    uint8_t gravity_delay_frames;
+} AllStarRomBallStepState;
+
+typedef struct {
     float x;
     float y;
     float z; /* Height above court */
@@ -43,6 +53,8 @@ typedef struct {
     bool made_basket;
     int shooter_id;
     int point_value;
+    AllStarRomBallStepState rom_step_state;
+    bool rom_step_state_valid;
 } AllStarBall;
 
 typedef struct {
@@ -60,6 +72,7 @@ typedef struct {
 
 /* ROM bank 1 $7BE8: 60 Hz fixed-point ball flight update. */
 void allstar_physics_init_ball(AllStarBall *ball);
+void allstar_physics_rom_step_7be8(AllStarRomBallStepState *state);
 void allstar_physics_update_ball(AllStarBall *ball, float dt);
 
 /* Fixed-bank $1CED/$1F4D: court limits and planar-velocity response. */

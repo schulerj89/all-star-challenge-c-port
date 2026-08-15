@@ -177,7 +177,7 @@
       "status": "candidate",
       "native_symbol": "allstar_physics_update_ball",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native flight uses the recovered 60 Hz integration order and $000F 8.8 vertical-velocity delta; byte-identical state traces and ROM contact behavior remain missing."
+      "note": "Native flight uses an exact 8.8 helper for the recovered pre-integration $000F gravity, low-height planar +/-2 friction, and three pair updates. Full launch/contact state and emulator traces remain missing."
     },
     "rom_b01_7ea9": {
       "status": "candidate",

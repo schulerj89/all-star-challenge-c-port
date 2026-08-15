@@ -158,10 +158,32 @@ int allstar_cli_test_physics(void) {
     AllStarBall miss;
     AllStarBall contact;
     AllStarBall rebound;
+    AllStarRomBallStepState rom_step;
     uint32_t contacts;
     int frame;
 
     printf("[Test] Running Physics Simulation Tests...\n");
+
+    memset(&rom_step, 0, sizeof(rom_step));
+    rom_step.vx = 1;
+    rom_step.vy = -1;
+    rom_step.vz = 0x0100;
+    rom_step.x = 0x5000;
+    rom_step.y = 0x7000;
+    rom_step.z = 0x0080;
+    allstar_physics_rom_step_7be8(&rom_step);
+    if (rom_step.vx != -1 || rom_step.vy != 1 ||
+        rom_step.vz != 0x00f1 || rom_step.x != 0x4fff ||
+        rom_step.y != 0x7001 || rom_step.z != 0x0171) {
+        fprintf(stderr, "[Test] $7BE8 8.8 gravity/friction/integration order was incorrect\n");
+        return 1;
+    }
+    rom_step.gravity_delay_frames = 1;
+    allstar_physics_rom_step_7be8(&rom_step);
+    if (rom_step.gravity_delay_frames != 0 || rom_step.vz != 0x00f1) {
+        fprintf(stderr, "[Test] $7BE8 gravity delay did not preserve vertical velocity\n");
+        return 1;
+    }
     allstar_physics_init_ball(&ball);
 
     allstar_physics_shoot_ball(&ball, 80.0f, 130.0f, 80.0f, 82.0f,
@@ -183,12 +205,16 @@ int allstar_cli_test_physics(void) {
     allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
     if (fabsf(ball.x - 80.0f) > 0.001f ||
         fabsf(ball.y - 82.0f) > 0.001f ||
-        fabsf(ball.z - ALLSTAR_HOOP_HEIGHT) > 0.001f || ball.vz >= 0.0f ||
+        fabsf(ball.z - (ALLSTAR_HOOP_HEIGHT - 1.0f / 16.0f)) > 0.001f ||
+        ball.vz >= 0.0f ||
         !allstar_physics_check_basket(&ball, 80.0f, 82.0f,
                                       ALLSTAR_HOOP_HEIGHT) ||
         allstar_physics_check_basket(&ball, 80.0f, 82.0f,
                                      ALLSTAR_HOOP_HEIGHT)) {
-        fprintf(stderr, "[Test] Clean shot did not cross the rim once on descent\n");
+        fprintf(stderr, "[Test] Clean shot did not cross the rim once on descent "
+                        "(x=%.4f y=%.4f z=%.4f vx=%.4f vy=%.4f vz=%.4f cross=%.4f,%.4f)\n",
+                ball.x, ball.y, ball.z, ball.vx, ball.vy, ball.vz,
+                ball.target_crossing_x, ball.target_crossing_y);
         return 1;
     }
 

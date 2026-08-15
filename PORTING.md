@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **30/50 (60.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
+One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **31/50 (62.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
 
 ## 4. Current Native Architecture
 
@@ -101,7 +101,7 @@ One-on-One work also has a fixed 50-requirement scoped denominator in `docs/pari
 |---|---|---|
 | `src/allstar_game.c` | Scene ownership and per-frame orchestration | Implemented structurally; not tied to ROM dispatcher states. |
 | `src/scenes/` | Intro, menu, settings, roster, and game-mode scenes | Broad scaffolding; most game-mode rules are partial. |
-| `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` gravity/integration, `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
+| `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` uses exact 8.8 gravity/friction/integration operations; `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
 | `src/gameplay/allstar_ai.c` | Six-state generic CPU controller | Prototype substitute for ROM player/CPU state machines. |
 | `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, overtime, possession, and staged shot state | High-level lifecycle is verified; staged shooting/traveling is partial pending exact ROM timing and physics traces. |
 | `src/allstar_renderer.c` | Software pixels, tiles, court, players, and ball | Functional; several assets are compiled headers rather than asset-pack data. |

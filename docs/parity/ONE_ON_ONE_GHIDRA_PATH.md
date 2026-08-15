@@ -26,7 +26,7 @@ the cartridge.
 | `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
 | `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
-| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0C/$0D` select programs `$0C/$02/$11`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v7 decodes all three focused programs into per-frame square state, including the six command-`$0C` channel-2 dribble retriggers. |
+| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0C/$0D/$0E/$0F` select programs `$0C/$02/$11/$12/$07`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v8 decodes all five focused programs, including dribble retriggers and the 48-frame accepted-player chime that carries into match start. |
 | `$1E0E->$7BE8->$1E5B/$1E77->$27C7` | Made ball holds gravity 35 frames, bounces at `+76/+121/+158`, and begins fade at `+180`. | Score presentation advances the shared 8.8 integrator with the exact gravity delay and hard-first-bounce state. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
@@ -71,6 +71,8 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$2AE2 -> $2B07 -> $0A78 -> $077D` | Tick the cooldown, reject protected actors, and test the exact loose-ball rectangle. | `allstar_one_on_one_rom_recovery_dispatch` and the existing `$077D` contact helper. |
 | `$2B07 -> $2B88` | Apply score/transition/first-flight/cooldown gates, set `$C12D=20`, clear flight inputs, set `$FFCF`, and report whether owner changed. | Recovery dispatch plus `allstar_one_on_one_match_take_possession`. |
 | return to `$7015 -> $782E -> $6A8C` | Continue normal player animation selection. No pickup action is assigned and animation fields `+$00..+$04` are untouched. | Recovery no longer forces `$13/$0D`; the current animation record is preserved. |
+| `$2B88 -> $FFD1`, then `$6F2A -> $78E9 -> $794B/$796C` | A defensive recovery sets the changed-owner flag. It remains set while the held ball is inside the central region and clears outside it; `$7C58` refuses a shot while set. | `take_back_required` is set only on a live owner change, uses the exact held-ball coordinates/region helper, and gates both human and CPU launch. |
+| `$1CED -> $1D8C/$1F5F -> $1F4D` | A rim miss receives its exact impulse and eight-frame cooldown; an outer boundary zeroes both planar velocity words but leaves a live recoverable ball. | `allstar_physics_apply_rom_court_contacts` feeds the normal recovery/take-back route instead of creating an unverified sideline inbound. |
 
 ## Rendering and user-ROM asset path
 
@@ -80,10 +82,10 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$1FFA->$2021` and `$2219` | Builder decodes the separate 17-tile net/HUD stream from bank 3 `$793F..$7A22`. |
 | `$0B9A -> $04B1(A=1) -> $050F` | Builder decodes 86 court tiles from bank 3 `$7A23..$7E47` and the 640-byte, 32-stride map from `$7E48..$7F68`. `$2243` is another mode and is not credited. |
 | `$2933/$293D -> $2945 -> $2A2B` | Builder extracts 563 player tiles and 60 frame maps; `allstar_renderer_rom_player_tiles_2945` performs normal/flipped 3-by-3 8x16 traversal. |
-| `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation uses action-, facing-, and record-indexed `$6F2A` placement. |
+| `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation reads exact player `+$05/+$06` (visual Y is ground minus 40) and uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-6 asset pack. The old
+The extracted bytes exist only in a user-built version-8 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 
@@ -92,9 +94,9 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v7.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v7.pack
-.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v7.pack build\command_05.wav build\command_0D.wav build\command_0C.wav
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v8.pack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v8.pack
+.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v8.pack build\command_05.wav build\command_0D.wav build\command_0C.wav build\command_0F.wav build\command_0E.wav
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 
@@ -106,3 +108,4 @@ Headless Mesen evidence is in:
 - `tools/emulator/trace_one_on_one_shot_results.lua`
 - `tools/emulator/trace_one_on_one_score_presentation.lua`
 - `tools/emulator/trace_one_on_one_presentation_audio.lua`
+- `tools/emulator/trace_one_on_one_miss_take_back.lua`

@@ -84,7 +84,8 @@ local function onSoundSelectionReturn()
   print(string.format(
     "SOUND_PROGRAM command=%02X program=%02X priority_frames=%02X",
     command, program, priorityFrames))
-  if (command == 0x0C or command == 0x0D or command == 0x05) and
+  if (command == 0x0C or command == 0x0D or command == 0x05 or
+      command == 0x0E or command == 0x0F) and
       not capturedCommands[command] and activeAudioCapture == nil then
     activeAudioCapture = {
       command = command,
@@ -256,7 +257,9 @@ end
 local function onEndFrame()
   if activeAudioCapture ~= nil then
     local captureFrames = totalFrames - activeAudioCapture.startFrame
-    local wantedFrames = activeAudioCapture.command == 0x05 and 110 or 25
+    local wantedFrames = activeAudioCapture.command == 0x05 and 110 or
+      (activeAudioCapture.command == 0x0E and 60 or
+      (activeAudioCapture.command == 0x0F and 30 or 25))
     if captureFrames >= wantedFrames then finishAudioCapture() end
   end
   if scoreFrame ~= nil and totalFrames >= scoreFrame + 280 and not stopping then
@@ -279,6 +282,8 @@ local function onEndFrame()
     end
     expect(contains(rosterSounds, 0x0E),
       "roster navigation never selected command $0E")
+    expect(contains(rosterSounds, 0x0F),
+      "roster confirmation never selected command $0F")
     expect(contains(gameplaySounds, 0x0C),
       "held-ball record 6 never selected command $0C")
     expect(contains(gameplaySounds, 0x0D),
@@ -300,6 +305,14 @@ local function onEndFrame()
            audioContains(audioCaptures[0x0D], 3, 0xFF13, 0xBC) and
            audioContains(audioCaptures[0x0D], 4, 0xFF25, 0x00),
       "command $0D did not execute sound program $11 with APU writes")
+    expect(audioCaptures[0x0F] ~= nil and
+           audioCaptures[0x0F].program == 0x87 and
+           audioCaptures[0x0F].priorityFrames == 0x19,
+      "command $0F did not execute roster-navigation program $07")
+    expect(audioCaptures[0x0E] ~= nil and
+           audioCaptures[0x0E].program == 0x92 and
+           audioCaptures[0x0E].priorityFrames == 0x32,
+      "command $0E did not execute roster-confirm program $12")
     expect(audioCaptures[0x0C] ~= nil and
            audioCaptures[0x0C].program == 0x82 and
            audioCaptures[0x0C].priorityFrames == 0x13 and

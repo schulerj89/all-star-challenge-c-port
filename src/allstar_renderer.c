@@ -439,8 +439,8 @@ void allstar_renderer_rom_held_ball_7f37(
 
 /* Bank 1 $6F2A runs after $7F37 on every gameplay update and is therefore
    the final held/dribbling-ball placement for actions $01/$04/$08/$0B/$10/
-   $13. Native x is player +$06+8; ground y is +$15; the stable OAM-y field
-   +$05 is ground-18 outside a jump. The $6FEA table supplies the bounce Z. */
+   $13. Native x is player +$06+8; ground y is +$15; visual field +$05 is
+   ground-40 outside a jump. The $6FEA table supplies the bounce Z. */
 void allstar_renderer_rom_dribble_ball_6f2a(
     int32_t player_center_x, int32_t player_ground_y,
     uint8_t action, uint8_t record_index, bool direction_bit4,
@@ -454,7 +454,7 @@ void allstar_renderer_rom_dribble_ball_6f2a(
     if (!presentation) return;
     memset(presentation, 0, sizeof(*presentation));
     player_x = (uint8_t)(player_center_x - 8);
-    visual_y = (uint8_t)(player_ground_y - 18);
+    visual_y = (uint8_t)(player_ground_y - 40);
     switch (action) {
         case 0x01: x_offset = 3;  y_offset = 0x28; break;
         case 0x04: x_offset = 6;  y_offset = 0x2c; break;
@@ -593,7 +593,7 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     int32_t x, int32_t y, int32_t visual_lift,
     bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting,
     bool is_defending, uint8_t rom_action, uint8_t rom_display_frame,
-    uint8_t rom_record_index, float anim_time, bool facing_left) {
+    uint8_t rom_record_index, float anim_time, bool horizontal_flip) {
     const AllStarAssetPack *pack;
     if (!renderer) return;
     (void)is_p1;
@@ -617,18 +617,18 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
         int top_y = y - 56 - visual_lift;
         if (!allstar_renderer_rom_player_tiles_2945(
                 pack, rom_action, rom_display_frame,
-                facing_left, tiles)) return;
+                horizontal_flip, tiles)) return;
         for (sprite_row = 0; sprite_row < 3; sprite_row++) {
             for (column = 0; column < 3; column++) {
                 size_t output = (size_t)sprite_row * 6 + column * 2;
                 allstar_renderer_draw_asset_tile_skin(
                     renderer, &pack->player_source_tiles[tiles[output]],
                     top_x + column * 8, top_y + sprite_row * 16,
-                    facing_left, skin_tone);
+                    horizontal_flip, skin_tone);
                 allstar_renderer_draw_asset_tile_skin(
                     renderer, &pack->player_source_tiles[tiles[output + 1]],
                     top_x + column * 8, top_y + sprite_row * 16 + 8,
-                    facing_left, skin_tone);
+                    horizontal_flip, skin_tone);
             }
         }
     } else {
@@ -650,11 +650,11 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
         if (rom_action == 0x0a || rom_action == 0x12) {
             allstar_renderer_rom_held_ball_7f37(
                 x, y, rom_action, rom_display_frame,
-                !facing_left, &held_ball);
+                horizontal_flip, &held_ball);
         } else {
             allstar_renderer_rom_dribble_ball_6f2a(
                 x, y, rom_action, rom_record_index,
-                !facing_left, &held_ball);
+                horizontal_flip, &held_ball);
         }
         if (held_ball.visible) {
             held_ball.ball_z = (uint8_t)(held_ball.ball_z + visual_lift);
@@ -668,11 +668,11 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
 void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x,
     int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball,
     bool is_shooting, bool is_defending, uint8_t rom_action,
-    uint8_t rom_display_frame, float anim_time, bool facing_left) {
+    uint8_t rom_display_frame, float anim_time, bool horizontal_flip) {
     allstar_renderer_draw_player_lifted_ex(
         renderer, x, y, 0, is_p1, skin_tone, has_ball, is_shooting,
         is_defending, rom_action, rom_display_frame, 0,
-        anim_time, facing_left);
+        anim_time, horizontal_flip);
 }
 
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {

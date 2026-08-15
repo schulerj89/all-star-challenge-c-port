@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <mmsystem.h>
 #include "allstar_game.h"
 #include <stdio.h>
 #include <stdbool.h>
@@ -181,7 +182,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!game_initialized) {
         MessageBoxA(
             hwnd,
-            "One-on-One asset pack v4 is missing or stale.\n\n"
+            "One-on-One asset pack v8 is missing or stale.\n\n"
             "Run build.ps1 -RomPath \"path\\to\\game.gb\" to rebuild it.",
             "NBA All-Star Challenge - Asset Pack Required",
             MB_OK | MB_ICONERROR);
@@ -191,11 +192,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     /* Pacing timer setup (59.7275 Hz Game Boy target) */
-    LARGE_INTEGER perf_freq, last_time, current_time;
+    LARGE_INTEGER perf_freq, current_time;
+    LONGLONG frame_ticks;
+    LONGLONG next_frame_tick;
     QueryPerformanceFrequency(&perf_freq);
-    QueryPerformanceCounter(&last_time);
-
     const double target_frame_time = 1.0 / 59.7275;
+    frame_ticks = (LONGLONG)(target_frame_time * (double)perf_freq.QuadPart);
+    QueryPerformanceCounter(&current_time);
+    next_frame_tick = current_time.QuadPart + frame_ticks;
+    /* Sleep(1) can otherwise use a coarse Windows scheduler quantum, and
+       resetting the deadline to the overshot time accumulates that error.
+       A 1 ms timer period plus an absolute deadline keeps the host at the
+       DMG's 59.7275 Hz while the gameplay logic remains one ROM step/frame. */
+    timeBeginPeriod(1);
 
     while (g_is_running) {
         MSG msg;
@@ -232,18 +241,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                       SRCCOPY);
         ReleaseDC(hwnd, hdc);
 
-        /* Frame pacing */
-        do {
+        /* Absolute-deadline frame pacing: sleep for the coarse part and
+           yield through the final sub-millisecond interval. */
+        for (;;) {
             QueryPerformanceCounter(&current_time);
-            double elapsed = (double)(current_time.QuadPart - last_time.QuadPart) / (double)perf_freq.QuadPart;
-            if (elapsed >= target_frame_time) {
-                last_time = current_time;
-                break;
+            if (current_time.QuadPart >= next_frame_tick) break;
+            if (next_frame_tick - current_time.QuadPart >
+                    perf_freq.QuadPart / 500) {
+                Sleep(1);
+            } else {
+                SwitchToThread();
             }
-            Sleep(1);
-        } while (1);
+        }
+        next_frame_tick += frame_ticks;
+        /* A breakpoint/window drag must not trigger an unbounded catch-up. */
+        if (current_time.QuadPart > next_frame_tick + frame_ticks * 4) {
+            next_frame_tick = current_time.QuadPart + frame_ticks;
+        }
     }
 
+    timeEndPeriod(1);
     allstar_game_shutdown(&g_game);
     win32_free_framebuffer(&g_framebuffer);
 

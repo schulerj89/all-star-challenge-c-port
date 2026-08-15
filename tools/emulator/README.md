@@ -85,11 +85,16 @@ at `+258` frames. Require exit code `0` and
 `TRACE PASSED: $1E0E/$2F88/$0C13/$27C7/$20F7/$27CC score presentation`.
 
 `trace_one_on_one_presentation_audio.lua` follows roster selection into a
-deterministic made basket. It asserts navigation command `$0E`, accepted-player
-command `$0F`, movement command `$0D`, record-six dribble command `$0C`, final
+deterministic made basket. It asserts navigation command `$0F`, accepted-player
+command `$0E`, movement command `$0D`, record-six dribble command `$0C`, final
 `$6F2A` ball placement, all four `$1ECC` net frames, command `$08` at `+20`,
 and command `$05` at `+65`. Require exit code `0` and
 `TRACE PASSED: roster audio, $6F2A dribble placement, and $1ECC score net`.
+
+`trace_one_on_one_miss_take_back.lua` forces a rim miss and follows fixed
+`$1CED->$1D8C/$1F4D->$2AE2->$2B88`, then bank-1 `$78E9/$796C`. It asserts
+the outer-boundary velocity stop, changed-owner `$FFD1` recovery, CPU route,
+inside-region persistence, and outside-region take-back clearance.
 
 `trace_one_on_one_live_flow.lua` holds a direction through a complete run
 cycle and through shot gather. It asserts all run display frames, continued

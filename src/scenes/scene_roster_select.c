@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Live bank-2 $40F4 trace: the final accepted-player command $0E starts
+   35 frames before the first bank-1 $702D gameplay update. */
+#define ALLSTAR_ROM_MATCHUP_TO_GAMEPLAY_SECONDS (35.0f / 60.0f)
+
 typedef enum {
     ROSTER_STATE_SPLASH_P1 = 0,
     ROSTER_STATE_SELECT_P1,
@@ -52,8 +56,8 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         }
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
-            /* Bank 2 $411D calls fixed $2AB5, which selects command $0F
-               for every accepted character confirmation. */
+            /* Bank 2 $40F4 uses command $0E/program $12 for an accepted
+               player. Command $0F/program $07 is the navigation cue. */
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
             game->selected_player_1 = (uint32_t)data->p1_cursor;
             data->p2_cursor = 0; /* Reset back to first index player */
@@ -89,7 +93,7 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             data->timer = 0.0f;
         }
     } else if (data->state == ROSTER_STATE_MATCHUP_VS) {
-        if (data->timer >= 1.5f ||
+        if (data->timer >= ALLSTAR_ROM_MATCHUP_TO_GAMEPLAY_SECONDS ||
             allstar_input_is_pressed(input, ALLSTAR_BTN_START) ||
             allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
             allstar_game_change_scene(game, allstar_game_mode_scene(game->selected_mode));

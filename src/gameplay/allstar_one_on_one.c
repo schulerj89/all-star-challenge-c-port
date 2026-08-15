@@ -321,6 +321,10 @@ bool allstar_one_on_one_rom_select_movement_action_782e(
         action = without_ball ? 0x06 : 0x04;
     }
 
+    /* $78DD compares the selected action with [de] and returns before
+       command $0D/$6C90 when it is unchanged.  The facing-bit write above
+       still occurs on that path. */
+    if (state->action == action) return false;
     allstar_one_on_one_rom_animation_set_action_6a8c(state, action);
     return true;
 }
@@ -992,6 +996,29 @@ uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
 
     allstar_one_on_one_shot_reset(attempt);
     return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING;
+}
+
+/* Bank 1 $78E9 stores ball X/Y, tests the $796C central half-court region,
+   and clears $FFD1 only when the held ball is nonzero and outside it. */
+bool allstar_one_on_one_rom_take_back_cleared_78e9(float ball_x,
+                                                   float ball_y) {
+    static const uint8_t region[][3] = {
+        {0x5c,0x3a,0x6a}, {0x60,0x3a,0x6a},
+        {0x64,0x3a,0x6a}, {0x68,0x3a,0x6a},
+        {0x6c,0x3a,0x6a}, {0x70,0x3a,0x6a},
+        {0x74,0x3a,0x6a}, {0x78,0x3a,0x6a},
+        {0x7c,0x3a,0x6a}, {0x80,0x3a,0x6a}
+    };
+    uint8_t x = (uint8_t)(int)ball_x;
+    uint8_t y = (uint8_t)(int)ball_y;
+    size_t row;
+    if (x == 0) return false;
+    for (row = 0; row < sizeof(region) / sizeof(region[0]); row++) {
+        if (y <= region[row][0]) {
+            return !(region[row][1] < x && x <= region[row][2]);
+        }
+    }
+    return true;
 }
 
 /* Fixed $1E0E starts the made-basket effect. The outer $0B80/$0B9A loop

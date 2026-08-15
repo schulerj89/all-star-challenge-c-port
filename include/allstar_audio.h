@@ -44,8 +44,8 @@ typedef struct {
 /* Native PCM platform layer. The cartridge command/APU sequencer begins in
    the reviewed fixed-bank $3014 region and is not yet ported whole. */
 void allstar_audio_init(AllStarAudioEngine *audio);
-/* Synthesize command $0D/$05 directly from the decoded ROM programs stored
-   in a user-built version-6 asset pack. These replace any native fallback. */
+/* Synthesize focused $05/$0C/$0D/$0E/$0F commands from decoded ROM programs
+   stored in a user-built asset pack. These replace native fallbacks. */
 bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
                                 const AllStarAssetPack *pack);
 bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,

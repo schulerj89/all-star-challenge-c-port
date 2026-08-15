@@ -328,8 +328,8 @@ static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
 /* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
    $2FB0, program pointers at $3849, instrument records at $3888, duration
    table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
-   This intentionally decodes the three One-on-One square programs used by
-   score, dribble-ground contact, and movement. */
+   This intentionally decodes the five focused square programs used by score,
+   dribble-ground contact, movement, roster navigation, and roster accept. */
 static bool decode_rom_square_stream(const AllStarRom *rom,
                                      size_t stream,
                                      int channel,
@@ -402,7 +402,7 @@ static bool decode_rom_square_stream(const AllStarRom *rom,
 static bool extract_one_on_one_audio(AllStarAssetPack *pack,
                                      const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -457,7 +457,28 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[2].frame_count != 6 ||
         pack->rom_sfx_programs[2].square2_duty_length != 0x7a ||
         pack->rom_sfx_programs[2].square2_envelope != 0xf1 ||
-        pack->rom_sfx_programs[2].frames[0].square2_frequency != 0x0000)
+        pack->rom_sfx_programs[2].frames[0].square2_frequency != 0x0000 ||
+        pack->rom_sfx_programs[3].command != 0x0f ||
+        pack->rom_sfx_programs[3].program_id != 0x07 ||
+        pack->rom_sfx_programs[3].priority_frames != 0x19 ||
+        pack->rom_sfx_programs[3].stream_pointer_1 != 0x3ebc ||
+        pack->rom_sfx_programs[3].frame_count != 24 ||
+        pack->rom_sfx_programs[3].square1_sweep != 0x08 ||
+        pack->rom_sfx_programs[3].square1_duty_length != 0x88 ||
+        pack->rom_sfx_programs[3].square1_envelope != 0xf1 ||
+        pack->rom_sfx_programs[3].frames[0].square1_frequency != 0x0773 ||
+        pack->rom_sfx_programs[4].command != 0x0e ||
+        pack->rom_sfx_programs[4].program_id != 0x12 ||
+        pack->rom_sfx_programs[4].priority_frames != 0x32 ||
+        pack->rom_sfx_programs[4].stream_pointer_1 != 0x3fa6 ||
+        pack->rom_sfx_programs[4].frame_count != 48 ||
+        pack->rom_sfx_programs[4].square1_sweep != 0x80 ||
+        pack->rom_sfx_programs[4].square1_duty_length != 0xba ||
+        pack->rom_sfx_programs[4].square1_envelope != 0xf2 ||
+        pack->rom_sfx_programs[4].frames[0].square1_frequency != 0x0783 ||
+        pack->rom_sfx_programs[4].frames[6].square1_frequency != 0x0791 ||
+        pack->rom_sfx_programs[4].frames[12].square1_frequency != 0x079d ||
+        pack->rom_sfx_programs[4].frames[24].square1_frequency != 0x07ad)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -469,11 +490,15 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *movement;
     const AllStarRomSfxProgram *score;
     const AllStarRomSfxProgram *dribble;
+    const AllStarRomSfxProgram *navigation;
+    const AllStarRomSfxProgram *confirm;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
     score = &pack->rom_sfx_programs[1];
     dribble = &pack->rom_sfx_programs[2];
+    navigation = &pack->rom_sfx_programs[3];
+    confirm = &pack->rom_sfx_programs[4];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -499,8 +524,22 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         dribble->square2_duty_length == 0x7a &&
         dribble->square2_envelope == 0xf1 &&
         dribble->frames[0].square2_frequency == 0 &&
+        navigation->command == 0x0f && navigation->program_id == 0x07 &&
+        navigation->priority_frames == 0x19 &&
+        navigation->frame_count == 24 &&
+        navigation->stream_pointer_1 == 0x3ebc &&
+        navigation->frames[0].square1_frequency == 0x0773 &&
+        confirm->command == 0x0e && confirm->program_id == 0x12 &&
+        confirm->priority_frames == 0x32 && confirm->frame_count == 48 &&
+        confirm->stream_pointer_1 == 0x3fa6 &&
+        confirm->frames[0].square1_frequency == 0x0783 &&
+        confirm->frames[6].square1_frequency == 0x0791 &&
+        confirm->frames[12].square1_frequency == 0x079d &&
+        confirm->frames[24].square1_frequency == 0x07ad &&
         movement->source_checksum == score->source_checksum &&
-        movement->source_checksum == dribble->source_checksum;
+        movement->source_checksum == dribble->source_checksum &&
+        movement->source_checksum == navigation->source_checksum &&
+        movement->source_checksum == confirm->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {

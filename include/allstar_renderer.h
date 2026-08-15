@@ -62,12 +62,12 @@ void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y,
 void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time);
 void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t y);
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time);
-void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_action, uint8_t rom_display_frame, float anim_time, bool facing_left);
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_action, uint8_t rom_display_frame, float anim_time, bool horizontal_flip);
 void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     int32_t x, int32_t ground_y, int32_t visual_lift,
     bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting,
     bool is_defending, uint8_t rom_action, uint8_t rom_display_frame,
-    uint8_t rom_record_index, float anim_time, bool facing_left);
+    uint8_t rom_record_index, float anim_time, bool horizontal_flip);
 void allstar_renderer_rom_ball_presentation_6945(
     uint8_t ball_x, uint8_t ball_y, uint8_t ball_z,
     bool behind_owner, AllStarRomBallPresentation *presentation);

@@ -61,7 +61,8 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
-    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> Export decoded ROM cues\n");
+    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav>\n");
+    printf("                                        Export decoded ROM cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -864,15 +865,17 @@ int allstar_cli_test_one_on_one_shooting(void) {
             fprintf(stderr, "[Test] $7F37 frame-contained ball was drawn twice\n");
             return 1;
         }
+        /* Live $20F7->$6F2A trace: raw +$06=$4C, +$05=$70,
+           +$15=$98, producing ball $5A/$96/$0C. */
         allstar_renderer_rom_dribble_ball_6f2a(
-            84, 130, 0x13, 1, true, &held_ball);
+            84, 152, 0x13, 1, true, &held_ball);
         if (!held_ball.visible || held_ball.ball_x != 0x5a ||
             held_ball.ball_y != 0x96 || held_ball.ball_z != 0x0c) {
             fprintf(stderr, "[Test] $6F2A held-ball placement was incorrect\n");
             return 1;
         }
         allstar_renderer_rom_dribble_ball_6f2a(
-            84, 130, 0x13, 6, true, &held_ball);
+            84, 152, 0x13, 6, true, &held_ball);
         if (held_ball.ball_z != 0x04) {
             fprintf(stderr, "[Test] $6FEA bounce table was incorrect\n");
             return 1;
@@ -975,6 +978,13 @@ int allstar_cli_test_one_on_one_shooting(void) {
             ALLSTAR_BTN_UP, false, false, &animation_flip) ||
         animation_state.action != 0x01) {
         fprintf(stderr, "[Test] $782E +$14 direction override was incorrect\n");
+        return 1;
+    }
+    animation_state.timer = 1;
+    if (allstar_one_on_one_rom_select_movement_action_782e(
+            &animation_state, ALLSTAR_BTN_DOWN, 0, ALLSTAR_BTN_UP,
+            false, false, &animation_flip)) {
+        fprintf(stderr, "[Test] $78DD repeated action incorrectly retriggered command $0D\n");
         return 1;
     }
     animation_state.timer = 2;
@@ -1240,6 +1250,14 @@ int allstar_cli_test_one_on_one_shooting(void) {
         attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED ||
         attempt.rom_phase != 2 || attempt.release_latch_frames != 0) {
         fprintf(stderr, "[Test] $702D $C16A release did not advance to phase two\n");
+        return 1;
+    }
+    if (allstar_one_on_one_rom_take_back_cleared_78e9(84.0f, 112.0f) ||
+        !allstar_one_on_one_rom_take_back_cleared_78e9(58.0f, 112.0f) ||
+        allstar_one_on_one_rom_take_back_cleared_78e9(59.0f, 128.0f) ||
+        !allstar_one_on_one_rom_take_back_cleared_78e9(59.0f, 129.0f) ||
+        allstar_one_on_one_rom_take_back_cleared_78e9(0.0f, 144.0f)) {
+        fprintf(stderr, "[Test] $78E9/$796C take-back region was incorrect\n");
         return 1;
     }
     allstar_ai_rom_route_target_732c(
@@ -2100,20 +2118,28 @@ int allstar_cli_test_headless_frames(void) {
 int allstar_cli_export_rom_sfx(const char *pack_path,
                                const char *score_path,
                                const char *squeak_path,
-                               const char *dribble_path) {
+                               const char *dribble_path,
+                               const char *navigation_path,
+                               const char *confirm_path) {
     AllStarAssetPack pack;
     const AllStarRomSfxProgram *squeak;
     const AllStarRomSfxProgram *score;
     const AllStarRomSfxProgram *dribble;
+    const AllStarRomSfxProgram *navigation;
+    const AllStarRomSfxProgram *confirm;
     if (!allstar_asset_pack_load_file(&pack, pack_path)) return 1;
     if (pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
         return 1;
     squeak = &pack.rom_sfx_programs[0];
     score = &pack.rom_sfx_programs[1];
     dribble = &pack.rom_sfx_programs[2];
+    navigation = &pack.rom_sfx_programs[3];
+    confirm = &pack.rom_sfx_programs[4];
     if (!allstar_audio_export_rom_sfx_wav(&pack, 0x05, score_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path) ||
-        !allstar_audio_export_rom_sfx_wav(&pack, 0x0c, dribble_path)) {
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0c, dribble_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0f, navigation_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0e, confirm_path)) {
         fprintf(stderr, "[ROM SFX] Failed to export decoded WAV proof\n");
         return 1;
     }
@@ -2132,8 +2158,19 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
            dribble->program_id, dribble->priority_frames,
            dribble->stream_pointer_1, dribble->frame_count,
            dribble->source_checksum);
-    printf("[ROM SFX] Exported %s, %s, and %s\n",
-           score_path, squeak_path, dribble_path);
+    printf("[ROM SFX] command $0F -> program $%02X, priority %u, "
+           "stream $%04X, %u frames, source FNV-1a %08X\n",
+           navigation->program_id, navigation->priority_frames,
+           navigation->stream_pointer_1, navigation->frame_count,
+           navigation->source_checksum);
+    printf("[ROM SFX] command $0E -> program $%02X, priority %u, "
+           "stream $%04X, %u frames, source FNV-1a %08X\n",
+           confirm->program_id, confirm->priority_frames,
+           confirm->stream_pointer_1, confirm->frame_count,
+           confirm->source_checksum);
+    printf("[ROM SFX] Exported %s, %s, %s, %s, and %s\n",
+           score_path, squeak_path, dribble_path,
+           navigation_path, confirm_path);
     return 0;
 }
 
@@ -2192,7 +2229,7 @@ int allstar_cli_test_one_on_one_presentation(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
     allstar_game_tick(&game, 0.0f);
     if (game.audio.last_sfx != ALLSTAR_SFX_MENU_MOVE) {
-        fprintf(stderr, "[Test] bank-2 command-$0E roster cue was not dispatched\n");
+        fprintf(stderr, "[Test] bank-2 command-$0F roster navigation was not dispatched\n");
         allstar_game_shutdown(&game);
         return 1;
     }
@@ -2202,7 +2239,7 @@ int allstar_cli_test_one_on_one_presentation(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     if (game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
-        fprintf(stderr, "[Test] bank-2 command-$0F roster confirm was not dispatched\n");
+        fprintf(stderr, "[Test] bank-2 command-$0E roster confirm was not dispatched\n");
         allstar_game_shutdown(&game);
         return 1;
     }
@@ -2213,13 +2250,29 @@ int allstar_cli_test_one_on_one_presentation(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     if (game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
-        fprintf(stderr, "[Test] second command-$0F roster confirm was not dispatched\n");
+        fprintf(stderr, "[Test] second command-$0E roster confirm was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < 34; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (game.active_scene->id != ALLSTAR_SCENE_ROSTER_SELECT) {
+            fprintf(stderr, "[Test] command-$0E matchup carry ended before 35 frames\n");
+            allstar_game_shutdown(&game);
+            return 1;
+        }
+    }
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (game.active_scene->id != ALLSTAR_SCENE_ONE_ON_ONE ||
+        game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
+        fprintf(stderr, "[Test] command-$0E did not carry into the first gameplay update\n");
         allstar_game_shutdown(&game);
         return 1;
     }
 
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: $0C/$0D gameplay cues and $0E/$0F roster cues\n");
+    printf("[Test] PASSED: $0C/$0D gameplay cues and $0F/$0E roster cues\n");
     return 0;
 }
 
@@ -2269,6 +2322,9 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     /* 4d. Held-ball movement exposes the final $6F2A dribble placement. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 48.0f, 144.0f, 120.0f, 112.0f);
     allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
     for (int i = 0; i < 8; i++) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
@@ -2279,7 +2335,17 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 4e. Let $782E cross the next record boundary into the right-facing
+       held-ball idle family, making the shared $2945/$6F2A side bit clear. */
+    for (int i = 0; i < 12; i++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path), "%s\\04e_one_on_one_idle_dribble.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 4a. One-on-One gather: one native A edge begins the held-ball jump. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path), "%s\\04a_one_on_one_gather.bmp", out_dir);
@@ -2463,13 +2529,13 @@ int allstar_cli_main(int argc, char **argv) {
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
     } else if (strcmp(cmd, "--export-rom-sfx") == 0) {
-        if (argc < 6) {
+        if (argc < 8) {
             fprintf(stderr, "Error: --export-rom-sfx requires <pack>, "
-                    "<05.wav>, <0D.wav>, and <0C.wav>\n");
+                    "<05.wav>, <0D.wav>, <0C.wav>, <0F.wav>, and <0E.wav>\n");
             return 1;
         }
         return allstar_cli_export_rom_sfx(
-            argv[2], argv[3], argv[4], argv[5]);
+            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");

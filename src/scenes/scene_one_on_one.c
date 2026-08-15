@@ -35,6 +35,7 @@ typedef struct {
     uint8_t p2_previous_direction;
     bool p1_horizontal_flip;
     bool p2_horizontal_flip;
+    bool take_back_required;
     AllStarRomPlayerContactState p1_contact;
     AllStarRomPlayerContactState p2_contact;
     float animation_step_accumulator;
@@ -195,6 +196,7 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     memset(&data->p1_contact, 0, sizeof(data->p1_contact));
     memset(&data->p2_contact, 0, sizeof(data->p2_contact));
     data->animation_step_accumulator = 0.0f;
+    data->take_back_required = false;
     one_on_one_reset_defense(data);
     allstar_one_on_one_shot_reset(&data->shot_attempt);
     allstar_physics_init_ball(&data->ball);
@@ -250,7 +252,42 @@ static void one_on_one_take_live_possession(SceneOneOnOneData *data,
     data->p2_horizontal_flip = player == 2;
     data->recovery.cooldown_frames = ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES;
     allstar_one_on_one_shot_reset(&data->shot_attempt);
-    allstar_physics_init_ball(&data->ball);
+    /* $2B88 changes owner without clearing $C0A3/$C0A7. $6F2A replaces
+       those coordinates once the preserved action returns to a held-ball
+       family, so retain the recovery point in the meantime. */
+    data->ball.in_flight = false;
+    data->ball.recoverable = false;
+    data->ball.made_basket = false;
+    data->ball.vx = data->ball.vy = data->ball.vz = 0.0f;
+    data->ball.rom_step_state.vx = 0;
+    data->ball.rom_step_state.vy = 0;
+    data->ball.rom_step_state.vz = 0;
+    data->take_back_required = reset_shot_clock;
+}
+
+static void one_on_one_update_take_back_78e9(SceneOneOnOneData *data) {
+    const AllStarPlayerState *owner;
+    const AllStarRomAnimationState *animation;
+    AllStarRomHeldBallPresentation held_ball;
+    bool direction_bit4;
+    float ball_x;
+    float ball_y;
+    if (!data || !data->take_back_required) return;
+    owner = data->p1.has_ball ? &data->p1 :
+        (data->p2.has_ball ? &data->p2 : NULL);
+    if (!owner) return;
+    animation = data->p1.has_ball ? &data->p1_animation : &data->p2_animation;
+    direction_bit4 = data->p1.has_ball
+        ? data->p1_horizontal_flip : data->p2_horizontal_flip;
+    allstar_renderer_rom_dribble_ball_6f2a(
+        (int32_t)owner->x, (int32_t)owner->y,
+        animation->action, animation->record_index,
+        direction_bit4, &held_ball);
+    ball_x = held_ball.visible ? (float)held_ball.ball_x : data->ball.x;
+    ball_y = held_ball.visible ? (float)held_ball.ball_y : data->ball.y;
+    if (allstar_one_on_one_rom_take_back_cleared_78e9(ball_x, ball_y)) {
+        data->take_back_required = false;
+    }
 }
 
 static bool one_on_one_try_steal(SceneOneOnOneData *data,
@@ -349,6 +386,16 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
         player->x, player->y);
     AllStarOneOnOneReleaseOffset release_offset;
+
+    /* $7C58 returns without launching while $FFD1 remains set. Both human
+       and CPU therefore have to carry a changed-possession rebound outside
+       $78E9's central region before a shot can leave the hand. */
+    if (data->take_back_required) {
+        player->is_shooting = false;
+        player->is_jumping = false;
+        allstar_one_on_one_shot_reset(&data->shot_attempt);
+        return;
+    }
 
     if (shooter == 1 && shot_phase == 0) {
         launch_index = allstar_one_on_one_rom_shot_record_index(
@@ -571,7 +618,8 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     allstar_rom_rng_init(&game->one_on_one_rng, 0xe018);
 
     allstar_audio_stop_bgm(&game->audio);
-    allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
+    /* The live trace has no synthetic whistle at match entry. The final
+       roster command $0E is still sounding across the first $702D update. */
 }
 
 /* ROM: $0B80 match loop, $0C00 score ending, $0FDE clock ending. */
@@ -606,6 +654,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     }
 
     if (game->one_on_one.phase != ALLSTAR_ONE_ON_ONE_PLAYING) return;
+
+    one_on_one_update_take_back_78e9(data);
 
     one_on_one_tick_defense(data, dt);
     one_on_one_update_shot_animations(data, dt);
@@ -847,8 +897,8 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     int p2_x;
     uint8_t p1_skin;
     uint8_t p2_skin;
-    bool p1_facing_left;
-    bool p2_facing_left;
+    bool p1_sprite_flip;
+    bool p2_sprite_flip;
     bool sprites_visible;
     int32_t p1_visual_lift = 0;
     int32_t p2_visual_lift = 0;
@@ -910,9 +960,10 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
 
     p1_skin = s1 ? s1->skin_tone : 0x90;
     p2_skin = s2 ? s2->skin_tone : 0x91;
-    /* $782E sets player +$02 bit 4 for right and clears it otherwise. */
-    p1_facing_left = !data->p1_horizontal_flip;
-    p2_facing_left = !data->p2_horizontal_flip;
+    /* $2945 copies player +$02 bit 4 into OAM X-flip bit 5. Preserve the
+       bit directly for both player composition and $6F2A ball placement. */
+    p1_sprite_flip = data->p1_horizontal_flip;
+    p2_sprite_flip = data->p2_horizontal_flip;
     if (data->p1_shot_animation_clock > 0.0f) {
         uint16_t elapsed = (uint16_t)lroundf(
             (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
@@ -937,7 +988,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
                              : data->p2_animation.action,
         data->p2.anim_frame,
         data->p2_animation.record_index,
-        data->anim_timer, p2_facing_left);
+        data->anim_timer, p2_sprite_flip);
     allstar_renderer_draw_player_lifted_ex(renderer,
         (int32_t)data->p1.x, (int32_t)data->p1.y, p1_visual_lift,
         true, p1_skin, data->p1.has_ball,
@@ -948,7 +999,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
                              : data->p1_animation.action,
         data->p1.anim_frame,
         data->p1_animation.record_index,
-        data->anim_timer, p1_facing_left);
+        data->anim_timer, p1_sprite_flip);
     if (data->ball.in_flight || (!data->p1.has_ball && !data->p2.has_ball)) {
         allstar_renderer_draw_ball_ex(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y,
                                       (int32_t)data->ball.z, data->anim_timer);

@@ -503,6 +503,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *movement;
     const AllStarRomSfxProgram *score;
     const AllStarRomSfxProgram *dribble;
+    const AllStarRomSfxProgram *navigation;
+    const AllStarRomSfxProgram *confirm;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) == 0 ||
@@ -511,6 +513,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     movement = &pack->rom_sfx_programs[0];
     score = &pack->rom_sfx_programs[1];
     dribble = &pack->rom_sfx_programs[2];
+    navigation = &pack->rom_sfx_programs[3];
+    confirm = &pack->rom_sfx_programs[4];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -521,29 +525,48 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         dribble->command != 0x0c || dribble->program_id != 0x02 ||
         dribble->priority_frames != 0x13 || dribble->frame_count != 6 ||
         dribble->stream_pointer_1 != 0x3d7f ||
+        navigation->command != 0x0f || navigation->program_id != 0x07 ||
+        navigation->priority_frames != 0x19 ||
+        navigation->frame_count != 24 ||
+        navigation->stream_pointer_1 != 0x3ebc ||
+        confirm->command != 0x0e || confirm->program_id != 0x12 ||
+        confirm->priority_frames != 0x32 || confirm->frame_count != 48 ||
+        confirm->stream_pointer_1 != 0x3fa6 ||
         movement->source_checksum == 0 ||
         movement->source_checksum != score->source_checksum ||
-        movement->source_checksum != dribble->source_checksum) return false;
+        movement->source_checksum != dribble->source_checksum ||
+        movement->source_checksum != navigation->source_checksum ||
+        movement->source_checksum != confirm->source_checksum) return false;
 #ifdef _WIN32
     {
         PcmSound movement_pcm = {0};
         PcmSound score_pcm = {0};
         PcmSound dribble_pcm = {0};
+        PcmSound navigation_pcm = {0};
+        PcmSound confirm_pcm = {0};
         if (!generate_rom_square_program(&movement_pcm, movement) ||
             !generate_rom_square_program(&score_pcm, score) ||
-            !generate_rom_square_program(&dribble_pcm, dribble)) {
+            !generate_rom_square_program(&dribble_pcm, dribble) ||
+            !generate_rom_square_program(&navigation_pcm, navigation) ||
+            !generate_rom_square_program(&confirm_pcm, confirm)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
+            free_pcm_sound(&navigation_pcm);
+            free_pcm_sound(&confirm_pcm);
             return false;
         }
         EnterCriticalSection(&g_audio_lock);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_SHOE_SQUEAK]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_SCORE_CHIME]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_DRIBBLE]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_MOVE]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_SELECT]);
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
+        g_sfx[ALLSTAR_SFX_MENU_MOVE] = navigation_pcm;
+        g_sfx[ALLSTAR_SFX_MENU_SELECT] = confirm_pcm;
         LeaveCriticalSection(&g_audio_lock);
     }
 #endif

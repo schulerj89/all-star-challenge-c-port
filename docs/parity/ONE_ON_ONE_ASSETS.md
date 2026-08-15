@@ -1,12 +1,13 @@
 # One-on-One asset and OAM parity
 
-## Asset-pack v5 layout
+## Asset-pack v8 layout
 
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-6 pack. Version 6 also appends the focused
-One-on-One `$05/$0D` audio programs; the graphics payload itself is unchanged.
+small composition maps in a version-8 pack. Version 8 also appends the focused
+One-on-One `$05/$0D/$0C/$0F/$0E` audio programs; the graphics payload itself
+is unchanged.
 
 | Asset | ROM source | Decoded result |
 |---|---|---:|

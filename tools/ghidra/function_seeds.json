@@ -147,13 +147,13 @@
       "status": "verified",
       "native_symbol": "allstar_renderer_rom_ball_presentation_6945",
       "source": "src/allstar_renderer.c",
-      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v5."
+      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v8."
     },
     "rom_b01_6f2a": {
       "status": "verified",
       "native_symbol": "allstar_renderer_rom_dribble_ball_6f2a",
       "source": "src/allstar_renderer.c",
-      "note": "All six eligible action branches, direction-bit offsets, the twelve-byte $6FEA height table, and record-six command-$0C cadence are Mesen-traced, deterministic-tested, and renderer-integrated."
+      "note": "All six eligible action branches, exact +$05 visual-Y (ground-40) conversion, direction-bit offsets, the twelve-byte $6FEA height table, and record-six command-$0C cadence are Mesen-traced, deterministic-tested, and renderer-integrated."
     },
     "rom_b00_1f33": {
       "status": "verified",
@@ -165,7 +165,7 @@
       "status": "verified",
       "native_symbol": "roster_select_update",
       "source": "src/scenes/scene_roster_select.c",
-      "note": "Every accepted bank-2 $411D roster confirmation calls this fixed-bank command-$0F selector; both player confirmations now use the native multi-step selection cue."
+      "note": "Bank-2 $40F4 calls this fixed-bank command-$0F selector for roster navigation. The separate accepted-player path selects command $0E directly; both focused programs are extracted and Mesen-traced."
     },
     "rom_b00_2243": {
       "status": "unmapped",
@@ -336,10 +336,10 @@
       "note": "Exact semantic counterpart zeroes both planar velocity components at the recovered boundary and is covered by deterministic tests."
     },
     "rom_b00_2ae2": {
-      "status": "candidate",
+      "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_recovery_dispatch",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, and the 20-frame reload. Whole-routine emulator state traces remain missing."
+      "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, the 20-frame reload, and $2B88 owner/$FFD1 output. Deterministic tests plus trace_one_on_one_miss_take_back.lua cover the full recovery path."
     },
     "rom_b00_2b14": {
       "status": "verified",
@@ -375,13 +375,13 @@
       "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_select_movement_action_782e",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "The full record-boundary gates, +$14/+07/+10 direction priority, held/no-ball action table, +$02 bit-4 side effect, and $78DD->$78E0 command-$0D action-change cue are native, integrated, and trace-tested."
+      "note": "The full record-boundary gates, +$14/+07/+10 direction priority, held/no-ball action table, +$02 bit-4 side effect, and $78DD compare-before-command-$0D gate are native and tested; unchanged actions no longer retrigger the cue."
     },
     "rom_b01_78e9": {
-      "status": "candidate",
-      "native_symbol": "allstar_one_on_one_rom_point_value",
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_take_back_cleared_78e9",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "The $798B held-ball region and $FFD6 two/three-point result are exact and boundary-tested; the entry also performs unrelated state bookkeeping."
+      "note": "Both $796C changed-possession take-back clearing and $798B/$FFD6 two/three-point selection (allstar_one_on_one_rom_point_value) are exact and boundary-tested; Mesen proves inside-region persistence and outside-region clearing for CPU recovery."
     },
     "rom_b01_791d": {
       "status": "candidate",

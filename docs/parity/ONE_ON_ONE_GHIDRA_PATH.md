@@ -20,12 +20,14 @@ the cartridge.
 
 | ROM path followed in Ghidra | Recovered behavior | Native C path |
 |---|---|---|
-| `$702D->$6A8C->$6C4D->$7F37` | Gather/release follows the live animation record; the signed lift raises both the shooter and held ball while the shadow remains grounded. | `allstar_one_on_one_rom_shot_record_index`, `allstar_one_on_one_rom_shot_jump_height_6c4d`, and the lifted player renderer. |
+| `$702D->$714D->$6A8C->$6B72->$6C4D->$7F37` | Gather/release follows the live animation record; direction `+$07` remains active so normal records move the shooter before release, while signed lift raises shooter and ball. | The live scene preserves gather direction and ticks the shared record/movement engine; `allstar_one_on_one_rom_shot_jump_height_6c4d` drives lift. |
+| `$7170->$72EA->$74BB->$732C->$755D->$756C` | CPU drives through a side target and roster-specific route target, enters gather, then releases only when current shot record `+$03` passes the profile/skill gate. | `allstar_ai_rom_offense_target_72ea`, `allstar_ai_rom_route_target_732c`, explicit offense stages, and record-gated `rom_shot_release`. |
 | `$7C58->$7EA9->$7BE8->$1CED->$1E0E` | Select the distance/profile/record arc, integrate 8.8 motion, then accept only an exact score cell. | The ROM launcher and fixed physics contact dispatcher feed `allstar_one_on_one_score_presentation_begin_1e0e`. |
 | `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
 | `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
-| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0D` select programs `$0C/$11`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v6 decodes those two programs into per-frame square state; the native renderer applies DMG frequency, duty, envelope, retrigger, and `$0D` NR10 sweep behavior. |
+| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0C/$0D` select programs `$0C/$02/$11`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v7 decodes all three focused programs into per-frame square state, including the six command-`$0C` channel-2 dribble retriggers. |
+| `$1E0E->$7BE8->$1E5B/$1E77->$27C7` | Made ball holds gravity 35 frames, bounces at `+76/+121/+158`, and begins fade at `+180`. | Score presentation advances the shared 8.8 integrator with the exact gravity delay and hard-first-bounce state. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
 | `$20F7->$2197->$21C8/$21E1->$27CC->$27EA->$2D08->$702D` | Rebuild possession at `+214`: the new owner takes out at `$4C/$98`, the prior scorer uses `$4C/$88`, and the ball seeds at `$50/$90`; then reverse the palette and restore playable input at `+258`. | `allstar_one_on_one_rom_inbound_placement_20f7` maps these to native centers `(84,152)` and `(84,136)` before the same fade/input timeline. |
@@ -90,9 +92,9 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v6.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v6.pack
-.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v6.pack build\command_05.wav build\command_0D.wav
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v7.pack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v7.pack
+.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v7.pack build\command_05.wav build\command_0D.wav build\command_0C.wav
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 

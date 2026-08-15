@@ -90,3 +90,11 @@ command `$0F`, movement command `$0D`, record-six dribble command `$0C`, final
 `$6F2A` ball placement, all four `$1ECC` net frames, command `$08` at `+20`,
 and command `$05` at `+65`. Require exit code `0` and
 `TRACE PASSED: roster audio, $6F2A dribble placement, and $1ECC score net`.
+
+`trace_one_on_one_live_flow.lua` holds a direction through a complete run
+cycle and through shot gather. It asserts all run display frames, continued
+`$6A8C->$6B72` movement under action `$0A`, and release only on the second A.
+
+`trace_one_on_one_cpu_decision.lua` awards the live ball to the CPU and traces
+`$7170->$72EA->$74BB->$732C->$755D->$756C->$7C58`. It requires two target
+stages and a nonzero, record-gated gather delay before release.

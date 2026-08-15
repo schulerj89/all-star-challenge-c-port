@@ -84,7 +84,7 @@ local function onSoundSelectionReturn()
   print(string.format(
     "SOUND_PROGRAM command=%02X program=%02X priority_frames=%02X",
     command, program, priorityFrames))
-  if (command == 0x0D or command == 0x05) and
+  if (command == 0x0C or command == 0x0D or command == 0x05) and
       not capturedCommands[command] and activeAudioCapture == nil then
     activeAudioCapture = {
       command = command,
@@ -300,6 +300,17 @@ local function onEndFrame()
            audioContains(audioCaptures[0x0D], 3, 0xFF13, 0xBC) and
            audioContains(audioCaptures[0x0D], 4, 0xFF25, 0x00),
       "command $0D did not execute sound program $11 with APU writes")
+    expect(audioCaptures[0x0C] ~= nil and
+           audioCaptures[0x0C].program == 0x82 and
+           audioCaptures[0x0C].priorityFrames == 0x13 and
+           #audioCaptures[0x0C].events == 37 and
+           audioContains(audioCaptures[0x0C], 1, 0xFF16, 0x7A) and
+           audioContains(audioCaptures[0x0C], 1, 0xFF17, 0xF1) and
+           audioContains(audioCaptures[0x0C], 1, 0xFF18, 0x00) and
+           audioContains(audioCaptures[0x0C], 1, 0xFF19, 0x80) and
+           audioContains(audioCaptures[0x0C], 6, 0xFF19, 0x80) and
+           audioContains(audioCaptures[0x0C], 12, 0xFF25, 0x00),
+      "command $0C did not execute sound program $02")
     expect(audioCaptures[0x05] ~= nil and
            audioCaptures[0x05].program == 0x8C and
            audioCaptures[0x05].priorityFrames == 0x64 and

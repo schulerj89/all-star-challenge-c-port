@@ -97,7 +97,7 @@ The current MSVC build succeeds without warnings.
 
 Version 6 extracts the One-on-One court tiles/map, the separate 17-tile score-net stream, three player tile families, 60 frame maps, ball/shadow tiles and descriptors, all 24 animation-control lists, and decoded command-`$05/$0D` square-channel programs from the ROM. It does not yet extract portraits, other-mode graphics, roster records, music, or the remaining sound programs.
 
-The Win32 game requires a valid version-6 `build\allstar.assetpack` and now
+The Win32 game requires a valid version-7 `build\allstar.assetpack` and now
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 
@@ -113,7 +113,7 @@ procedural test fallback.
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$756C/$75CD` CPU behavior, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6A8C/$6C60` animation records, `$6B72/$6E3C` direct movement and contact latches, `$2C50/$2CCA/$0AC5` charging/blocking, `$6C4D/$2B6C/$2B88` defensive jumps and recovery locks, exact player/ball composition, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, tournament flow, and input-free scene ticking. Broader whole-game and frame-perfect parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$732C/$755D/$756C/$75CD` CPU behavior, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6A8C/$6C60` animation records, shot-gather `$6B72` movement, direct movement/contact latches, charging/blocking, defensive jumps and recovery locks, exact player/ball composition, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, score-ball delayed gravity/bounces, tournament flow, and input-free scene ticking. Broader whole-game and frame-perfect parity remain unverified.
 
 For manual comparison with the original ROM:
 
@@ -121,7 +121,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces cover shot input, the complete 258-state made-basket sound/fade/playable-inbound sequence, all four `$1ECC` net frames, exact `$05/$0D` APU writes, `$20F7/$21C8/$21E1` take-out state, One-on-One commands `$05/$08/$0C/$0D/$0E/$0F`, final `$6F2A` held-ball placement, defense transitions, exact RNG, the complete `$782E/$6A8C` directional action state, `$6B72/$6E3C` movement blocking, `$2C50/$2CCA/$0AC5` charging/blocking, and the extracted One-on-One graphics plus `$6945/$69F5` ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
+Automated Mesen traces cover shot input and movement during gather, complete run/shot record playback, the CPU `$7170->$72EA->$732C->$755D->$756C` drive-gather-release path, the 258-state made-basket sequence and score-ball bounces, all four `$1ECC` net frames, exact `$05/$0C/$0D` APU writes, take-out state, final `$6F2A` held-ball placement, defense transitions, exact RNG, movement blocking, charging/blocking, and extracted One-on-One graphics plus ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [live-flow evidence](docs/parity/ONE_ON_ONE_LIVE_FLOW.md), [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
 
 ## Reverse Engineering
 

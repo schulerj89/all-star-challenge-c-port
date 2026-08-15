@@ -76,14 +76,11 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
             }
         }
-        if (!data->p1.is_shooting &&
-            allstar_one_on_one_rom_animation_tick_6a8c(
+        if (allstar_one_on_one_rom_animation_tick_6a8c(
                 game->asset_pack, &data->p1_animation)) {
             bool moved = false;
             data->p1.anim_frame = data->p1_animation.display_frame;
-            if (data->p1_animation.new_frame &&
-                allstar_one_on_one_rom_action_eligible_0a78(
-                    data->p1_animation.action)) {
+            if (data->p1_animation.new_frame) {
                 moved = allstar_one_on_one_rom_player_move_6b72(
                     data->p1_input_direction, 0,
                     &data->p1.x, &data->p1.y,
@@ -109,14 +106,11 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
             }
         }
-        if (!data->p2.is_shooting &&
-            allstar_one_on_one_rom_animation_tick_6a8c(
+        if (allstar_one_on_one_rom_animation_tick_6a8c(
                 game->asset_pack, &data->p2_animation)) {
             bool moved = false;
             data->p2.anim_frame = data->p2_animation.display_frame;
-            if (data->p2_animation.new_frame &&
-                allstar_one_on_one_rom_action_eligible_0a78(
-                    data->p2_animation.action)) {
+            if (data->p2_animation.new_frame) {
                 moved = allstar_one_on_one_rom_player_move_6b72(
                     data->p2_input_direction, 0,
                     &data->p2.x, &data->p2.y,
@@ -508,17 +502,16 @@ static bool one_on_one_update_score_presentation(SceneOneOnOneData *data,
         &data->score_presentation,
         dt * ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE);
 
-    /* $1E0E pins the made ball to $54/$5E and applies raw VZ=$FFE8
-       without the normal $7BE8 gravity while the score effect is live. */
+    /* $1E0E pins the made ball to $54/$5E.  The live trace holds gravity
+       for 35 frames, then resumes $7BE8 and its $1E5B/$1E77 ground bounce
+       path until $27C7 begins the fade. */
     for (frame = previous_frame;
          frame < data->score_presentation.elapsed_frames &&
          frame < ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME;
          frame++) {
-        data->ball.rom_step_state.z = (uint16_t)(
-            data->ball.rom_step_state.z +
-            (uint16_t)data->ball.rom_step_state.vz);
+        allstar_physics_update_ball(
+            &data->ball, ALLSTAR_PHYSICS_STEP_SECONDS);
     }
-    data->ball.z = (float)(int16_t)data->ball.rom_step_state.z / 256.0f;
 
     if (score_events & ALLSTAR_ROM_SCORE_EVENT_COMMIT) {
         data->pending_score_events = allstar_one_on_one_match_add_score(
@@ -575,7 +568,7 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     allstar_ai_set_skill(&data->ai, game->settings.skill_level);
     allstar_ai_set_rom_profile(
         &data->ai, (uint8_t)game->selected_player_2);
-    allstar_rom_rng_init(&game->one_on_one_rng, 0x0018);
+    allstar_rom_rng_init(&game->one_on_one_rng, 0xe018);
 
     allstar_audio_stop_bgm(&game->audio);
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
@@ -635,8 +628,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 
     {
         data->p1_input_direction = 0;
-        if (data->shot_attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER &&
-            !data->p1_defense_jump_active) {
+        if (!data->p1_defense_jump_active) {
             data->p1_input_direction = (uint8_t)(
                 input->buttons_held & 0x0f);
         }
@@ -661,6 +653,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
                 ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
             data->p1_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+            allstar_one_on_one_rom_animation_set_action_6a8c(
+                &data->p1_animation, data->p1_shot_action);
             allstar_one_on_one_rom_shot_animation_frame(
                 data->p1_shot_action, data->shot_attempt.rom_phase, 0,
                 &data->p1.anim_frame);
@@ -694,8 +688,25 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         data->p2.has_ball,
         allstar_rom_rng_current(&game->one_on_one_rng),
         (uint8_t)data->ball.x, data->p2.x, data->p2.y);
+    data->ai.rom_action_index = data->p2_animation.record_index;
     allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball,
-                      allstar_rom_rng_current(&game->one_on_one_rng), dt);
+                      allstar_rom_rng_current(&game->one_on_one_rng),
+                      allstar_rom_rng_high(&game->one_on_one_rng),
+                      allstar_rom_rng_alternate(&game->one_on_one_rng),
+                      allstar_rom_rng_alternate_high(&game->one_on_one_rng),
+                      dt);
+    if (data->p2.has_ball && data->p2.is_shooting &&
+        data->p2_animation.action != ALLSTAR_ROM_SHOT_ACTION_A &&
+        data->p2_animation.action != ALLSTAR_ROM_SHOT_ACTION_B) {
+        uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
+            data->p2.x, data->p2.y);
+        data->p2_shot_action = shot_variant == 1
+            ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
+        data->p2_shot_animation_clock =
+            ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        allstar_one_on_one_rom_animation_set_action_6a8c(
+            &data->p2_animation, data->p2_shot_action);
+    }
     data->p2_input_direction = one_on_one_direction_from_delta(
         data->p2.x - p2_before_x, data->p2.y - p2_before_y);
     {
@@ -731,7 +742,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
          one_on_one_try_jump_recovery(data, game, 2))) {
         return;
     }
-    if (data->p2.has_ball && data->p2.is_shooting && !data->ball.in_flight) {
+    if (data->p2.has_ball && data->p2.is_shooting &&
+        data->ai.rom_shot_release && !data->ball.in_flight) {
         one_on_one_launch_shot(data, game, 2);
     }
 
@@ -749,6 +761,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         data->ball.rom_step_state.y = 0x5e00;
         data->ball.x = 84.0f;
         data->ball.y = 94.0f;
+        data->ball.step_accumulator = 0.0f;
+        data->ball.rom_step_state.gravity_delay_frames = 35;
+        data->ball.rom_hard_bounce_pending = true;
         data->ball.in_flight = true;
         return;
     }

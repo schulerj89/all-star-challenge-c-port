@@ -7,6 +7,7 @@
    byte at $FFFB; they do not consume or advance the stream themselves. */
 typedef struct {
     uint16_t seed;
+    uint16_t alternate_seed;
     uint8_t frame_phase;
 } AllStarRomRng;
 
@@ -15,6 +16,9 @@ uint16_t allstar_rom_rng_step_072f(uint16_t seed,
                                   uint8_t score_low_bcd,
                                   uint8_t clock_seconds_bcd);
 uint8_t allstar_rom_rng_current(const AllStarRomRng *rng);
+uint8_t allstar_rom_rng_high(const AllStarRomRng *rng);
+uint8_t allstar_rom_rng_alternate(const AllStarRomRng *rng);
+uint8_t allstar_rom_rng_alternate_high(const AllStarRomRng *rng);
 uint8_t allstar_rom_rng_end_frame_0714(AllStarRomRng *rng,
                                       uint8_t score_low_bcd,
                                       uint8_t clock_seconds_bcd);

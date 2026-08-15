@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "one_on_one_live_flow_requirements",
+    "description": "Eighteen equal requirements for live shot-gather movement, complete record animation, command-$0C dribble audio, CPU offense pacing, and made-ball motion before the fade.",
+    "total": 18,
+    "points_per_requirement": 5.5555555556
+  },
+  "requirements": [
+    {"id":"shot.direction_preserved_702d","group":"shot_movement","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/scenes/scene_one_on_one.c"]},
+    {"id":"shot.action_select_714d","group":"shot_movement","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/scenes/scene_one_on_one.c"]},
+    {"id":"shot.animation_tick_6a8c","group":"shot_movement","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/scenes/scene_one_on_one.c"]},
+    {"id":"shot.record_move_6b72","group":"shot_movement","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"shot.release_record_7c58","group":"shot_movement","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
+    {"id":"animation.full_run_records","group":"animation","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/allstar_asset_pack.c"]},
+    {"id":"animation.full_run_displays","group":"animation","status":"verified","evidence":["tools/emulator/trace_one_on_one_live_flow.lua","src/allstar_renderer.c"]},
+    {"id":"audio.dribble_dispatch_6fe5","group":"dribble_audio","status":"verified","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/scenes/scene_one_on_one.c"]},
+    {"id":"audio.dribble_program_02","group":"dribble_audio","status":"verified","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c"]},
+    {"id":"audio.dribble_retrigger_cadence","group":"dribble_audio","status":"verified","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/audio/allstar_audio.c"]},
+    {"id":"audio.dribble_wav_proof","group":"dribble_audio","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIVE_FLOW.md","src/audio/allstar_audio.c","src/allstar_cli.c"]},
+    {"id":"ai.first_target_72ea","group":"cpu_offense","status":"verified","evidence":["tools/emulator/trace_one_on_one_cpu_decision.lua","src/gameplay/allstar_ai.c"]},
+    {"id":"ai.route_target_732c","group":"cpu_offense","status":"verified","evidence":["tools/emulator/trace_one_on_one_cpu_decision.lua","src/gameplay/allstar_ai.c","src/allstar_cli.c"]},
+    {"id":"ai.arrival_gather_755d","group":"cpu_offense","status":"verified","evidence":["tools/emulator/trace_one_on_one_cpu_decision.lua","src/gameplay/allstar_ai.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"ai.record_gate_756c","group":"cpu_offense","status":"verified","evidence":["tools/emulator/trace_one_on_one_cpu_decision.lua","src/gameplay/allstar_ai.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"ai.delayed_release_7c58","group":"cpu_offense","status":"verified","evidence":["tools/emulator/trace_one_on_one_cpu_decision.lua","src/scenes/scene_one_on_one.c"]},
+    {"id":"score_ball.gravity_delay_1e0e_7be8","group":"score_ball","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
+    {"id":"score_ball.bounces_1e5b_1e77","group":"score_ball","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_physics.c","src/allstar_cli.c"]}
+  ],
+  "history": [
+    {"date":"2026-08-15","verified":6,"total":18,"percent":33.33,"note":"Audit found that the port froze shot-gather direction/records, used generic dribble PCM, launched CPU shots immediately, and linearly moved the made ball."},
+    {"date":"2026-08-15","verified":18,"total":18,"percent":100.0,"note":"Ghidra, live Mesen state/APU traces, native translation, focused tests, v7 WAV exports, and screenshots verify the complete scoped path."}
+  ]
+}
+

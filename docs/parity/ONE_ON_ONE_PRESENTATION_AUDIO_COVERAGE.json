@@ -2,9 +2,9 @@
   "schema_version": 1,
   "metric": {
     "name": "one_on_one_presentation_audio_requirements",
-    "description": "Twenty-five equal, all-or-nothing requirements for One-on-One score-net presentation, focused ROM-derived $05/$0D audio, exact take-out placement, live held-ball placement, and roster-selection cues. The rest of the cartridge music/APU engine remains outside this denominator.",
-    "total": 25,
-    "points_per_requirement": 4.0
+    "description": "Twenty-eight equal, all-or-nothing requirements for One-on-One score-net presentation, focused ROM-derived $05/$0C/$0D audio, exact take-out placement, live held-ball placement, and roster-selection cues. The rest of the cartridge music/APU engine remains outside this denominator.",
+    "total": 28,
+    "points_per_requirement": 3.5714285714
   },
   "requirements": [
     {"id":"assets.net_stream_793f","group":"score_net","status":"verified","rom":"fixed $1FFA/$2021 and $2219; bank 3 $793F->$9600","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_assets.lua","src/allstar_asset_pack.c"]},
@@ -19,6 +19,9 @@
     {"id":"audio.command_mapping_2f88","group":"rom_audio_decode","status":"verified","rom":"fixed $2F88/$2FB0: $05->$640C and $0D->$1411","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c"]},
     {"id":"audio.score_program_0c_extract","group":"rom_audio_decode","status":"verified","rom":"fixed $3014/$3849 program $0C; streams $3EF6/$3F00; tables $3888/$312B/$3159/$31C6/$3244","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c"]},
     {"id":"audio.movement_program_11_extract","group":"rom_audio_decode","status":"verified","rom":"fixed $3014/$3849 program $11; stream $3FA2; instrument $9F and NR10 $1F","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c"]},
+    {"id":"audio.dribble_program_02_extract","group":"rom_audio_decode","status":"verified","rom":"fixed $3014/$3849 program $02; stream $3D7F; channel-2 instrument $90","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c"]},
+    {"id":"audio.dribble_apu_registers","group":"rom_audio_decode","status":"verified","rom":"$3014 channel 2: NR21=$7A NR22=$F1 NR23=$00 NR24=$80 for six retriggers","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"]},
+    {"id":"audio.dribble_wav_export","group":"rom_audio_decode","status":"verified","rom":"decoded command $0C program $02 serialized in asset pack v7","evidence":["docs/parity/ONE_ON_ONE_LIVE_FLOW.md","src/audio/allstar_audio.c","src/allstar_cli.c"]},
     {"id":"audio.native_square_renderer","group":"rom_audio_decode","status":"verified","rom":"$35B6->$35F0/$3631 square APU register behavior for focused $05/$0D programs","evidence":["src/audio/allstar_audio.c","src/allstar_cli.c","docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md"]},
     {"id":"presentation.inbound_templates_20f7","group":"score_audio","status":"verified","rom":"fixed $20F7->$2197->$21C8/$21E1 and ball $50/$90","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
     {"id":"presentation.native_rate","group":"score_audio","status":"verified","rom":"exact 258-state score path presented at explicit native 3x rate","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","include/allstar_one_on_one.h","src/allstar_cli.c"]},
@@ -36,6 +39,7 @@
   "history": [
     {"date":"2026-08-15","verified":6,"total":20,"percent":30.0,"note":"Pre-audit state retained the score clock/fades and generic cue plumbing, but had no extracted net stream/animation, no final $6F2A dribble placement, and incorrect or missing command-specific movement/roster cues."},
     {"date":"2026-08-15","verified":20,"total":20,"percent":100.0,"note":"Ghidra and Mesen established the exact score-net frames, commands $05/$08/$0C/$0D/$0E/$0F, final held-ball path, and separate One-on-One asset streams; all are integrated and deterministically checked."},
-    {"date":"2026-08-15","verified":25,"total":25,"percent":100.0,"note":"Expanded the denominator for the user-reported gaps: exact $2F88 command words, $3014 program $0C/$11 stream extraction, focused square/sweep rendering, and $20F7/$21C8/$21E1 take-out placement are now verified by serialized asset data, native tests, and live Mesen APU/WRAM traces."}
+    {"date":"2026-08-15","verified":25,"total":25,"percent":100.0,"note":"Expanded the denominator for exact command words, score program $0C, movement program $11, focused square/sweep rendering, and take-out placement."},
+    {"date":"2026-08-15","verified":28,"total":28,"percent":100.0,"note":"Added the previously generic dribble cue: command $0C maps to program $02/stream $3D7F and its exact six-frame channel-2 retrigger is serialized, bound, and WAV-exportable in asset-pack v7."}
   ]
 }

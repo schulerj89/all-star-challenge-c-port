@@ -22,6 +22,9 @@ local fadeValues = {}
 local fadeLcdcValues = {}
 local failures = 0
 local stopping = false
+local scoreBallFirstBounce = false
+local scoreBallSecondBounce = false
+local scoreBallThirdBounce = false
 
 local function read(address)
   return emu.read(address, mem, false)
@@ -151,6 +154,24 @@ local function onInputPolled()
 end
 
 local function onEndFrame()
+  if scoreFrame ~= nil and totalFrames - scoreFrame <= 190 then
+    local delta = totalFrames - scoreFrame
+    if delta == 76 and read(0xC0AA) == 0 and read(0xC0AB) == 0 and
+       read(0xC0A8) == 0x53 and read(0xC0A9) == 0x01 then
+      scoreBallFirstBounce = true
+    elseif delta == 121 and read(0xC0AA) == 0 and read(0xC0AB) == 0 and
+       read(0xC0A8) == 0x17 and read(0xC0A9) == 0x01 then
+      scoreBallSecondBounce = true
+    elseif delta == 158 and read(0xC0AA) == 0 and read(0xC0AB) == 0 and
+       read(0xC0A8) == 0xDB and read(0xC0A9) == 0x00 then
+      scoreBallThirdBounce = true
+    end
+    print(string.format(
+      "SCORE_BALL delta=%d xyz=%02X,%02X,%02X raw_z=%02X%02X vz=%02X%02X lcdc=%02X",
+      totalFrames - scoreFrame, read(0xC0A3), read(0xC0A7), read(0xC0AB),
+      read(0xC0AB), read(0xC0AA), read(0xC0A9), read(0xC0A8),
+      read(0xFF40)))
+  end
   if scoreFrame ~= nil and scoreCommitFrame == nil and read(0xC133) ~= 0 then
     scoreCommitFrame = totalFrames
     print(string.format("SCORE_COMMIT frame=%d delta=%d p1_bcd=%02X sound=%02X",
@@ -186,6 +207,9 @@ local function onEndFrame()
       "score-to-playable-inbound duration was not the traced 258 frames")
     expect(read(0xFF47) == 0xE4, "$27CC did not restore BGP=$E4")
     expect(read(0xFF40) == 0x87, "$2814 did not restore LCDC OBJ display")
+    expect(scoreBallFirstBounce and scoreBallSecondBounce and
+           scoreBallThirdBounce,
+      "$1E0E/$7BE8/$1E77 score-ball bounce sequence did not match")
     print(failures == 0 and
       "TRACE PASSED: $1E0E/$2F88/$0C13/$27C7/$20F7/$27CC score presentation" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))

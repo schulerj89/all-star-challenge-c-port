@@ -21,6 +21,7 @@ typedef struct {
     float aggression;
     float reaction_speed;
     uint8_t rom_shot_profile;
+    uint8_t rom_roster_index;
     uint8_t rom_action_index;
     uint8_t rom_skill_level;
     uint8_t rom_target_x;
@@ -29,8 +30,12 @@ typedef struct {
     uint8_t rom_contact_offense_count;
     uint8_t rom_contact_saved_x;
     uint8_t rom_contact_saved_y;
+    uint8_t rom_offense_stage;
+    uint8_t rom_stored_shot_random;
     bool rom_steal_pressed;
     bool rom_force_shot;
+    bool rom_shot_release;
+    bool rom_had_possession;
 } AllStarAIController;
 
 void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats);
@@ -40,9 +45,14 @@ uint8_t allstar_ai_rom_direction_74bb(float current_x, float current_y,
                                      uint8_t target_x, uint8_t target_y);
 void allstar_ai_rom_offense_target_72ea(uint8_t ball_x, uint8_t random_byte,
                                        uint8_t *target_x, uint8_t *target_y);
+void allstar_ai_rom_route_target_732c(uint8_t roster_index,
+                                     uint8_t route_random,
+                                     uint8_t position_random,
+                                     uint8_t *target_x,
+                                     uint8_t *target_y);
 bool allstar_ai_rom_should_shoot_756c(uint8_t profile,
                                      uint8_t distance_class,
-                                     uint8_t action_index,
+                                     uint8_t animation_record,
                                      uint8_t skill_level,
                                      uint8_t profile_random,
                                      uint8_t skill_random);
@@ -62,6 +72,8 @@ bool allstar_ai_rom_contact_response_75cd(
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
                        const AllStarPlayerState *human,
                        const AllStarBall *ball, uint8_t rom_random_byte,
+                       uint8_t target_random, uint8_t route_random,
+                       uint8_t position_random,
                        float dt);
 
 #endif /* ALLSTAR_AI_H */

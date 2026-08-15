@@ -32,6 +32,7 @@ void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level) {
 
 void allstar_ai_set_rom_profile(AllStarAIController *ai, uint8_t roster_index) {
     if (!ai) return;
+    ai->rom_roster_index = roster_index;
     ai->rom_shot_profile = allstar_one_on_one_rom_shot_profile(roster_index);
 }
 
@@ -64,27 +65,76 @@ void allstar_ai_rom_offense_target_72ea(uint8_t ball_x, uint8_t random_byte,
     if (target_y) *target_y = targets[side][index][1];
 }
 
-/* $756C uses profile thresholds $B0/$60/$40, requires the current action
-   to match distance classes 0/1/2/far as 4/5/6/7, then falls back to the
-   skill thresholds $1A/$0C/$06 for actions 5..7. */
+/* $732C uses player +$0F to find its three-entry route family at $763B.
+   $FFFD selects the family at $A2/$F0; families $80/$81 select one of the
+   fourteen exact $738D coordinate pairs with $FFFE, while $82 is the fixed
+   center target $54/$5D. */
+void allstar_ai_rom_route_target_732c(uint8_t roster_index,
+                                     uint8_t route_random,
+                                     uint8_t position_random,
+                                     uint8_t *target_x,
+                                     uint8_t *target_y) {
+    static const uint8_t keys[27] = {
+        0x01,0x04,0x10,0x11,0x07,0x02,0x14,0x12,0x19,
+        0x0a,0x1a,0x00,0x09,0x16,0x0b,0x18,0x17,0x05,
+        0x0f,0x06,0x0e,0x08,0x0c,0x13,0x15,0x03,0x0d
+    };
+    static const uint8_t families[27][3] = {
+        {1,0,2},{1,0,2},{1,0,2},{1,0,2},{2,1,0},{0,1,2},
+        {1,0,2},{2,1,0},{2,1,0},{1,0,2},{2,1,0},{1,0,2},
+        {0,1,2},{1,0,2},{2,1,0},{1,0,2},{1,0,2},{1,0,2},
+        {2,1,0},{1,0,2},{1,0,2},{2,1,0},{2,1,0},{1,0,2},
+        {1,0,2},{1,0,2},{2,1,0}
+    };
+    static const uint8_t routes[2][14][2] = {
+        {{0x90,0x84},{0x28,0x98},{0x48,0x98},{0x0c,0x60},
+         {0x9c,0x74},{0x0c,0x94},{0x70,0x98},{0x9c,0x8c},
+         {0x14,0x88},{0x9c,0x60},{0x5c,0x98},{0x0c,0x70},
+         {0x90,0x98},{0x54,0x98}},
+        {{0x34,0x70},{0x60,0x8c},{0x28,0x84},{0x5c,0x68},
+         {0x80,0x74},{0x48,0x64},{0x68,0x74},{0x80,0x64},
+         {0x24,0x64},{0x50,0x88},{0x70,0x64},{0x3c,0x84},
+         {0x78,0x84},{0x50,0x70}}
+    };
+    size_t player = 0;
+    uint8_t bin = route_random < 0xa2 ? 0 :
+        (route_random < 0xf0 ? 1 : 2);
+    uint8_t family;
+    uint8_t position = 0;
+    while (player + 1 < 27 && keys[player] != roster_index) player++;
+    family = families[player][bin];
+    if (family == 2) {
+        if (target_x) *target_x = 0x54;
+        if (target_y) *target_y = 0x5d;
+        return;
+    }
+    while (position < 13 && position_random >=
+           (uint8_t)(0x13u * (position + 1u))) position++;
+    if (target_x) *target_x = routes[family][position][0];
+    if (target_y) *target_y = routes[family][position][1];
+}
+
+/* $756C uses profile thresholds $B0/$60/$40, requires current animation
+   record +$03 to match distance classes 0/1/2/far as 4/5/6/7, then falls
+   back to the skill thresholds $1A/$0C/$06 for records 5..7. */
 bool allstar_ai_rom_should_shoot_756c(uint8_t profile,
                                      uint8_t distance_class,
-                                     uint8_t action_index,
+                                     uint8_t animation_record,
                                      uint8_t skill_level,
                                      uint8_t profile_random,
                                      uint8_t skill_random) {
     static const uint8_t profile_threshold[3] = {0xb0,0x60,0x40};
     static const uint8_t skill_threshold[3] = {0x1a,0x0c,0x06};
-    uint8_t expected_action;
+    uint8_t expected_record;
     if (profile > 2) profile = 2;
     if (skill_level < 1 || skill_level > 3) skill_level = 1;
-    expected_action = distance_class < 3
+    expected_record = distance_class < 3
         ? (uint8_t)(4 + distance_class) : 7;
     if (profile_random < profile_threshold[profile]) {
-        return action_index == expected_action;
+        return animation_record == expected_record;
     }
     return skill_random >= skill_threshold[skill_level - 1] &&
-           action_index >= 5 && action_index < 8;
+           animation_record >= 5 && animation_record < 8;
 }
 
 /* $71EE gates the CPU A/contest input on an opponent flight and the same
@@ -148,14 +198,40 @@ bool allstar_ai_rom_contact_response_75cd(
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
                        const AllStarPlayerState *human,
                        const AllStarBall *ball, uint8_t rom_random_byte,
+                       uint8_t target_random, uint8_t route_random,
+                       uint8_t position_random,
                        float dt) {
     if (!ai || !cpu || !human || !ball) return;
 
     ai->rom_steal_pressed = false;
+    ai->rom_shot_release = false;
+
+    if (cpu->has_ball && !ai->rom_had_possession) {
+        ai->rom_offense_stage = 0;
+        ai->rom_contact_offense_count = 0;
+        cpu->is_shooting = false;
+    } else if (!cpu->has_ball && ai->rom_had_possession) {
+        ai->rom_offense_stage = 0;
+        cpu->is_shooting = false;
+    }
+    ai->rom_had_possession = cpu->has_ball;
+
+    /* $72BF starts an offense only once per possession.  It first selects
+       the side-specific $72EA target; arrival later advances through $732C
+       instead of rerolling a target and shooting on every controller tick. */
+    if (cpu->has_ball && ai->rom_offense_stage == 0) {
+        allstar_ai_rom_offense_target_72ea(
+            (uint8_t)ball->x, target_random,
+            &ai->rom_target_x, &ai->rom_target_y);
+        ai->rom_offense_stage = 1;
+        ai->state = ALLSTAR_AI_STATE_DRIVE_TO_HOOP;
+    }
 
     ai->decision_timer -= dt;
     if (ai->rom_force_shot && cpu->has_ball) {
         ai->rom_force_shot = false;
+        ai->rom_stored_shot_random = rom_random_byte;
+        ai->rom_offense_stage = 3;
         ai->state = ALLSTAR_AI_STATE_PULL_UP_JUMPER;
     } else if (ai->rom_contact_hold_frames != 0) {
         ai->state = ALLSTAR_AI_STATE_DEFEND_PERIMETER;
@@ -163,21 +239,7 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
         ai->decision_timer = ai->decision_interval;
 
         if (cpu->has_ball) {
-            uint8_t distance_class =
-                allstar_one_on_one_rom_shot_distance_class(cpu->x, cpu->y);
-            ai->rom_action_index = distance_class < 3
-                ? (uint8_t)(4 + distance_class) : 7;
-            allstar_ai_rom_offense_target_72ea(
-                (uint8_t)cpu->x, rom_random_byte,
-                &ai->rom_target_x, &ai->rom_target_y);
-            if (allstar_ai_rom_should_shoot_756c(
-                    ai->rom_shot_profile, distance_class,
-                    ai->rom_action_index, ai->rom_skill_level,
-                    rom_random_byte, rom_random_byte)) {
-                ai->state = ALLSTAR_AI_STATE_PULL_UP_JUMPER;
-            } else {
-                ai->state = ALLSTAR_AI_STATE_DRIVE_TO_HOOP;
-            }
+            /* Offense is advanced below by the $72EA/$732C/$756C stages. */
         } else if (ball->in_flight || (!human->has_ball && !cpu->has_ball)) {
             ai->state = ALLSTAR_AI_STATE_REBOUND;
         } else {
@@ -237,6 +299,23 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
         case ALLSTAR_AI_STATE_DRIVE_TO_HOOP: {
             uint8_t direction = allstar_ai_rom_direction_74bb(
                 cpu->x, cpu->y, ai->rom_target_x, ai->rom_target_y);
+            if (direction == 0 && cpu->has_ball) {
+                if (ai->rom_offense_stage == 1) {
+                    allstar_ai_rom_route_target_732c(
+                        ai->rom_roster_index, route_random, position_random,
+                        &ai->rom_target_x, &ai->rom_target_y);
+                    ai->rom_offense_stage = 2;
+                    direction = allstar_ai_rom_direction_74bb(
+                        cpu->x, cpu->y,
+                        ai->rom_target_x, ai->rom_target_y);
+                } else if (ai->rom_offense_stage == 2) {
+                    ai->rom_stored_shot_random = rom_random_byte;
+                    ai->rom_offense_stage = 3;
+                    ai->state = ALLSTAR_AI_STATE_PULL_UP_JUMPER;
+                    cpu->is_shooting = true;
+                    break;
+                }
+            }
             if (direction & 0x10) cpu->x += move_speed * dt;
             if (direction & 0x20) cpu->x -= move_speed * dt;
             if (direction & 0x80) cpu->y += move_speed * dt;
@@ -244,9 +323,19 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
             break;
         }
         case ALLSTAR_AI_STATE_PULL_UP_JUMPER: {
-            /* CPU sets shooting flag */
-            if (cpu->has_ball && !cpu->is_shooting) {
+            if (cpu->has_ball) {
+                uint8_t distance_class =
+                    allstar_one_on_one_rom_shot_distance_class(
+                        cpu->x, cpu->y);
                 cpu->is_shooting = true;
+                /* $756C reads player +$03: this is the current $6A8C shot
+                   record, not a synthetic distance-class action. */
+                if (allstar_ai_rom_should_shoot_756c(
+                        ai->rom_shot_profile, distance_class,
+                        ai->rom_action_index, ai->rom_skill_level,
+                        ai->rom_stored_shot_random, rom_random_byte)) {
+                    ai->rom_shot_release = true;
+                }
             }
             break;
         }

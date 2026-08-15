@@ -328,7 +328,8 @@ static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
 /* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
    $2FB0, program pointers at $3849, instrument records at $3888, duration
    table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
-   This intentionally decodes only the two One-on-One square programs. */
+   This intentionally decodes the three One-on-One square programs used by
+   score, dribble-ground contact, and movement. */
 static bool decode_rom_square_stream(const AllStarRom *rom,
                                      size_t stream,
                                      int channel,
@@ -401,7 +402,7 @@ static bool decode_rom_square_stream(const AllStarRom *rom,
 static bool extract_one_on_one_audio(AllStarAssetPack *pack,
                                      const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05};
+        {0x0d, 0x05, 0x0c};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -419,7 +420,8 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         program->source_checksum = fnv1a_bytes(
             rom->data + 0x2fb0, 0x3fa6 - 0x2fb0);
         if (!decode_rom_square_stream(
-                rom, stream, 1, program, &next_stream)) return false;
+                rom, stream, command == 0x0c ? 2 : 1,
+                program, &next_stream)) return false;
         if (command == 0x05) {
             program->stream_pointer_2 = (uint16_t)next_stream;
             if (!decode_rom_square_stream(
@@ -447,7 +449,15 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[1].frames[24].square1_frequency != 0x06b2 ||
         pack->rom_sfx_programs[1].frames[24].square2_frequency != 0x0672 ||
         pack->rom_sfx_programs[1].frames[71].square1_frequency != 0x06b1 ||
-        pack->rom_sfx_programs[1].frames[71].square2_frequency != 0x0671)
+        pack->rom_sfx_programs[1].frames[71].square2_frequency != 0x0671 ||
+        pack->rom_sfx_programs[2].command != 0x0c ||
+        pack->rom_sfx_programs[2].program_id != 0x02 ||
+        pack->rom_sfx_programs[2].priority_frames != 0x13 ||
+        pack->rom_sfx_programs[2].stream_pointer_1 != 0x3d7f ||
+        pack->rom_sfx_programs[2].frame_count != 6 ||
+        pack->rom_sfx_programs[2].square2_duty_length != 0x7a ||
+        pack->rom_sfx_programs[2].square2_envelope != 0xf1 ||
+        pack->rom_sfx_programs[2].frames[0].square2_frequency != 0x0000)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -458,10 +468,12 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
 static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *movement;
     const AllStarRomSfxProgram *score;
+    const AllStarRomSfxProgram *dribble;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
     score = &pack->rom_sfx_programs[1];
+    dribble = &pack->rom_sfx_programs[2];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -481,7 +493,14 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         score->frames[71].square1_frequency == 0x06b1 &&
         score->frames[71].square2_frequency == 0x0671 &&
         movement->source_checksum != 0 &&
-        movement->source_checksum == score->source_checksum;
+        dribble->command == 0x0c && dribble->program_id == 0x02 &&
+        dribble->priority_frames == 0x13 && dribble->frame_count == 6 &&
+        dribble->stream_pointer_1 == 0x3d7f &&
+        dribble->square2_duty_length == 0x7a &&
+        dribble->square2_envelope == 0xf1 &&
+        dribble->frames[0].square2_frequency == 0 &&
+        movement->source_checksum == score->source_checksum &&
+        movement->source_checksum == dribble->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {

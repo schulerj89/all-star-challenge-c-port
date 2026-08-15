@@ -22,12 +22,15 @@ corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
-The expanded One-on-One presentation/audio manifest is **25/25 (100.00%)**.
+The expanded One-on-One presentation/audio manifest is **28/28 (100.00%)**.
+The new live-flow manifest is **18/18 (100.00%)**; it covers shot-gather
+movement, complete run/shot records, decoded command `$0C`, CPU drive/gather
+decisions, and the made-ball bounce through fade entry.
 It now covers `$1ECC` net animation, sound commands `$05/$08/$0C/$0D/$0E/$0F`,
-focused `$3014` program `$0C/$11` extraction and square/sweep rendering,
+focused `$3014` program `$0C/$02/$11` extraction and square/sweep rendering,
 `$6F2A` held-ball placement, and `$20F7/$21C8/$21E1` take-out placement. The
 whole bank-0 `$3014` interpreter remains a candidate mapping because only the
-two user-requested programs are converted; whole-engine waveform/music parity
+three user-requested programs are converted; whole-engine waveform/music parity
 is not claimed.
 
 ## Scope

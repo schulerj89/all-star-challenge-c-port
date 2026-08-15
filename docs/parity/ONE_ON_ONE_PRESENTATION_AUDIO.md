@@ -4,12 +4,12 @@ Last reviewed: **2026-08-15**
 
 ## Result
 
-The focused event/path metric is **25/25 (100.00%)**, up from the reconstructed
+The focused event/path metric is **28/28 (100.00%)**, up from the reconstructed
 pre-audit state of **6/20 (30.00%)**. This metric covers exact ROM event timing,
 animation selection, ball placement, post-score take-out placement, and the
-focused `$05/$0D` audio programs. It does not claim that the entire cartridge
-music/APU interpreter is ported; these two cues are decoded from the user's ROM
-into asset-pack v6 and rendered from their recovered square-channel state.
+focused `$05/$0C/$0D` audio programs. It does not claim that the entire cartridge
+music/APU interpreter is ported; these three cues are decoded from the user's ROM
+into asset-pack v7 and rendered from their recovered square-channel state.
 
 ## Ghidra and live-ROM path
 
@@ -27,13 +27,13 @@ into asset-pack v6 and rendered from their recovered square-channel state.
 | Net graphics source | `$1FFA->$2021` and `$2219` decompress bank 3 `$793F` to VRAM `$9600` | Asset-pack v6 stores 17 decoded tiles for signed BG IDs `$60..$70`. |
 | One-on-One court source | `$0B9A->$04B1(A=1)->$050F` selects bank 3 `$7A23->$9000` and `$7E48->$9800` | The builder stores 86 court tiles and the 640-byte, 32-stride map. `$2243` is not credited because it belongs to another mode. |
 | Final held/dribbling ball | Per update, `$7F37` runs first and `$6F2A` then overrides actions `$01/$04/$08/$0B/$10/$13`; `$6FEA` supplies record-indexed height | `allstar_renderer_rom_dribble_ball_6f2a` is the final live placement. `$7F37` remains the shot/gather origin path. |
-| Dribble sound | `$6F2A->$6FE5` sends command `$0C` every update while player `+$03=6` | The live scene emits `ALLSTAR_SFX_DRIBBLE` on that exact record cadence. |
+| Dribble sound | `$6F2A->$6FE5` sends command `$0C` every update while player `+$03=6`; `$2F88/$2FB0->$3014` maps program `$02`, stream `$3D7F`, priority `$13`, and channel-2 registers `$7A/$F1/$00/$80` | Asset-pack v7 binds the decoded six-frame program to `ALLSTAR_SFX_DRIBBLE` and the live scene retriggers it on that exact record cadence. |
 | Roster navigation | Bank 2 `$4113->$2AB5/$2F88` sends command `$0E` | Cursor navigation uses `ALLSTAR_SFX_MENU_MOVE`. |
 | Accepted roster player | Bank 2 `$40F4->$411D->$2AB5/$2F88` sends command `$0F` | Both accepted player confirmations use the existing multi-step `ALLSTAR_SFX_MENU_SELECT` cue. |
 
 The Mesen trace records the `$1ECC` phases at exact deltas `20/35/50/65`,
 commands `$08/$05`, their selected program/priority bytes, every `$FF10..$FF25`
-write for `$05/$0D`, six consecutive command-`$0C` updates at animation record
+write for `$05/$0C/$0D`, six consecutive command-`$0C` updates at animation record
 six, command `$0D` on movement-action changes, and roster commands `$0E/$0F`.
 It also asserts the live `$6F2A` result from the owner action, record, direction
 bit, coordinates, and `$6FEA` height table. The same run reaches `$20F7` at
@@ -48,17 +48,20 @@ The builder follows `$2F88->$3014` data instead of embedding guessed notes:
   audible frames, square descriptors `$97/$98`;
 - command `$0D`: program `$11`, priority `20`, stream `$3FA2`, three audible
   frames, square descriptor `$9F` and NR10 sweep `$1F`;
-- both decoded assets carry FNV-1a `A0245071` over their reviewed ROM audio
+- command `$0C`: program `$02`, priority `19`, stream `$3D7F`, six frames,
+  channel-2 duty/length `$7A`, envelope `$F1`, and frequency `$000`;
+- all three decoded assets carry FNV-1a `A0245071` over their reviewed ROM audio
   source region in the verified USA/Europe image.
 
 The runtime never uses the old generic three-note/two-note fallbacks when a
-valid version-6 user pack is loaded. The proof WAVs are reproducible from the
+valid version-7 user pack is loaded. The proof WAVs are reproducible from the
 serialized decoded frames:
 
 ```powershell
 .\build\allstar_port.exe --export-rom-sfx build\allstar.assetpack `
   build\audio_proof\command_05_score.wav `
-  build\audio_proof\command_0D_screech.wav
+  build\audio_proof\command_0D_screech.wav `
+  build\audio_proof\command_0C_dribble.wav
 ```
 
 ## Native pacing

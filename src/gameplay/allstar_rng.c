@@ -3,6 +3,7 @@
 void allstar_rom_rng_init(AllStarRomRng *rng, uint16_t seed) {
     if (!rng) return;
     rng->seed = seed;
+    rng->alternate_seed = 0x974a;
     rng->frame_phase = 0;
 }
 
@@ -22,6 +23,18 @@ uint8_t allstar_rom_rng_current(const AllStarRomRng *rng) {
     return rng ? (uint8_t)rng->seed : 0;
 }
 
+uint8_t allstar_rom_rng_high(const AllStarRomRng *rng) {
+    return rng ? (uint8_t)(rng->seed >> 8) : 0;
+}
+
+uint8_t allstar_rom_rng_alternate(const AllStarRomRng *rng) {
+    return rng ? (uint8_t)rng->alternate_seed : 0;
+}
+
+uint8_t allstar_rom_rng_alternate_high(const AllStarRomRng *rng) {
+    return rng ? (uint8_t)(rng->alternate_seed >> 8) : 0;
+}
+
 /* The $FF8B bit-zero gate makes the gameplay-visible $FFFB stream advance on
    every second 60 Hz update.  Every random branch in between sees one shared
    byte, matching the traced cartridge rather than host rand() call order. */
@@ -30,7 +43,10 @@ uint8_t allstar_rom_rng_end_frame_0714(AllStarRomRng *rng,
                                       uint8_t clock_seconds_bcd) {
     if (!rng) return 0;
     rng->frame_phase ^= 1u;
-    if (rng->frame_phase == 0) {
+    if (rng->frame_phase != 0) {
+        rng->alternate_seed = allstar_rom_rng_step_072f(
+            rng->alternate_seed, score_low_bcd, clock_seconds_bcd);
+    } else {
         rng->seed = allstar_rom_rng_step_072f(
             rng->seed, score_low_bcd, clock_seconds_bcd);
     }

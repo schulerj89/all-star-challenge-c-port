@@ -61,7 +61,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
-    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> Export decoded ROM cues\n");
+    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> Export decoded ROM cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -766,6 +766,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
     int contact_offender;
     AllStarAIController contact_ai;
     AllStarRomBallPresentation ball_presentation;
+    AllStarBall score_ball;
     uint16_t composed_tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT];
     static const uint8_t movement_cases[4][3] = {
         {ALLSTAR_BTN_RIGHT, 0x10, 0x11},
@@ -1019,6 +1020,17 @@ int allstar_cli_test_one_on_one_shooting(void) {
         fprintf(stderr, "[Test] $0714/$072F shared frame RNG stream was incorrect\n");
         return 1;
     }
+    allstar_rom_rng_init(&rng, 0xe018);
+    if (allstar_rom_rng_high(&rng) != 0xe0 ||
+        allstar_rom_rng_alternate(&rng) != 0x4a ||
+        allstar_rom_rng_alternate_high(&rng) != 0x97 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x18 ||
+        rng.alternate_seed != 0x51c5 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x03 ||
+        rng.seed != 0xe103) {
+        fprintf(stderr, "[Test] $FFFB..$FFFE paired RNG state was incorrect\n");
+        return 1;
+    }
 
     if (allstar_one_on_one_rom_point_value(18.0f, 92.0f) != 3 ||
         allstar_one_on_one_rom_point_value(19.0f, 92.0f) != 2 ||
@@ -1228,6 +1240,26 @@ int allstar_cli_test_one_on_one_shooting(void) {
         attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED ||
         attempt.rom_phase != 2 || attempt.release_latch_frames != 0) {
         fprintf(stderr, "[Test] $702D $C16A release did not advance to phase two\n");
+        return 1;
+    }
+    allstar_ai_rom_route_target_732c(
+        0x02, 0x00, 0x98, &target_x, &target_y);
+    if (target_x != 0x14 || target_y != 0x88) {
+        fprintf(stderr,
+                "[Test] $732C family-one route table was incorrect (%02X,%02X)\n",
+                target_x, target_y);
+        return 1;
+    }
+    allstar_ai_rom_route_target_732c(
+        0x07, 0x00, 0x00, &target_x, &target_y);
+    if (target_x != 0x54 || target_y != 0x5d) {
+        fprintf(stderr, "[Test] $732C fixed-center route was incorrect\n");
+        return 1;
+    }
+    allstar_ai_rom_route_target_732c(
+        0x02, 0xa2, 0x13, &target_x, &target_y);
+    if (target_x != 0x60 || target_y != 0x8c) {
+        fprintf(stderr, "[Test] $732C family/bin thresholds were incorrect\n");
         return 1;
     }
 
@@ -1645,6 +1677,32 @@ int allstar_cli_test_one_on_one_shooting(void) {
         fprintf(stderr, "[Test] Score presentation did not resume at frame 258\n");
         return 1;
     }
+    allstar_physics_init_ball(&score_ball);
+    score_ball.in_flight = true;
+    score_ball.made_basket = true;
+    score_ball.rom_step_state_valid = true;
+    score_ball.rom_step_state.x = 0x5400;
+    score_ball.rom_step_state.y = 0x5e00;
+    score_ball.rom_step_state.z = 0x3820;
+    score_ball.rom_step_state.vz = -0x0018;
+    score_ball.rom_step_state.gravity_delay_frames = 35;
+    score_ball.rom_hard_bounce_pending = true;
+    for (frame = 0; frame < 76; frame++)
+        allstar_physics_update_ball(
+            &score_ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (score_ball.rom_step_state.z != 0 ||
+        score_ball.rom_step_state.vz != 0x0153) {
+        fprintf(stderr, "[Test] $1E0E delayed-gravity hard bounce was incorrect\n");
+        return 1;
+    }
+    for (frame = 76; frame < 121; frame++)
+        allstar_physics_update_ball(
+            &score_ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (score_ball.rom_step_state.z != 0 ||
+        score_ball.rom_step_state.vz != 0x0117) {
+        fprintf(stderr, "[Test] $7BE8/$1E77 score-ball second bounce was incorrect\n");
+        return 1;
+    }
 
     allstar_one_on_one_score_presentation_begin_1e0e(
         &score_presentation, 1, 2);
@@ -2041,17 +2099,21 @@ int allstar_cli_test_headless_frames(void) {
 
 int allstar_cli_export_rom_sfx(const char *pack_path,
                                const char *score_path,
-                               const char *squeak_path) {
+                               const char *squeak_path,
+                               const char *dribble_path) {
     AllStarAssetPack pack;
     const AllStarRomSfxProgram *squeak;
     const AllStarRomSfxProgram *score;
+    const AllStarRomSfxProgram *dribble;
     if (!allstar_asset_pack_load_file(&pack, pack_path)) return 1;
     if (pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
         return 1;
     squeak = &pack.rom_sfx_programs[0];
     score = &pack.rom_sfx_programs[1];
+    dribble = &pack.rom_sfx_programs[2];
     if (!allstar_audio_export_rom_sfx_wav(&pack, 0x05, score_path) ||
-        !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path)) {
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0c, dribble_path)) {
         fprintf(stderr, "[ROM SFX] Failed to export decoded WAV proof\n");
         return 1;
     }
@@ -2065,7 +2127,13 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
            squeak->program_id, squeak->priority_frames,
            squeak->stream_pointer_1, squeak->frame_count,
            squeak->source_checksum);
-    printf("[ROM SFX] Exported %s and %s\n", score_path, squeak_path);
+    printf("[ROM SFX] command $0C -> program $%02X, priority %u, "
+           "stream $%04X, %u frames, source FNV-1a %08X\n",
+           dribble->program_id, dribble->priority_frames,
+           dribble->stream_pointer_1, dribble->frame_count,
+           dribble->source_checksum);
+    printf("[ROM SFX] Exported %s, %s, and %s\n",
+           score_path, squeak_path, dribble_path);
     return 0;
 }
 
@@ -2215,6 +2283,17 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path), "%s\\04a_one_on_one_gather.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* The ROM preserves direction in +$07 while $714D holds action $0A/$12;
+       capture the later $6A8C/$6B72 record after moving through the gather. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    for (int i = 0; i < 24; i++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path),
+             "%s\\04aa_one_on_one_moving_gather.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
@@ -2384,12 +2463,13 @@ int allstar_cli_main(int argc, char **argv) {
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
     } else if (strcmp(cmd, "--export-rom-sfx") == 0) {
-        if (argc < 5) {
+        if (argc < 6) {
             fprintf(stderr, "Error: --export-rom-sfx requires <pack>, "
-                    "<05.wav>, and <0D.wav>\n");
+                    "<05.wav>, <0D.wav>, and <0C.wav>\n");
             return 1;
         }
-        return allstar_cli_export_rom_sfx(argv[2], argv[3], argv[4]);
+        return allstar_cli_export_rom_sfx(
+            argv[2], argv[3], argv[4], argv[5]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");

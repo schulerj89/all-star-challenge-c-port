@@ -86,6 +86,7 @@ typedef struct {
     float gather_clock;
     uint8_t rom_phase;
     uint8_t release_latch_frames;
+    uint16_t rom_elapsed_frames;
 } AllStarOneOnOneShotAttempt;
 
 typedef struct {
@@ -190,6 +191,10 @@ uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
 uint8_t allstar_one_on_one_rom_shot_distance_class(float player_center_x,
                                                    float player_ground_y);
 uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index);
+/* $6A8C player +$03 record pointer used by $7C58's 12-column arc table. */
+uint8_t allstar_one_on_one_rom_shot_record_index(uint16_t elapsed_frames);
+/* $6A8C->$6C4D player lift followed by $7F37 ball-height composition. */
+uint8_t allstar_one_on_one_rom_shot_release_height(uint8_t record_index);
 int16_t allstar_one_on_one_rom_shot_vertical_velocity(
     uint8_t roster_index, uint8_t distance_class, uint8_t pose_index);
 int allstar_one_on_one_rom_point_value(float ball_x, float ball_y);

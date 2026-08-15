@@ -13,7 +13,9 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | B held during the gather | `$702D` sets phase 1 and the one-frame `$C16A` latch; the next update advances to phase 2 and releases from the phase/variant `$7F37` origin. |
 | Gather reaches the 67-frame action terminal without release | Call traveling, award the defender possession, and reset the shot clock. |
 | CPU enters its shooting state | Use the same shot-launch path as the human player. |
-| Shot launches | `$07B4/$7EC4` selects distance class 0..4; class 0 uses the 32-frame `<<3` vector and classes 1..4 use the 64-frame `<<2` vector. `$2F40` and the launch index select the exact `$7C58` vertical byte. |
+| Shot timing advances | `$6C90` starts player `+$03=0`; `$6A8C` loads the 12 three-byte records and advances `+$03`. The native gather derives the same loaded-record pointer instead of using the former fixed index 2. |
+| Shot launches | `$07B4/$7EC4` selects distance class 0..4; class 0 uses the 32-frame `<<3` vector and classes 1..4 use the 64-frame `<<2` vector. `$2F40`, distance, and the live `+$03` record select the exact `$7C58` vertical byte. |
+| Release height | `$6A8C` applies the signed `$6C4D[+$03]` lift to player visual Y; `$7F37` composes the ball from player `+$05/+$15`. A normal release consequently rises through `$26,$2F,$36,$3B,$3E,$40,$40,$3E,$39,$32,$2A,$26`, rather than always launching at 48 pixels. |
 | Ball enters the hoop region | `$1CED` uses exact integer-byte windows around `x=$54`, `y=$5D/$5E/$5F`, and `z=$37..$3D`; One-on-One no longer uses the provisional descending plane or five-pixel radius. |
 | Rim/backboard miss | Apply the recovered raw X impulses, VZ reflection/loss, and eight-frame `$C17E` contact cooldown. |
 | Ground contact | `$1E77` clears the recovery flight lock, negates raw VZ, and subtracts `$0039` (or one `$012C` hard-bounce loss when pending). |
@@ -39,11 +41,11 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 |---|---|---|
 | `$702D` | In action `$0A`, new-A at player `+$11` bit 0 launches directly while phase is zero. Held-B at `+$12` bit 1 sets phase 1 and `$C16A=1`; the following update clears the latch, advances to phase 2, updates `$7F37`, and launches. | `allstar_one_on_one_shot_input` and `allstar_one_on_one_shot_tick` preserve the distinct immediate and latched paths. The scene passes the resulting ROM phase into the release-origin helper. |
 | `$7BE8` | Once per frame, subtracts `$000F` from 8.8 vertical velocity, applies raw `+/-2` planar friction while the height integer byte is zero, then integrates the three velocity/position pairs. | `allstar_physics_rom_step_7be8` reproduces the exact 16-bit operations and `allstar_physics_update_ball` uses that state as its canonical fixed step. |
-| `$7C58` | Uses `$07B4` rectangles and `$7EC4` corner cells for distance class 0..4, `$2F40` profile 0..2, and a five-by-twelve low-byte table; class 0 has high byte 0 and classes 1..4 high byte 1. A nonzero player shot phase takes `$7F0A`, zeroes planar velocity, and launches at raw VZ `-$0100`. | `allstar_one_on_one_rom_shot_distance_class`, `allstar_one_on_one_rom_shot_profile`, `allstar_one_on_one_rom_shot_vertical_velocity`, and `allstar_physics_shoot_ball_rom_7c58` reproduce those selectors and raw launch values. |
+| `$7C58` | Uses `$07B4` rectangles and `$7EC4` corner cells for distance class 0..4, player profile `+$18` from `$2F40`, and live animation record `+$03` to index the five-by-twelve low-byte table at `$7DD1`; class 0 has high byte 0 and classes 1..4 high byte 1. A nonzero player shot phase takes `$7F0A`, zeroes planar velocity, and launches at raw VZ `-$0100`. | `allstar_one_on_one_rom_shot_distance_class`, `allstar_one_on_one_rom_shot_profile`, `allstar_one_on_one_rom_shot_record_index`, `allstar_one_on_one_rom_shot_vertical_velocity`, and `allstar_physics_shoot_ball_rom_7c58` reproduce those selectors and raw launch values. |
 | `$7EA9` | Shifts signed target displacement left three bits for class 0 and left two bits for classes 1..4, reaching the target in 32 or 64 8.8 steps. | The ROM launcher constructs the exact raw vector. A deterministic class-3 test reaches `$54/$5C` on step 64 and matches the traced first-step VZ `$0189`; the phase path matches `$FEF1`. |
 | `$791D/$794B` | Classifies player field `+$16` as 0, 1, or 2 from the exact left/right court wedge tables at `$79B6/$79D2`. | `allstar_one_on_one_rom_shot_variant` applies the recovered thresholds after converting native center X back to ROM field `+$06`. |
-| `$7F37` | Chooses ball offsets by action/facing while held and by shot phase/variant during the jump; computes height from player fields `+$05/+$15`; display frames `$00/$0C` clear the separate ball because their player frame contains it. | `allstar_one_on_one_rom_release_offset` and `allstar_one_on_one_rom_release_height` reproduce launch coordinates; `allstar_renderer_rom_held_ball_7f37` supplies the live held-ball X/Y/Z and frame visibility. |
-| `$6A8C` animation dispatcher | Action `$0A/$12` advances through twelve duration/frame records totaling 67 frames, then transitions to action `$0D`; active shot phases force display frames `$12/$13/$14`. | `allstar_one_on_one_rom_shot_animation_frame` reproduces both record tables and phase overrides, and the scene stores the selected byte in native player animation state. |
+| `$7F37` | Chooses ball offsets by action/facing while held and by shot phase/variant during the jump; computes height from player fields `+$05/+$15`; display frames `$00/$0C` clear the separate ball because their player frame contains it. | `allstar_one_on_one_rom_release_offset`, `allstar_one_on_one_rom_release_height`, and `allstar_one_on_one_rom_shot_release_height` reproduce launch coordinates and record-coupled height; `allstar_renderer_rom_held_ball_7f37` supplies live held-ball presentation. |
+| `$6A8C` animation dispatcher | Action `$0A/$12` advances through twelve duration/frame records totaling 67 frames. At a boundary it loads the duration into `+$04`, applies `$6C4D[+$03]` to visual Y, then increments `+$03` at `$6C47`. Because `$7015` calls `$702D` first, release observes that loaded-record pointer. | `allstar_one_on_one_rom_shot_record_index` reproduces pointer timing; `allstar_one_on_one_rom_shot_animation_frame` reproduces display records and phase overrides. |
 | Fixed `$1CED` | Dispatches outer limits, back-court return, exact score cells, front/side/back rim and backboard responses, `$C17E` cooldown, and ground/bounce behavior. It does not perform a native descending-plane or circular-radius test. | `allstar_physics_apply_rom_court_contacts` works on the canonical 8.8 bytes and emits explicit score/rim/backboard events; boundary tests cover the score cell, side impulse, back-rim reflection, and cooldown. |
 | Fixed `$1E5B/$1E77` | Treats exact zero or wrapped negative height (integer `>=$E0`) as ground, clears `$FFF8`, negates raw VZ, and applies the One-on-One `$0039` loss or one `$FFD4` `$012C` loss. | The fixed-step updater applies the same raw arithmetic and exposes recovery on first ground contact. |
 | Fixed `$1F4D` | Zeroes the two planar 8.8 velocity words. | `allstar_physics_apply_rom_court_contacts` zeroes native `vx` and `vy`; deterministic boundary tests cover the semantic result. |
@@ -55,18 +57,33 @@ to `IDLE`. This is native bookkeeping around the recovered dispatcher: leaving
 the wrapper in `RELEASED` previously caused the first recovered shot to lock
 out all later A-button gathers.
 
-The static control flow is paired with a headless Mesen trace in
-`tools/emulator/trace_one_on_one_input.lua`. From a captured gameplay state it
+The static control flow is paired with headless Mesen traces. In addition to
+`tools/emulator/trace_one_on_one_input.lua`,
+`tools/emulator/trace_one_on_one_shot_results.lua` proves a complete cartridge
+make. At release frame 37 it observes action `$0A`, player `+$03=$07`,
+`+$18=$02`, visual/ground Y `$56/$98`, and `$7F37` ball Z `$40`. `$7C58`
+then writes class 3, vector `VX=$0004`, `VY=$FF18`, `VZ=$01C8`; after `$7BE8`
+integration, fixed `$1CED` enters `$1E0E` at
+`X/Y/Z=$54/$5C/$38` with `$FFD7=1`.
+
+From a captured gameplay state the input trace
 asserts the A-A path (`$FFAE=1`, phase 0, immediate possession transfer) and the
 A-B path (`$FFAF=2`, phase 1/`$C16A=1`, then phase 2/release one update later).
 The native test exercises the same state transitions. Landing with the ball at
 the 67-frame action terminal remains traveling.
 
+## Shot-result coverage
+
+`ONE_ON_ONE_SHOT_RESULT_COVERAGE.json` fixes this area at 12 equal
+requirements. The audited pre-fix state was **9/12 (75.00%)**: distance,
+profile, table bytes, planar vectors, gravity, contact cells, and miss response
+were present, but the live record selector, record-coupled release height, and
+an end-to-end native scene make were missing. They are now **12/12 (100.00%)**.
+
 ## Known deviations
 
 The scoped launch/contact path is verified, but complete gameplay parity is not:
 
-- human directional/action-to-launch-index coverage is still limited to the traced neutral index and the recovered phase paths;
 - player collision penalties and unrelated `$7170` branches remain unmapped;
 - `$1CED` presentation/effect sequencing and branches belonging to other game modes remain outside this One-on-One claim.
 

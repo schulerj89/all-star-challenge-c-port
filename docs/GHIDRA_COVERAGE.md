@@ -14,6 +14,12 @@ The strict project milestone tracker is currently **10/25 (40.00%)**, increased 
 
 The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, defensive jumps, post-contact recovery, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
 
+The focused One-on-One shot-result audit is **12/12 (100.00%)**, up from the
+newly audited **9/12 (75.00%)** baseline. The corrected path couples `$6A8C`
+record `+$03`, `$6C4D/$7F37` release height, `$7C58` arc selection, `$7BE8`
+flight, and fixed `$1CED->$1E0E`; both a live cartridge make and a native-scene
+make are asserted.
+
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
 ## Scope
@@ -112,7 +118,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
-| Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, 32/64-frame launch vectors and tables, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes and upstream accuracy/point selection remain incomplete. |
+| Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, live animation-record arc selection, record-coupled release height, 32/64-frame vectors, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes remain incomplete. |
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
 | CPU AI | Yes | Scoped One-on-One behavior | The prior target/shot/steal/contest/RNG paths plus `$75CD` owner reroute/fourteenth-contact shot and defender ten-count saved-position hold are integrated; unrelated `$7170` states remain incomplete. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
@@ -138,7 +144,7 @@ No whole subsystem should currently be labeled 100% ROM-equivalent; the
 | P1 | H-O-R-S-E | Store the called shot, require a matching attempt, apply letters to the matching player, support CPU/human turns, and end the game. |
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
-| P1 | Physics | One-on-One launch/contact/bounce is covered; recover the upstream `$FFD7` 2/3-point selector and accuracy-to-launch-index logic, then extend equivalent evidence to other modes. |
+| P1 | Physics | One-on-One launch/contact/bounce, `$FFD7` 2/3-point selection, and `$6A8C` timing-to-launch-index logic are covered; extend equivalent evidence to other modes. |
 | P1 | AI | One-on-One targets, profile/skill shot selection, steal thresholds, contest gating, and `$75CD` contact response are covered; recover unrelated remaining `$7170` states. |
 | Complete | Focused One-on-One animation/assets | Directional records, direct movement, verified no-contact-hit/no-pickup-action behavior, eight-phase ball/shadow OAM, player composition, and court/player/ball extraction are covered. |
 | P1 | Audio sequencing | Recover the bank-0 audio command interpreter, song/SFX tables, channel timing, pitch, envelope, and event mappings. |

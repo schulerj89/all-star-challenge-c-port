@@ -319,7 +319,7 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     uint32_t roster_index = shooter == 1
         ? game->selected_player_1 : game->selected_player_2;
     int point_value;
-    uint8_t launch_index = shooter == 1 ? 2 : data->ai.rom_action_index;
+    uint8_t launch_index;
     float release_x = player->x;
     float release_y = player->y;
     float release_z = ALLSTAR_BALL_RELEASE_HEIGHT;
@@ -332,6 +332,13 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
         player->x, player->y);
     AllStarOneOnOneReleaseOffset release_offset;
+
+    if (shooter == 1 && shot_phase == 0) {
+        launch_index = allstar_one_on_one_rom_shot_record_index(
+            data->shot_attempt.rom_elapsed_frames);
+    } else {
+        launch_index = data->ai.rom_action_index;
+    }
 
     player->has_ball = false;
     player->is_shooting = true;
@@ -346,6 +353,10 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         release_z = (float)allstar_one_on_one_rom_release_height(
             (int)player->y - 48, (int)player->y, shot_phase,
             release_offset.height_offset);
+    }
+    if (shot_phase == 0) {
+        release_z = (float)allstar_one_on_one_rom_shot_release_height(
+            launch_index);
     }
     if (shooter == 1) {
         data->p1_shot_action = shot_action;

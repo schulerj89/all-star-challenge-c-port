@@ -273,7 +273,7 @@
       "status": "candidate",
       "native_symbol": "allstar_physics_apply_rom_court_contacts",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native code ports the One-on-One outer-boundary, y<$5C return, exact score window, rim/backboard impulses, cooldown, and normal/$FFD4 bounce branches. Whole-routine credit remains withheld because non-One-on-One mode/effect branches are incomplete."
+      "note": "Native code ports the One-on-One outer-boundary, y<$5C return, exact score window, rim/backboard impulses, cooldown, and normal/$FFD4 bounce branches. Mesen and native launched trajectories now reach the $1E0E make branch; whole-routine credit remains withheld because non-One-on-One mode/effect branches are incomplete."
     },
     "rom_b00_1f4d": {
       "status": "verified",
@@ -351,25 +351,25 @@
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "One-on-One launch ports $07B4/$7EC4 distance classes, $2F40 profiles, all five-by-twelve vertical tables, $7EA9 32/64-frame vectors, and the $7F0A phase path. Whole-routine credit remains withheld for other mode/player-state branches."
+      "note": "One-on-One launch ports $07B4/$7EC4 distance classes, $2F40 player +$18 profiles, live $6A8C +$03 record selection, all five-by-twelve vertical tables, $7EA9 32/64-frame vectors, and the $7F0A phase path. Mesen proves the normal launched make; whole-routine credit remains withheld for other modes."
     },
     "rom_b01_7be8": {
       "status": "candidate",
       "native_symbol": "allstar_physics_update_ball",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native flight uses an exact 8.8 helper for the recovered pre-integration $000F gravity, low-height planar +/-2 friction, and three pair updates. Full launch/contact state and emulator traces remain missing."
+      "note": "Native flight uses an exact 8.8 helper for pre-integration $000F gravity, low-height planar +/-2 friction, and three pair updates. A Mesen/native launched-make comparison now covers the complete 64-step One-on-One result route; other-mode whole-routine behavior remains outside this mapping."
     },
     "rom_b01_7ea9": {
       "status": "candidate",
       "native_symbol": "allstar_physics_shoot_ball",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native One-on-One launch uses the recovered class-zero signed displacement <<3 and class-one-through-four <<2 vectors, covered by exact raw-state boundary and 64-frame endpoint tests."
+      "note": "Native One-on-One launch uses the recovered class-zero signed displacement <<3 and class-one-through-four <<2 vectors, covered by exact raw-state boundary, 64-frame endpoint, and Mesen launched-make tests."
     },
     "rom_b01_7f37": {
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "Exact action/facing/phase/variant offset selection, position-derived variant input, and the +$05/+$15 release-height coordinate calculation are ported and boundary-tested; complete launch/contact state and emulator traces remain missing."
+      "note": "Exact action/facing/phase/variant offsets and +$05/+$15 height composition are ported. The normal path now couples $6C4D lift to live $6A8C +$03 timing; Mesen proves Z=$40 at the captured make release. Other-mode whole-routine behavior remains outside this mapping."
     },
     "rom_b00_28e1": {
       "status": "verified",

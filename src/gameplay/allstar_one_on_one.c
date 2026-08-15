@@ -1,5 +1,6 @@
 #include "allstar_one_on_one.h"
 #include <string.h>
+#include <math.h>
 
 /* ROM $28E1: compare the two unsigned 16-bit score words. */
 int allstar_one_on_one_compare_scores(uint16_t p1_score, uint16_t p2_score) {
@@ -410,6 +411,40 @@ uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index) {
         if (roster_index == profile_one[i]) return 1;
     }
     return 2;
+}
+
+/* $6C90 starts player +$03 at zero. On the gather frame $6A8C loads the
+   first three-byte animation record and increments +$03 to one. $702D runs
+   before the following $6A8C tick, so a release sees the loaded-record
+   pointer: records 0..5 last six frames, record 6 lasts one frame, and the
+   remaining records last six frames. */
+uint8_t allstar_one_on_one_rom_shot_record_index(uint16_t elapsed_frames) {
+    static const uint8_t durations[12] = {
+        6, 6, 6, 6, 6, 6, 1, 6, 6, 6, 6, 6
+    };
+    uint8_t record_index = 1;
+    while (record_index < 12 &&
+           elapsed_frames > durations[record_index - 1]) {
+        elapsed_frames = (uint16_t)(
+            elapsed_frames - durations[record_index - 1]);
+        record_index++;
+    }
+    return record_index;
+}
+
+/* At each normal record boundary $6A8C adds signed $6C4D[+$03] to player
+   visual Y (+$05). Combined with the held-shot $7F37 offset, the ball's
+   base release height is $26 and follows this exact twelve-record lift.
+   The argument is the already-incremented +$03 pointer observed by $7C58. */
+uint8_t allstar_one_on_one_rom_shot_release_height(uint8_t record_index) {
+    static const uint8_t lift[12] = {
+        0, 9, 16, 21, 24, 26, 26, 24, 19, 12, 4, 0
+    };
+    uint8_t lift_index;
+    if (record_index == 0) record_index = 1;
+    if (record_index > 12) record_index = 12;
+    lift_index = (uint8_t)(record_index - 1);
+    return (uint8_t)(0x26 + lift[lift_index]);
 }
 
 /* $7C58 indexes profile -> distance class -> the twelve-entry player-pose
@@ -887,6 +922,12 @@ uint32_t allstar_one_on_one_shot_input(AllStarOneOnOneShotAttempt *attempt,
 
     if (attempt->phase == ALLSTAR_ONE_ON_ONE_SHOT_GATHER &&
         attempt->shooter == player) {
+        /* The live cartridge no longer reaches $7C58 once $6A8C has loaded
+           pointer $0C (observed from release delay 62 onward). Keep those
+           terminal frames in the gather until the traveling transition. */
+        if (attempt->rom_elapsed_frames >= 62) {
+            return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+        }
         if (a_pressed && attempt->rom_phase == 0) {
             attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
             return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE;
@@ -917,6 +958,9 @@ uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
     }
 
     attempt->gather_clock -= dt;
+    attempt->rom_elapsed_frames = (uint16_t)lroundf(
+        (ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS - attempt->gather_clock) *
+        60.0f);
     if (attempt->gather_clock > 0.0f) {
         return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
     }

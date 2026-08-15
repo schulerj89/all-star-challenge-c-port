@@ -69,3 +69,9 @@ also verifies live `$7F37` held-ball X/Y/Z against the owning player frame,
 then exercises `$6945->$69F5` across all three shadow-height bands. Require
 exit code `0` and `TRACE PASSED: One-on-One assets, $7F37 held ball, and
 $6945/$69F5 OAM`.
+
+`trace_one_on_one_shot_results.lua` releases on the cartridge's recovered
+make record and asserts the complete result path: `$6A8C` player `+$03/+$18`,
+`$7F37` release height, `$7C58` class/vector/VZ, and fixed
+`$1CED->$1E0E` at `X/Y/Z=$54/$5C/$38`. Require exit code `0` and
+`TRACE PASSED: $6A8C/$7F37/$7C58/$1CED launched make`.

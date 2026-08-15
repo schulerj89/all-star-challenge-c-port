@@ -198,6 +198,15 @@ int allstar_cli_test_physics(void) {
         allstar_one_on_one_rom_shot_profile(2) != 0 ||
         allstar_one_on_one_rom_shot_profile(25) != 1 ||
         allstar_one_on_one_rom_shot_profile(0) != 2 ||
+        allstar_one_on_one_rom_shot_record_index(6) != 1 ||
+        allstar_one_on_one_rom_shot_record_index(7) != 2 ||
+        allstar_one_on_one_rom_shot_record_index(36) != 6 ||
+        allstar_one_on_one_rom_shot_record_index(37) != 7 ||
+        allstar_one_on_one_rom_shot_record_index(38) != 8 ||
+        allstar_one_on_one_rom_shot_release_height(1) != 0x26 ||
+        allstar_one_on_one_rom_shot_release_height(2) != 0x2f ||
+        allstar_one_on_one_rom_shot_release_height(7) != 0x40 ||
+        allstar_one_on_one_rom_shot_release_height(8) != 0x3e ||
         allstar_one_on_one_rom_shot_vertical_velocity(0, 3, 2) != 0x0198 ||
         allstar_one_on_one_rom_shot_vertical_velocity(2, 0, 7) != 0x00f0 ||
         allstar_one_on_one_rom_shot_vertical_velocity(25, 4, 7) != 0x01b4) {
@@ -219,6 +228,48 @@ int allstar_cli_test_physics(void) {
     if (ball.rom_step_state.x != 0x5400 ||
         ball.rom_step_state.y != 0x5c00) {
         fprintf(stderr, "[Test] $7EA9 class-three vector did not reach $54/$5C at frame 64\n");
+        return 1;
+    }
+
+    /* Live Mesen trace: a 37-frame release reads player +$03=$07,
+       composes Z=$40 through $6A8C->$6C4D->$7F37, selects VZ=$01C8 in
+       $7C58, and reaches $1CED's $54/$5C/$38 score cell. This exercises
+       launch, all 64 $7BE8 integrations, and the actual contact dispatcher. */
+    allstar_physics_shoot_ball_rom_7c58(
+        &ball, 83.0f, 150.0f,
+        (float)allstar_one_on_one_rom_shot_release_height(7),
+        84.0f, 92.0f, 3,
+        allstar_one_on_one_rom_shot_vertical_velocity(0, 3, 7),
+        0, 1, 2);
+    contacts = ALLSTAR_BALL_CONTACT_NONE;
+    for (frame = 0; frame < 64; frame++) {
+        allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+        contacts = allstar_physics_apply_rom_court_contacts(&ball);
+        if (contacts & ALLSTAR_BALL_CONTACT_SCORE) break;
+    }
+    if (!(contacts & ALLSTAR_BALL_CONTACT_SCORE) || !ball.made_basket ||
+        ball.rom_step_state.x != 0x5400 ||
+        ball.rom_step_state.y != 0x5c00 ||
+        (ball.rom_step_state.z >> 8) != 0x38) {
+        fprintf(stderr,
+                "[Test] $6A8C/$7F37/$7C58 launched make did not reach $1CED score state\n");
+        return 1;
+    }
+
+    allstar_physics_shoot_ball_rom_7c58(
+        &miss, 83.0f, 150.0f,
+        (float)allstar_one_on_one_rom_shot_release_height(2),
+        84.0f, 92.0f, 3,
+        allstar_one_on_one_rom_shot_vertical_velocity(0, 3, 2),
+        0, 1, 2);
+    contacts = ALLSTAR_BALL_CONTACT_NONE;
+    for (frame = 0; frame < 90; frame++) {
+        allstar_physics_update_ball(&miss, ALLSTAR_PHYSICS_STEP_SECONDS);
+        contacts = allstar_physics_apply_rom_court_contacts(&miss);
+        if (contacts & ALLSTAR_BALL_CONTACT_SCORE) break;
+    }
+    if ((contacts & ALLSTAR_BALL_CONTACT_SCORE) || miss.made_basket) {
+        fprintf(stderr, "[Test] Early $7C58 release incorrectly scored\n");
         return 1;
     }
 
@@ -1163,6 +1214,18 @@ int allstar_cli_test_one_on_one_shooting(void) {
 
     allstar_one_on_one_shot_reset(&attempt);
     allstar_one_on_one_shot_press(&attempt, 1);
+    allstar_one_on_one_shot_tick(&attempt, 62.0f / 60.0f);
+    if (attempt.rom_elapsed_frames != 62 ||
+        allstar_one_on_one_shot_press(&attempt, 1) !=
+            ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER) {
+        fprintf(stderr,
+                "[Test] $6A8C pointer-$0C terminal frame incorrectly launched\n");
+        return 1;
+    }
+
+    allstar_one_on_one_shot_reset(&attempt);
+    allstar_one_on_one_shot_press(&attempt, 1);
     events = allstar_one_on_one_shot_tick(
         &attempt, (ALLSTAR_ONE_ON_ONE_SHOT_GATHER_FRAMES - 1) / 60.0f);
     if (events != ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
@@ -1501,6 +1564,40 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_game_shutdown(&game);
         return 1;
     }
+
+    /* End-to-end native scene proof: for roster profile zero at the reset
+       class-one location, pointer 5 couples Z=$3E with table VZ=$01D4 and
+       enters $1CED's live score branch. The cartridge trace uses pointer 7
+       at its class-three location, demonstrating that the make timing is a
+       profile/distance/record state, not one universal release frame. */
+    srand(1);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < 25; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < 120 && game.one_on_one.p1_score == 0; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (game.one_on_one.p1_score != 2 || game.one_on_one.p1_possession ||
+        allstar_one_on_one_rom_shot_record_index(25) != 5) {
+        fprintf(stderr,
+                "[Test] Timed native scene shot did not score through $7C58->$7BE8->$1CED "
+                "(score=%u possession=%d frame=%d)\n",
+                (unsigned)game.one_on_one.p1_score,
+                game.one_on_one.p1_possession ? 1 : 0, frame);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    printf("  Timed scene make: release frame 25 (ROM record $%02X)\n",
+           allstar_one_on_one_rom_shot_record_index(25));
 
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
     game.roster.players[2].shooting_3pt = 0;

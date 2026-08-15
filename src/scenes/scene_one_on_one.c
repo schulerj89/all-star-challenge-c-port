@@ -342,6 +342,7 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     allstar_ai_set_skill(&data->ai, game->settings.skill_level);
     allstar_ai_set_rom_profile(
         &data->ai, (uint8_t)game->selected_player_2);
+    allstar_rom_rng_init(&game->one_on_one_rng, 0x0018);
 
     allstar_audio_stop_bgm(&game->audio);
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
@@ -448,7 +449,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         }
     }
 
-    allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball, dt);
+    allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball,
+                      allstar_rom_rng_current(&game->one_on_one_rng), dt);
     if (data->ai.rom_steal_pressed &&
         one_on_one_try_steal(data, game, 2)) {
         return;

@@ -2,7 +2,7 @@
 
 This directory contains the bank-aware headless Ghidra recovery/export scripts and an optional HTTP/MCP bridge helper for reverse engineering the Game Boy ROM.
 
-The current setup maps and verifies all four banks correctly and validates 97 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
+The current setup maps and verifies all four banks correctly and validates 100 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
 
 ## Verified Cartridge Layout
 
@@ -46,8 +46,8 @@ It also writes and validates:
 ### Current result and limitations
 
 - `setup_banked_rom.py` constructs and byte-verifies overlays for physical banks 1–3.
-- `recover_banked_functions.py` creates and decompiles 97 checked-in seeds: bank 0 = 43, bank 1 = 46, bank 2 = 8.
-- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (110 functions in the current run).
+- `recover_banked_functions.py` creates and decompiles 100 checked-in seeds: bank 0 = 45, bank 1 = 47, bank 2 = 8.
+- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (113 functions in the current run).
 - Stable names preserve physical bank identity, for example `rom_b02_4000`.
 - Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout.
 - Bank 3 has no reviewed function seeds; observed references currently use it as an asset-copy source.

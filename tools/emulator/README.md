@@ -34,3 +34,9 @@ contact while `$FFF8=1`, then accepts the same post-contact recovery after the
 flag clears. Run it by substituting that filename for the script in the command
 above; exit code `0` and `TRACE PASSED: $2B14 steal and $2B6C/$2B88 live-shot
 lock` are required.
+
+`trace_one_on_one_rng.lua` resolves the fixed-bank `$0714/$072F` generator
+used by One-on-One. It asserts the first 32 gameplay-frame values of `$FFFB`,
+records the writer PC and `$702D/$74BB/$75CD` consumers, and verifies that the
+stream advances every other frame. Run it with the same command and require
+exit code `0` plus `TRACE PASSED: $FFFB writer and 32 One-on-One frame values`.

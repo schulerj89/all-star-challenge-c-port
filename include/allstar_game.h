@@ -9,6 +9,7 @@
 #include "allstar_audio.h"
 #include "allstar_scene.h"
 #include "allstar_one_on_one.h"
+#include "allstar_rng.h"
 
 typedef enum {
     ALLSTAR_MODE_ONE_ON_ONE = 0,
@@ -54,6 +55,7 @@ typedef struct AllStarGame {
     AllStarGameMode selected_mode;
     AllStarGameSettings settings;
     AllStarOneOnOneMatch one_on_one;
+    AllStarRomRng one_on_one_rng;
     AllStarTournamentState tournament;
     float one_on_one_shot_clock_seconds;
     int last_match_winner;

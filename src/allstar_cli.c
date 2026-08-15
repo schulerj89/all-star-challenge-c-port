@@ -4,6 +4,7 @@
 #include "allstar_roster.h"
 #include "allstar_physics.h"
 #include "allstar_ai.h"
+#include "allstar_rng.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -697,8 +698,31 @@ int allstar_cli_test_one_on_one_shooting(void) {
     float court_x;
     float court_y;
     int frame;
+    AllStarRomRng rng;
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
+
+    /* Ghidra $0714/$072F plus the Mesen $FFFB trace: the low-byte stream
+       holds for two frames and then follows 18,03,46,A1,D4,9F... */
+    allstar_rom_rng_init(&rng, 0x0c18);
+    if (allstar_rom_rng_current(&rng) != 0x18 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x18 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x03 ||
+        rng.seed != 0x6d03 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x03 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x46 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x46 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0xa1 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0xa1 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0xd4 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0xd4 ||
+        allstar_rom_rng_end_frame_0714(&rng, 0, 0) != 0x9f ||
+        allstar_rom_rng_step_072f(0x00ff, 0x01, 0x02) != 0x0925 ||
+        allstar_rom_bcd_byte(59) != 0x59 ||
+        allstar_rom_bcd_byte(7) != 0x07) {
+        fprintf(stderr, "[Test] $0714/$072F shared frame RNG stream was incorrect\n");
+        return 1;
+    }
 
     if (allstar_one_on_one_rom_point_value(18.0f, 92.0f) != 3 ||
         allstar_one_on_one_rom_point_value(19.0f, 92.0f) != 2 ||

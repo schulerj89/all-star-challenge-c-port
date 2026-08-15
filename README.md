@@ -18,9 +18,10 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
-| Ghidra-to-C routine coverage | 6/97 verified | 97 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$0A78`, `$1F4D`, `$28E1`, `$2B14`, and `$2B6C` are narrowly verified, 25 mappings remain candidates, and 66 are unmapped. |
+| Ghidra-to-C routine coverage | 8/100 verified | 100 reviewed bank-aware functions recover and decompile cleanly; exact `$0714/$072F` RNG joins six earlier narrow mappings, 26 mappings remain candidates, and 66 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. Broader collision reactions, presentation, assets, and frame parity remain outside this focused denominator. |
+| Remaining One-on-One focus | 44.00% | 22 of 50 fixed RNG/animation-asset/collision-reaction requirements: RNG 10/10, animation/assets 4/20, collision/reaction 8/20. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -34,6 +35,7 @@ The focused One-on-One parity denominator is reported separately:
 
 ```powershell
 python tools\check_one_on_one_coverage.py
+python tools\check_one_on_one_remaining_coverage.py
 ```
 
 For future commit decisions, compare the working tree with the currently committed manifest:

@@ -59,15 +59,15 @@ Banks 2 and 3 must not be analyzed as CPU addresses `$8000..$FFFF`; those ranges
 
 ### Current Ghidra result
 
-The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for physical banks 1, 2, and 3, then recovers a conservative seed set rather than sweeping unknown data as code. The validated inventory contains 94 functions that all create and decompile successfully:
+The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for physical banks 1, 2, and 3, then recovers a conservative seed set rather than sweeping unknown data as code. The validated inventory contains 100 functions that all create and decompile successfully:
 
-- 40 fixed-bank functions in bank 0;
-- 46 functions in bank 1's coherent `$6945..$7FFF` gameplay region;
+- 45 fixed-bank functions in bank 0;
+- 47 functions in bank 1's coherent `$6945..$7FFF` gameplay region;
 - 8 functions in bank 2's reviewed `$4000..$42A1` code region.
 
-The generated C listing contains 107 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
+The generated C listing contains 113 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
 
-`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 70 functions as unmapped, 21 as candidate native analogues, and three as verified for narrowly tested behavior.
+`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 66 functions as unmapped, 26 as candidate native analogues, and eight as verified for narrowly tested behavior.
 
 ### Current `mgbdis` result
 
@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **35/50 (70.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
+One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **22/50 (44.00%)** overall, comprising RNG **10/10**, animation/assets **4/20**, and collision/reaction **8/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
 
 ## 4. Current Native Architecture
 
@@ -102,7 +102,8 @@ One-on-One work also has a fixed 50-requirement scoped denominator in `docs/pari
 | `src/allstar_game.c` | Scene ownership and per-frame orchestration | Implemented structurally; not tied to ROM dispatcher states. |
 | `src/scenes/` | Intro, menu, settings, roster, and game-mode scenes | Broad scaffolding; most game-mode rules are partial. |
 | `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` uses exact 8.8 gravity/friction/integration operations; `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
-| `src/gameplay/allstar_ai.c` | Six-state generic CPU controller | Prototype substitute for ROM player/CPU state machines. |
+| `src/gameplay/allstar_ai.c` | CPU targets, decisions, defense, and shared ROM RNG consumption | Scoped One-on-One decisions are verified; collision branches and the rest of `$7170` remain incomplete. |
+| `src/gameplay/allstar_rng.c` | Fixed `$0714/$072F` shared-frame RNG and BCD entropy | Exact low-byte recurrence/cadence is Ghidra- and Mesen-verified. |
 | `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, overtime, possession, and staged shot state | High-level lifecycle is verified; staged shooting/traveling is partial pending exact ROM timing and physics traces. |
 | `src/allstar_renderer.c` | Software pixels, tiles, court, players, and ball | Functional; several assets are compiled headers rather than asset-pack data. |
 | `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Functional mixer; ROM sequencer and most sound events are missing. |
@@ -128,7 +129,7 @@ Input is updated by the Win32 host before this call.
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Lifecycle verified; rules partial | Scoring, shot-clock possession, rebounds, winners-outs, staged shooting/traveling, `$7F37` release offsets, ROM court limits/return, and 32-frame rim crossings exist; exact control timing, remaining contact gates, alternate launch tables, steals, blocks, and contests remain. |
+| One-on-One | Scoped gameplay 50/50; remaining focus 22/50 | Core rules, shooting, steals, contests, and recovery are verified. Exact RNG is now complete; remaining work is broad animation/asset extraction and player collision-reaction behavior. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |
@@ -157,7 +158,7 @@ The native port currently loads three BGM WAV files and two menu SFX WAV files. 
 | `--test-mode-routing` | All five ROM menu IDs reach the intended native scenes | Rules within those scenes. |
 | `--test-settings` | ROM defaults/value cycles persist and affect the relevant mode state | Full mode or presentation parity. |
 | `--test-one-on-one-lifecycle` | Endings, shot-clock turnover, overtime, result dismissal, exit, and tournament return | Detailed rules, physics, AI, or frame parity. |
-| `--test-one-on-one-shooting` | Gather/release, `$7F37` offset cases, clean scoring, returned-miss recovery, `$077D` pickup limits, traveling, and possession resets | Exact ROM control timing, full animation sequencing, jump-height state, alternate trajectories, accuracy tables, contests, or emulator frame parity. |
+| `--test-one-on-one-shooting` | Gather/release, `$7F37` offsets, exact `$0714/$072F` RNG recurrence/cadence, shot and defensive-jump records, steals, contests, ROM contacts, recovery gates, traveling, and possession resets | Remaining `$6A8C` action families, extracted animation art, player collision reactions, other modes, or full frame parity. |
 | `--test-tournament` | All seven bracket matches propagate valid winners through champion and exit | Roster-selection or pixel-level bracket presentation parity. |
 | `--test-headless-frames` | Seven scenes can tick and draw without crashing | Input flow, rules, results, visual parity, or completion. |
 

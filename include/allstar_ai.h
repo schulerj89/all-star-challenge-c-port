@@ -46,6 +46,9 @@ bool allstar_ai_rom_should_contest_71ee(float cpu_x, float cpu_y,
 bool allstar_ai_rom_should_steal_71b3(uint8_t skill_level,
                                      uint8_t random_byte,
                                      bool ball_contact);
-void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt);
+void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
+                       const AllStarPlayerState *human,
+                       const AllStarBall *ball, uint8_t rom_random_byte,
+                       float dt);
 
 #endif /* ALLSTAR_AI_H */

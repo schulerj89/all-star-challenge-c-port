@@ -263,10 +263,25 @@ void allstar_game_change_scene(AllStarGame *game, AllStarSceneId scene_id) {
 }
 
 void allstar_game_tick(AllStarGame *game, float dt) {
+    bool tick_one_on_one_rng;
     if (!game || !game->is_running) return;
+
+    tick_one_on_one_rng = game->active_scene &&
+        game->active_scene->id == ALLSTAR_SCENE_ONE_ON_ONE &&
+        game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_PLAYING;
 
     if (game->active_scene && game->active_scene->update) {
         game->active_scene->update(game->active_scene, game, &game->input, dt);
+    }
+
+    /* The cartridge calls $0714 at $0B68 after the per-frame gameplay work,
+       including paths that return early from the mode controller. */
+    if (tick_one_on_one_rng) {
+        allstar_rom_rng_end_frame_0714(
+            &game->one_on_one_rng,
+            allstar_rom_bcd_byte((uint8_t)game->one_on_one.p1_score),
+            allstar_rom_bcd_byte(
+                (uint8_t)((int)game->one_on_one.game_clock % 60)));
     }
 
     allstar_audio_update(&game->audio, dt);

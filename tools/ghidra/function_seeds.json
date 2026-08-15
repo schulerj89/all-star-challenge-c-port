@@ -14,7 +14,7 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "050f",
-        "053c", "06c0", "0749", "077d", "0a78", "0b35", "0b80", "0b9a", "10a5",
+        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0b35", "0b80", "0b9a", "10a5",
         "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
         "28e1", "2ae2", "2b14", "2b6c", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
@@ -26,7 +26,7 @@
       "space": "ROM_BANK_1",
       "basis": "Direct call/jump targets in the coherent $6945-$7fff gameplay code region; earlier generated labels remain excluded as data false positives.",
       "addresses": [
-        "6945", "69f5", "6bad", "6bba", "6bc7", "6bd4", "6c59",
+        "6945", "69f5", "6a8c", "6bad", "6bba", "6bc7", "6bd4", "6c59",
         "6c90", "6c9b", "6ca2", "6cab", "6d57", "6e1b", "6e3c",
         "6ec0", "6eea", "6ff3", "7015", "702d", "714d", "7170",
         "74bb", "75cd", "761b", "7712", "7721", "772d",
@@ -53,6 +53,24 @@
     }
   ],
   "native_mappings": {
+    "rom_b00_0714": {
+      "status": "verified",
+      "native_symbol": "allstar_rom_rng_end_frame_0714",
+      "source": "src/gameplay/allstar_rng.c",
+      "note": "Exact every-other-frame $FFFB cadence and shared consumer byte are asserted by the 32-frame Mesen trace and native deterministic tests."
+    },
+    "rom_b00_072f": {
+      "status": "verified",
+      "native_symbol": "allstar_rom_rng_step_072f",
+      "source": "src/gameplay/allstar_rng.c",
+      "note": "Exact seed*9+$002B recurrence, low-byte $C133/$C0B6 additions without high-byte carry, and traced low-byte sequence are deterministic-tested."
+    },
+    "rom_b01_6a8c": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_shot_animation_frame",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The native helper verifies the action $0A/$12 shot-record subset and phase overrides; movement, dribble, collision-reaction, and other action families remain unported, so whole-dispatcher credit is withheld."
+    },
     "rom_b00_0100": {
       "status": "candidate",
       "native_symbol": "allstar_game_init",

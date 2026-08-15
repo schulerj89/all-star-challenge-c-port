@@ -1,7 +1,6 @@
 #include "allstar_ai.h"
 #include "allstar_one_on_one.h"
 #include <math.h>
-#include <stdlib.h>
 #include <string.h>
 
 void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats) {
@@ -108,7 +107,10 @@ bool allstar_ai_rom_should_steal_71b3(uint8_t skill_level,
     return random_byte < thresholds[skill_level - 1];
 }
 
-void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt) {
+void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
+                       const AllStarPlayerState *human,
+                       const AllStarBall *ball, uint8_t rom_random_byte,
+                       float dt) {
     if (!ai || !cpu || !human || !ball) return;
 
     ai->rom_steal_pressed = false;
@@ -123,13 +125,12 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
             ai->rom_action_index = distance_class < 3
                 ? (uint8_t)(4 + distance_class) : 7;
             allstar_ai_rom_offense_target_72ea(
-                (uint8_t)cpu->x, (uint8_t)(rand() & 0xff),
+                (uint8_t)cpu->x, rom_random_byte,
                 &ai->rom_target_x, &ai->rom_target_y);
             if (allstar_ai_rom_should_shoot_756c(
                     ai->rom_shot_profile, distance_class,
                     ai->rom_action_index, ai->rom_skill_level,
-                    (uint8_t)(rand() & 0xff),
-                    (uint8_t)(rand() & 0xff))) {
+                    rom_random_byte, rom_random_byte)) {
                 ai->state = ALLSTAR_AI_STATE_PULL_UP_JUMPER;
             } else {
                 ai->state = ALLSTAR_AI_STATE_DRIVE_TO_HOOP;
@@ -140,7 +141,7 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
             /* Defensive logic */
             ai->state = ALLSTAR_AI_STATE_DEFEND_PERIMETER;
             ai->rom_steal_pressed = allstar_ai_rom_should_steal_71b3(
-                ai->rom_skill_level, (uint8_t)(rand() & 0xff),
+                ai->rom_skill_level, rom_random_byte,
                 allstar_one_on_one_player_can_pick_up_ball(
                     cpu->x,
                     cpu->y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,

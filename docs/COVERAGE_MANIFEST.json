@@ -128,7 +128,7 @@
       "id": "behavior.physics",
       "group": "gameplay",
       "description": "Shot, rim, backboard, bounce, and rebound physics are verified against ROM traces.",
-      "status": "scaffolded"
+      "status": "partial"
     },
     {
       "id": "behavior.ai",

@@ -14,10 +14,10 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "050f",
-        "053c", "06c0", "0749", "0b35", "0b80", "0b9a", "10a5",
-        "10ad", "10fa", "1638", "1f7a", "1fe1", "1ffa",
+        "053c", "06c0", "0749", "077d", "0b35", "0b80", "0b9a", "10a5",
+        "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
-        "28e1", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
+        "28e1", "2ae2", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2f88", "3014"
       ]
     },
@@ -125,11 +125,59 @@
       "source": "src/scenes/scene_settings.c",
       "note": "Mode-specific settings editor analogue with recovered value cycles and complementary Accuracy position flags."
     },
+    "rom_b00_077d": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_player_can_pick_up_ball",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact strict |x|<12 and |y|<8 loose-ball collision limits are covered by deterministic boundary tests."
+    },
+    "rom_b00_1ced": {
+      "status": "candidate",
+      "native_symbol": "allstar_physics_apply_rom_court_contacts",
+      "source": "src/gameplay/allstar_physics.c",
+      "note": "Native code ports the exact outer-boundary and y<$5C return branches; rim, backboard, and bounce branches remain incomplete."
+    },
+    "rom_b00_1f4d": {
+      "status": "verified",
+      "native_symbol": "allstar_physics_apply_rom_court_contacts",
+      "source": "src/gameplay/allstar_physics.c",
+      "note": "Exact semantic counterpart zeroes both planar velocity components at the recovered boundary and is covered by deterministic tests."
+    },
+    "rom_b00_2ae2": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_update",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Loose-ball recovery analogue uses the recovered collision helper and possession reset distinction; the ROM's cooldown and flight-state gates remain incomplete."
+    },
     "rom_b01_6ca2": {
       "status": "candidate",
       "native_symbol": "three_point_init",
       "source": "src/scenes/scene_three_point.c",
       "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
+    },
+    "rom_b01_7c58": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_launch_shot",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Staged shot-launch analogue supported by the recovered shot/jump-state branch; exact fixed-point vectors, release offsets, and emulator/native traces remain missing."
+    },
+    "rom_b01_7be8": {
+      "status": "candidate",
+      "native_symbol": "allstar_physics_update_ball",
+      "source": "src/gameplay/allstar_physics.c",
+      "note": "Native flight uses the recovered 60 Hz integration order and $000F 8.8 vertical-velocity delta; byte-identical state traces and ROM contact behavior remain missing."
+    },
+    "rom_b01_7ea9": {
+      "status": "candidate",
+      "native_symbol": "allstar_physics_shoot_ball",
+      "source": "src/gameplay/allstar_physics.c",
+      "note": "Native normal launch reaches its target in 32 frames, matching the routine's signed displacement <<3 in 8.8 state; the alternate <<2 class remains unclassified."
+    },
+    "rom_b01_7f37": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_launch_shot",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Exact action/facing/phase/variant offset selection is ported and tested; the player jump-height field and byte-identical RAM coordinate calculation are not yet represented."
     },
     "rom_b00_28e1": {
       "status": "verified",

@@ -79,7 +79,9 @@ static void three_point_update(AllStarScene *scene, AllStarGame *game, const All
             AllStarVec2 rack = data->positions[data->current_rack];
             int pts = (data->ball_in_rack == 4) ? 2 : 1; /* Money ball = 2 pts */
 
-            allstar_physics_shoot_ball(&data->active_ball, rack.x, rack.y, 80.0f, 24.0f, 50.0f, 1, pts);
+            allstar_physics_shoot_ball(&data->active_ball, rack.x, rack.y,
+                                       80.0f, 24.0f,
+                                       ALLSTAR_HOOP_HEIGHT, 1, pts);
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
 
             /* Timing window accuracy */

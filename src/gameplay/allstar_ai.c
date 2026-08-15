@@ -1,4 +1,5 @@
 #include "allstar_ai.h"
+#include "allstar_one_on_one.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,7 +61,8 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
             /* Stay tightly between human player and basket */
             float target_x = human->x;
             float target_y = human->y - 18.0f;
-            if (target_y < 88.0f) target_y = 88.0f;
+            if (target_y < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y)
+                target_y = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y;
 
             float dx = target_x - cpu->x;
             float dy = target_y - cpu->y;
@@ -110,8 +112,12 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
     }
 
     /* Court bounds clamping */
-    if (cpu->x < 20.0f) cpu->x = 20.0f;
-    if (cpu->x > 140.0f) cpu->x = 140.0f;
-    if (cpu->y < 88.0f) cpu->y = 88.0f;
-    if (cpu->y > 136.0f) cpu->y = 136.0f;
+    if (cpu->x < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X)
+        cpu->x = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X;
+    if (cpu->x > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X)
+        cpu->x = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X;
+    if (cpu->y < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y)
+        cpu->y = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y;
+    if (cpu->y > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y)
+        cpu->y = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y;
 }

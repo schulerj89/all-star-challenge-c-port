@@ -7,6 +7,28 @@
 #define ALLSTAR_ONE_ON_ONE_RESULT_SECONDS (ALLSTAR_ONE_ON_ONE_RESULT_FRAMES / 60.0f)
 #define ALLSTAR_ONE_ON_ONE_OVERTIME_FRAMES 240
 #define ALLSTAR_ONE_ON_ONE_OVERTIME_SECONDS (ALLSTAR_ONE_ON_ONE_OVERTIME_FRAMES / 60.0f)
+/* Provisional input window; the action-$0A/$12 table itself totals 67 frames. */
+#define ALLSTAR_ONE_ON_ONE_SHOT_GATHER_FRAMES 30
+#define ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS \
+    (ALLSTAR_ONE_ON_ONE_SHOT_GATHER_FRAMES / 60.0f)
+#define ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_FRAMES 67
+#define ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS \
+    (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_FRAMES / 60.0f)
+
+/* $077D compares these player reference coordinates to the loose ball. */
+#define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f
+#define ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS 8.0f
+
+/* Native player coordinates correspond to the ROM's collision references. */
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X 16.0f
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X 156.0f
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y 96.0f
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y 150.0f
+#define ALLSTAR_ONE_ON_ONE_HOOP_X 84.0f
+#define ALLSTAR_ONE_ON_ONE_HOOP_Y 92.0f
+
+#define ALLSTAR_ROM_SHOT_ACTION_A 0x0a
+#define ALLSTAR_ROM_SHOT_ACTION_B 0x12
 
 typedef enum {
     ALLSTAR_ONE_ON_ONE_PLAYING = 0,
@@ -27,8 +49,34 @@ typedef enum {
     ALLSTAR_ONE_ON_ONE_EVENT_RESULT = (1 << 1),
     ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME = (1 << 2),
     ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE = (1 << 3),
-    ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME_NOTICE = (1 << 4)
+    ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME_NOTICE = (1 << 4),
+    ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING = (1 << 5)
 } AllStarOneOnOneEvent;
+
+typedef enum {
+    ALLSTAR_ONE_ON_ONE_SHOT_IDLE = 0,
+    ALLSTAR_ONE_ON_ONE_SHOT_GATHER,
+    ALLSTAR_ONE_ON_ONE_SHOT_RELEASED
+} AllStarOneOnOneShotPhase;
+
+typedef enum {
+    ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE = 0,
+    ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER = (1 << 0),
+    ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE = (1 << 1),
+    ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING = (1 << 2)
+} AllStarOneOnOneShotEvent;
+
+typedef struct {
+    AllStarOneOnOneShotPhase phase;
+    int shooter;
+    float gather_clock;
+} AllStarOneOnOneShotAttempt;
+
+typedef struct {
+    int x_offset;
+    int ground_y_offset;
+    int height_offset;
+} AllStarOneOnOneReleaseOffset;
 
 typedef struct {
     uint16_t p1_score;
@@ -63,6 +111,23 @@ void allstar_one_on_one_match_reset_shot_clock(AllStarOneOnOneMatch *match);
 void allstar_one_on_one_match_take_possession(AllStarOneOnOneMatch *match,
                                               int player,
                                               bool reset_shot_clock);
+uint32_t allstar_one_on_one_match_call_traveling(AllStarOneOnOneMatch *match,
+                                                 int player);
+bool allstar_one_on_one_rom_release_offset(
+    uint8_t action,
+    uint8_t shot_phase,
+    uint8_t shot_variant,
+    bool facing_left,
+    AllStarOneOnOneReleaseOffset *offset);
+bool allstar_one_on_one_player_can_pick_up_ball(float player_x,
+                                                float player_y,
+                                                float ball_x,
+                                                float ball_y);
+void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt);
+uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
+                                       int player);
+uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
+                                      float dt);
 int allstar_one_on_one_next_possession_after_score(
     const AllStarOneOnOneMatch *match,
     int shooter);

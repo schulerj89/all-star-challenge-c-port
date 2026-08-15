@@ -78,6 +78,114 @@ void allstar_one_on_one_match_take_possession(AllStarOneOnOneMatch *match,
     if (reset_shot_clock) match->shot_clock = match->shot_clock_seconds;
 }
 
+uint32_t allstar_one_on_one_match_call_traveling(AllStarOneOnOneMatch *match,
+                                                 int player) {
+    int defender;
+    if (!match || match->phase != ALLSTAR_ONE_ON_ONE_PLAYING ||
+        (player != 1 && player != 2) || match->p1_possession != (player == 1)) {
+        return ALLSTAR_ONE_ON_ONE_EVENT_NONE;
+    }
+
+    defender = player == 1 ? 2 : 1;
+    allstar_one_on_one_match_take_possession(match, defender, true);
+    return ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING;
+}
+
+bool allstar_one_on_one_rom_release_offset(
+    uint8_t action,
+    uint8_t shot_phase,
+    uint8_t shot_variant,
+    bool facing_left,
+    AllStarOneOnOneReleaseOffset *offset) {
+    static const int8_t phase_offsets[3][2][2] = {
+        {{ 8,  0}, {20, -2}},
+        {{ 8, -1}, { 8,  1}},
+        {{ 7,  0}, {-5, -2}}
+    };
+    static const int8_t held_offsets[2][2][2] = {
+        {{7, -2}, {10, -2}},
+        {{7, -2}, {10, -2}}
+    };
+    int action_index;
+    int facing_index;
+
+    if (!offset) return false;
+    if (action == ALLSTAR_ROM_SHOT_ACTION_A) action_index = 0;
+    else if (action == ALLSTAR_ROM_SHOT_ACTION_B) action_index = 1;
+    else return false;
+
+    if (shot_phase == 0) {
+        facing_index = facing_left ? 1 : 0;
+        offset->x_offset = held_offsets[action_index][facing_index][0];
+        offset->height_offset = held_offsets[action_index][facing_index][1];
+        offset->ground_y_offset = -2;
+        return true;
+    }
+
+    if (shot_phase > 2 || shot_variant > 2) return false;
+    offset->x_offset = phase_offsets[shot_variant][shot_phase - 1][0];
+    offset->height_offset = phase_offsets[shot_variant][shot_phase - 1][1];
+    offset->ground_y_offset = -4;
+    return true;
+}
+
+/* Fixed-bank $077D uses strict unsigned-distance limits of 12 by 8. */
+bool allstar_one_on_one_player_can_pick_up_ball(float player_x,
+                                                float player_y,
+                                                float ball_x,
+                                                float ball_y) {
+    float dx = player_x - ball_x;
+    float dy = player_y - ball_y;
+    if (dx < 0.0f) dx = -dx;
+    if (dy < 0.0f) dy = -dy;
+    return dx < ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS &&
+           dy < ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS;
+}
+
+void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt) {
+    if (!attempt) return;
+    memset(attempt, 0, sizeof(*attempt));
+    attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_IDLE;
+}
+
+uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
+                                       int player) {
+    if (!attempt || (player != 1 && player != 2)) {
+        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+    }
+
+    if (attempt->phase == ALLSTAR_ONE_ON_ONE_SHOT_IDLE) {
+        attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_GATHER;
+        attempt->shooter = player;
+        attempt->gather_clock = ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS;
+        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER;
+    }
+
+    if (attempt->phase == ALLSTAR_ONE_ON_ONE_SHOT_GATHER &&
+        attempt->shooter == player) {
+        attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
+        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE;
+    }
+
+    return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+}
+
+uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
+                                      float dt) {
+    if (!attempt || attempt->phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER ||
+        dt <= 0.0f) {
+        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+    }
+
+    attempt->gather_clock -= dt;
+    if (attempt->gather_clock > 0.0f) {
+        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+    }
+
+    allstar_one_on_one_shot_reset(attempt);
+    return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING;
+}
+
 /* ROM $0C13-$0C2C conditionally reverses the possession side via $FF96. */
 int allstar_one_on_one_next_possession_after_score(
     const AllStarOneOnOneMatch *match,

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 static bool save_bmp_file(const char *filepath, const AllStarColor *pixels, int width, int height) {
     FILE *f = fopen(filepath, "wb");
@@ -65,6 +66,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-mode-routing                Verify all ROM menu IDs route correctly\n");
     printf("  --test-settings                    Verify ROM settings values and persistence\n");
     printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
+    printf("  --test-one-on-one-shooting         Verify staged shooting and traveling\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -150,22 +152,138 @@ int allstar_cli_test_roster(void) {
 }
 
 int allstar_cli_test_physics(void) {
-    printf("[Test] Running Physics Simulation Tests...\n");
     AllStarBall ball;
+    AllStarBall frame_stepped;
+    AllStarBall chunk_stepped;
+    AllStarBall miss;
+    AllStarBall contact;
+    uint32_t contacts;
+    int frame;
+
+    printf("[Test] Running Physics Simulation Tests...\n");
     allstar_physics_init_ball(&ball);
 
-    allstar_physics_shoot_ball(&ball, 80.0f, 100.0f, 80.0f, 24.0f, 40.0f, 1, 2);
-    if (!ball.in_flight || ball.z <= 0.0f) {
+    allstar_physics_shoot_ball(&ball, 80.0f, 130.0f, 80.0f, 82.0f,
+                               ALLSTAR_HOOP_HEIGHT, 1, 2);
+    if (!ball.in_flight || ball.z != ALLSTAR_BALL_RELEASE_HEIGHT ||
+        ball.vz <= 0.0f) {
         fprintf(stderr, "[Test] Shot initialization failed\n");
         return 1;
     }
 
-    /* Step simulation for 1 second */
-    for (int i = 0; i < 60; i++) {
-        allstar_physics_update_ball(&ball, 1.0f / 60.0f);
+    for (frame = 1; frame < ALLSTAR_SHOT_FLIGHT_FRAMES; frame++) {
+        allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (allstar_physics_check_basket(&ball, 80.0f, 82.0f,
+                                         ALLSTAR_HOOP_HEIGHT)) {
+            fprintf(stderr, "[Test] Shot scored before descending through the rim\n");
+            return 1;
+        }
+    }
+    allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (fabsf(ball.x - 80.0f) > 0.001f ||
+        fabsf(ball.y - 82.0f) > 0.001f ||
+        fabsf(ball.z - ALLSTAR_HOOP_HEIGHT) > 0.001f || ball.vz >= 0.0f ||
+        !allstar_physics_check_basket(&ball, 80.0f, 82.0f,
+                                      ALLSTAR_HOOP_HEIGHT) ||
+        allstar_physics_check_basket(&ball, 80.0f, 82.0f,
+                                     ALLSTAR_HOOP_HEIGHT)) {
+        fprintf(stderr, "[Test] Clean shot did not cross the rim once on descent\n");
+        return 1;
     }
 
-    printf("[Test] PASSED: Ball trajectory physics test (final z=%.1f)\n", ball.z);
+    allstar_physics_init_ball(&frame_stepped);
+    allstar_physics_shoot_ball(&frame_stepped, 32.0f, 128.0f, 80.0f, 82.0f,
+                               ALLSTAR_HOOP_HEIGHT, 1, 3);
+    chunk_stepped = frame_stepped;
+    for (frame = 0; frame < ALLSTAR_SHOT_FLIGHT_FRAMES; frame++) {
+        allstar_physics_update_ball(&frame_stepped,
+                                    ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    allstar_physics_update_ball(&chunk_stepped,
+                                ALLSTAR_SHOT_FLIGHT_FRAMES *
+                                ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (fabsf(frame_stepped.x - chunk_stepped.x) > 0.001f ||
+        fabsf(frame_stepped.y - chunk_stepped.y) > 0.001f ||
+        fabsf(frame_stepped.z - chunk_stepped.z) > 0.001f ||
+        fabsf(frame_stepped.vz - chunk_stepped.vz) > 0.001f ||
+        !allstar_physics_check_basket(&frame_stepped, 80.0f, 82.0f,
+                                      ALLSTAR_HOOP_HEIGHT) ||
+        !allstar_physics_check_basket(&chunk_stepped, 80.0f, 82.0f,
+                                      ALLSTAR_HOOP_HEIGHT)) {
+        fprintf(stderr, "[Test] Fixed-step trajectory changed with dt chunking\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&miss);
+    allstar_physics_shoot_ball(&miss, 80.0f, 130.0f, 90.0f, 82.0f,
+                               ALLSTAR_HOOP_HEIGHT, 1, 2);
+    for (frame = 0; frame < ALLSTAR_SHOT_FLIGHT_FRAMES; frame++) {
+        allstar_physics_update_ball(&miss, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (allstar_physics_check_basket(&miss, 80.0f, 82.0f,
+                                     ALLSTAR_HOOP_HEIGHT)) {
+        fprintf(stderr, "[Test] Offset shot incorrectly passed through the rim\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&contact);
+    contact.in_flight = true;
+    contact.x = 9.0f;
+    contact.y = 100.0f;
+    contact.vx = 123.0f;
+    contact.vy = -45.0f;
+    contacts = allstar_physics_apply_rom_court_contacts(&contact);
+    if (!(contacts & ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY) ||
+        contact.vx != 0.0f || contact.vy != 0.0f) {
+        fprintf(stderr, "[Test] $1F4D dead-boundary stop did not zero planar velocity\n");
+        return 1;
+    }
+
+    contact.x = 160.0f;
+    contact.y = 100.0f;
+    contact.vx = -30.0f;
+    contact.vy = 30.0f;
+    if (!(allstar_physics_apply_rom_court_contacts(&contact) &
+          ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY) ||
+        contact.vx != 0.0f || contact.vy != 0.0f) {
+        fprintf(stderr, "[Test] $1CED x>=$A0 boundary was incorrect\n");
+        return 1;
+    }
+
+    contact.x = 80.0f;
+    contact.y = 151.0f;
+    contact.vx = 30.0f;
+    contact.vy = 30.0f;
+    if (!(allstar_physics_apply_rom_court_contacts(&contact) &
+          ALLSTAR_BALL_CONTACT_DEAD_BOUNDARY) ||
+        contact.vx != 0.0f || contact.vy != 0.0f) {
+        fprintf(stderr, "[Test] $1CED y>=$97 boundary was incorrect\n");
+        return 1;
+    }
+
+    contact.x = 10.0f;
+    contact.y = 150.0f;
+    contact.vx = 60.0f;
+    contact.vy = 60.0f;
+    if (allstar_physics_apply_rom_court_contacts(&contact) !=
+            ALLSTAR_BALL_CONTACT_NONE) {
+        fprintf(stderr, "[Test] $1CED accepted-boundary values collided\n");
+        return 1;
+    }
+
+    contact.x = 80.0f;
+    contact.y = 91.0f;
+    contact.vx = -60.0f;
+    contact.vy = -60.0f;
+    contacts = allstar_physics_apply_rom_court_contacts(&contact);
+    if (!(contacts & ALLSTAR_BALL_CONTACT_BACK_COURT) ||
+        contact.y != ALLSTAR_ROM_BACK_COURT_RETURN_Y ||
+        contact.vx >= 0.0f || contact.vy <= 0.0f) {
+        fprintf(stderr, "[Test] $1CED back-court return response was incorrect\n");
+        return 1;
+    }
+
+    printf("[Test] PASSED: flight, rim crossing, miss, and ROM court contacts\n");
     return 0;
 }
 
@@ -394,6 +512,163 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
 
     allstar_game_shutdown(&game);
     printf("[Test] PASSED: clock, score, possession, overtime, result, exit, and tournament return\n");
+    return 0;
+}
+
+int allstar_cli_test_one_on_one_shooting(void) {
+    AllStarOneOnOneShotAttempt attempt;
+    AllStarOneOnOneMatch match;
+    AllStarGame game;
+    uint32_t events;
+    AllStarOneOnOneReleaseOffset release;
+    int frame;
+
+    printf("[Test] Running One-on-One Shooting Tests...\n");
+    allstar_one_on_one_shot_reset(&attempt);
+
+    events = allstar_one_on_one_shot_press(&attempt, 1);
+    if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER) ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER ||
+        attempt.shooter != 1 ||
+        attempt.gather_clock != ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS) {
+        fprintf(stderr, "[Test] First A press did not begin the shooting gather\n");
+        return 1;
+    }
+
+    if (allstar_one_on_one_shot_press(&attempt, 2) !=
+            ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
+        allstar_one_on_one_shot_tick(
+            &attempt, ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS * 0.5f) !=
+            ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE) {
+        fprintf(stderr, "[Test] Another player or an early tick disturbed the gather\n");
+        return 1;
+    }
+
+    events = allstar_one_on_one_shot_press(&attempt, 1);
+    if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED) {
+        fprintf(stderr, "[Test] Second A press did not release the shot\n");
+        return 1;
+    }
+
+    allstar_one_on_one_shot_reset(&attempt);
+    allstar_one_on_one_shot_press(&attempt, 1);
+    events = allstar_one_on_one_shot_tick(
+        &attempt, ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS);
+    if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING) ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_IDLE || attempt.shooter != 0) {
+        fprintf(stderr, "[Test] Landing without release did not call traveling\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0, false);
+    match.shot_clock = 8.0f;
+    if (allstar_one_on_one_match_call_traveling(&match, 2) !=
+            ALLSTAR_ONE_ON_ONE_EVENT_NONE) {
+        fprintf(stderr, "[Test] Traveling was accepted for the non-possessor\n");
+        return 1;
+    }
+    events = allstar_one_on_one_match_call_traveling(&match, 1);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING) ||
+        match.p1_possession || match.shot_clock != 24.0f) {
+        fprintf(stderr, "[Test] Traveling did not award a reset possession\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_A, 0, 0, false, &release) ||
+        release.x_offset != 7 || release.ground_y_offset != -2 ||
+        release.height_offset != -2 ||
+        !allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_B, 0, 0, true, &release) ||
+        release.x_offset != 10 || release.height_offset != -2 ||
+        !allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_B, 2, 0, false, &release) ||
+        release.x_offset != 20 || release.ground_y_offset != -4 ||
+        release.height_offset != -2 ||
+        !allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_A, 2, 1, false, &release) ||
+        release.x_offset != 8 || release.height_offset != 1 ||
+        !allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_B, 2, 2, false, &release) ||
+        release.x_offset != -5 || release.height_offset != -2 ||
+        allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_A, 3, 0, false, &release)) {
+        fprintf(stderr, "[Test] $7F37 release-offset table mapping was incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_player_can_pick_up_ball(
+            80.0f, 100.0f, 91.0f, 107.0f) ||
+        allstar_one_on_one_player_can_pick_up_ball(
+            80.0f, 100.0f, 92.0f, 107.0f) ||
+        allstar_one_on_one_player_can_pick_up_ball(
+            80.0f, 100.0f, 91.0f, 108.0f)) {
+        fprintf(stderr, "[Test] $077D loose-ball collision limits were incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing game for shooting integration\n");
+        return 1;
+    }
+    game.selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
+    game.selected_player_1 = 2;
+    game.roster.players[2].shooting_3pt = 100;
+    game.roster.players[2].shooting_2pt = 100;
+    srand(1);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < ALLSTAR_SHOT_FLIGHT_FRAMES; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (game.one_on_one.p1_score != 2 || game.one_on_one.p1_possession) {
+        fprintf(stderr, "[Test] Clean staged shot did not score through scene physics\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    game.roster.players[2].shooting_3pt = 0;
+    game.roster.players[2].shooting_2pt = 0;
+    srand(1);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < 240 && game.one_on_one.p1_possession; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (game.one_on_one.p1_score != 0 || game.one_on_one.p1_possession ||
+        game.one_on_one.shot_clock != game.one_on_one.shot_clock_seconds) {
+        fprintf(stderr, "[Test] Miss did not return to court and resolve by recovery\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS);
+    if (game.one_on_one.p1_possession ||
+        game.one_on_one.shot_clock != game.one_on_one.shot_clock_seconds) {
+        fprintf(stderr, "[Test] Scene did not apply the unreleased-shot turnover\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_shutdown(&game);
+
+    printf("[Test] PASSED: gather, $7F37 release, score, recovery, and traveling\n");
     return 0;
 }
 
@@ -747,6 +1022,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_mode_routing();
     failed += allstar_cli_test_settings();
     failed += allstar_cli_test_one_on_one_lifecycle();
+    failed += allstar_cli_test_one_on_one_shooting();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -800,6 +1076,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_settings();
     } else if (strcmp(cmd, "--test-one-on-one-lifecycle") == 0) {
         return allstar_cli_test_one_on_one_lifecycle();
+    } else if (strcmp(cmd, "--test-one-on-one-shooting") == 0) {
+        return allstar_cli_test_one_on_one_shooting();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

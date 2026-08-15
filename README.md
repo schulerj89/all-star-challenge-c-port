@@ -10,7 +10,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 |---|---|---|
 | Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
-| One-on-One | Lifecycle verified; rules partial | Timed/score endings, possession turnover, winners-outs, the separate overtime notice, results, title exit, and tournament return work; detailed contact rules remain partial. |
+| One-on-One | Lifecycle verified; rules partial | Timed/score endings, possession, winners-outs, staged shooting/traveling, `$7F37` release offsets, ROM court return/dead-ball limits, and recovery work; exact control timing and remaining contact rules are partial. |
 | Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
 | H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
@@ -18,7 +18,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
-| Ghidra-to-C routine coverage | 1/90 verified | 90 reviewed bank-aware functions recover and decompile cleanly; the `$28E1` 16-bit winner comparator is verified, 13 mappings remain candidates, and 76 are unmapped. |
+| Ghidra-to-C routine coverage | 3/94 verified | 94 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$1F4D`, and `$28E1` are narrowly verified, 19 mappings remain candidates, and 72 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
@@ -87,7 +87,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, a projectile smoke test, mode routing, settings persistence/consumption, the One-on-One lifecycle and possession transitions, the complete seven-match tournament bracket, and input-free scene ticking. Detailed contact rules, physics, AI, visuals, and automated emulator-state parity remain unverified.
+The tests cover roster invariants, fixed-step launch/rim/miss behavior, ROM court-limit responses, mode routing, settings persistence/consumption, the One-on-One lifecycle, `$7F37` release offsets, `$077D` recovery limits, staged shooting/traveling, the complete seven-match tournament bracket, and input-free scene ticking. Exact ROM launch tables, full contact rules, AI, visuals, and automated emulator-state parity remain unverified.
 
 For manual comparison with the original ROM:
 

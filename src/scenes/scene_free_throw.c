@@ -47,12 +47,14 @@ static void free_throw_update(AllStarScene *scene, AllStarGame *game, const AllS
                          data->gauge_y >= 38.0f && data->gauge_y <= 62.0f);
 
         float target_offset = accurate ? 0.0f : ((data->gauge_x - 50.0f) * 0.4f);
-        allstar_physics_shoot_ball(&data->ball, 80.0f, 96.0f, 80.0f + target_offset, 26.0f, 44.0f, 1, 1);
+        allstar_physics_shoot_ball(&data->ball, 80.0f, 96.0f,
+                                   80.0f + target_offset, 26.0f,
+                                   ALLSTAR_HOOP_HEIGHT, 1, 1);
     }
 
     allstar_physics_update_ball(&data->ball, dt);
-    if (allstar_physics_check_basket(&data->ball, 80.0f, 26.0f, 16.0f)) {
-        data->ball.made_basket = true;
+    if (allstar_physics_check_basket(&data->ball, 80.0f, 26.0f,
+                                     ALLSTAR_HOOP_HEIGHT)) {
         data->makes++;
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
     }

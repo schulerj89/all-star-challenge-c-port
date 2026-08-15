@@ -4,7 +4,7 @@ Last audited: **2026-08-14**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **1/90 (1.11%)**. All 90 entry points have stable bank-aware symbols and decompile successfully; 76 are explicitly unmapped, 13 have candidate native analogues, and the fixed-bank `$28E1` unsigned 16-bit score comparator is verified against `allstar_one_on_one_compare_scores` with deterministic boundary tests. This is a conservative reviewed subset, not a claim that the entire ROM contains only 90 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 72 are explicitly unmapped, 19 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. Shooting mappings `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete fixed-point state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -32,15 +32,15 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Reviewed Ghidra functions | 90 functions | 36 in bank 0, 46 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
-| Generated Ghidra C export | 103 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 1 of 90 | `$28E1` is verified; 13 candidate analogues remain below the evidence threshold. |
+| Reviewed Ghidra functions | 94 functions | 40 in bank 0, 46 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 107 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed routine-to-C parity | 3 of 94 | `$077D`, `$1F4D`, and `$28E1` are verified for their narrow tested semantics; 19 candidate analogues remain below the evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Current focused behavior checks | 4 | Mode routing, settings, One-on-One lifecycle, and tournament progression tests encode reviewed ROM control-flow expectations; emulator state/frame comparison remains missing. |
+| Current focused behavior checks | 5 | Mode routing, settings, One-on-One lifecycle, staged shooting/traveling, and tournament progression have focused tests; emulator state/frame comparison remains missing. |
 
 ### Reviewed Ghidra recovery
 
@@ -48,7 +48,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 
 The current conservative boundaries are:
 
-- bank 0: 36 boot, cross-bank anchor, and One-on-One lifecycle routines;
+- bank 0: 40 boot, cross-bank anchor, One-on-One lifecycle, contact, and recovery routines;
 - bank 1: coherent code beginning at `$6945`, with generated labels before that region excluded as likely data false positives;
 - bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
 - bank 3: no reviewed functions yet; observed uses are asset-copy sources.
@@ -102,14 +102,14 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | Lifecycle only | Endings, result and overtime waits/input masks, score comparison, exit, and tournament return are covered; rules remain partial. |
+| One-on-One | Yes | Lifecycle plus narrow contact helpers | Endings, result/overtime flow, score comparison, `$7F37` release-offset selection, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; the full shot/contact state machine remains partial. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
-| Ball physics | Yes | No | Generic floating-point substitute |
-| Player collision and possession rules | Partial | Possession subset | Shot-clock, rebound possession, and winners-outs transitions exist; collision/steal/block rules remain missing. |
+| Ball physics | Yes | Narrow contact helpers | Partial 60 Hz flight plus exact `$1CED` outer-limit/back-court branches and `$1F4D` velocity stop; remaining rim, backboard, bounce, and fixed-point traces are missing. |
+| Player collision and possession rules | Partial | Possession subset | Shot-clock, rebound possession, winners-outs, traveling, and exact `$077D` pickup limits exist; steals, blocks, penalties, and the remaining recovery gates are missing. |
 | CPU AI | Yes | No | Generic six-state substitute |
 | Player animation selection | Yes | No | Limited generic states |
 | Court/menu/player rendering | Yes | No | Functional presentation; much data is compiled into headers |
@@ -124,16 +124,16 @@ No subsystem should currently be labeled 100% ROM-equivalent.
 
 | Priority | Area | Required work for verified coverage |
 |---|---|---|
-| P0 | Four-bank Ghidra function recovery | 90 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
+| P0 | Four-bank Ghidra function recovery | 94 stable functions are recovered; finish bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | Complete | Settings | Session persistence, ROM value cycles, and downstream consumption are verified; full Accuracy and Free Throw mode parity remain tracked separately. |
-| P0 | One-on-One rules | Possession, rebound clock handling, winners-outs, and difficulty cadence exist; port steals, blocks, collisions, penalties, and ROM-matched shot contests. |
+| P0 | One-on-One rules | Possession, rebounds, winners-outs, staged shooting/traveling, exact release offsets, outer court response, pickup limits, and difficulty cadence exist; finish contact/recovery gates, then port steals, blocks, penalties, and shot contests. |
 | P0 | Free Throws | Correct the shot/basket coordinate model, enforce the configured attempt count, and implement results/exit flow. |
 | Complete | Tournament | Seven-match winner propagation, bracket rounds, champion lock, and title return are verified; presentation remains outside this gameplay milestone. |
 | P1 | H-O-R-S-E | Store the called shot, require a matching attempt, apply letters to the matching player, support CPU/human turns, and end the game. |
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
-| P1 | Physics | Replace or validate the generic parabola against ROM fixed-point movement, release timing, rim/backboard contact, bounce, and rebound behavior. |
+| P1 | Physics | Trace the recovered 8.8 flight state and alternate launch tables against the emulator, then finish the remaining `$1CED` rim/backboard, bounce, and rebound branches. |
 | P1 | AI | Recover CPU state transitions, difficulty tables, player-rating effects, defense, steals, blocks, shot selection, and rebound logic. |
 | P1 | Animation | Recover ROM animation/state tables and map movement, dribble, gather, shot, block, rebound, hit, and idle sequences. |
 | P1 | Audio sequencing | Recover the bank-0 audio command interpreter, song/SFX tables, channel timing, pitch, envelope, and event mappings. |
@@ -164,4 +164,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **1/90 routine mappings verified**. Do not use 90 as a whole-ROM function denominator until the remaining code/data review is complete.
+The manifest now exists, so report its verified subset explicitly: **3/94 routine mappings verified**. Do not use 94 as a whole-ROM function denominator until the remaining code/data review is complete.

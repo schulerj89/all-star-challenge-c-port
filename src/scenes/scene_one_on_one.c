@@ -12,6 +12,9 @@ typedef struct {
     AllStarPlayerState p2;
     AllStarBall ball;
     AllStarAIController ai;
+    AllStarOneOnOneShotAttempt shot_attempt;
+    float p1_shot_animation_clock;
+    float p2_shot_animation_clock;
     float anim_timer;
 } SceneOneOnOneData;
 
@@ -28,7 +31,91 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     data->p2.has_ball = !p1_possession;
     data->p1.is_shooting = false;
     data->p2.is_shooting = false;
+    data->p1.is_jumping = false;
+    data->p2.is_jumping = false;
+    data->p1_shot_animation_clock = 0.0f;
+    data->p2_shot_animation_clock = 0.0f;
+    allstar_one_on_one_shot_reset(&data->shot_attempt);
     allstar_physics_init_ball(&data->ball);
+}
+
+/* ROM bank 1 $7C58/$7EA9/$7F37: shot setup, vector scaling, and release origin. */
+static void one_on_one_launch_shot(SceneOneOnOneData *data,
+                                   AllStarGame *game,
+                                   int shooter) {
+    AllStarPlayerState *player = shooter == 1 ? &data->p1 : &data->p2;
+    uint32_t roster_index = shooter == 1
+        ? game->selected_player_1 : game->selected_player_2;
+    const AllStarPlayerStats *stats = allstar_roster_get_player(
+        &game->roster, roster_index);
+    float dist = sqrtf(
+        (player->x - ALLSTAR_ONE_ON_ONE_HOOP_X) *
+            (player->x - ALLSTAR_ONE_ON_ONE_HOOP_X) +
+        (player->y - ALLSTAR_ONE_ON_ONE_HOOP_Y) *
+            (player->y - ALLSTAR_ONE_ON_ONE_HOOP_Y));
+    int point_value = dist > 45.0f ? 3 : 2;
+    int rating = point_value == 3
+        ? (stats ? stats->shooting_3pt : 75)
+        : (stats ? stats->shooting_2pt : 85);
+    float target_offset = 0.0f;
+    float release_x = player->x;
+    float release_y = player->y;
+    AllStarOneOnOneReleaseOffset release_offset;
+
+    if (rand() % 100 >= rating) {
+        int miss = 8 + rand() % 9;
+        target_offset = (rand() & 1) ? (float)miss : (float)-miss;
+    }
+
+    player->has_ball = false;
+    player->is_shooting = true;
+    player->is_jumping = false;
+    /* The native roster does not yet expose the ROM's +$16 animation class,
+       so use class zero while preserving the exact phase-two table lookup. */
+    if (allstar_one_on_one_rom_release_offset(
+            ALLSTAR_ROM_SHOT_ACTION_B, 2, 0,
+            player->x > (shooter == 1 ? data->p2.x : data->p1.x),
+            &release_offset)) {
+        release_x += (float)release_offset.x_offset;
+        release_y += (float)release_offset.ground_y_offset;
+    }
+    if (shooter == 1) {
+        if (data->p1_shot_animation_clock <= 0.0f) {
+            data->p1_shot_animation_clock =
+                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        }
+    } else {
+        if (data->p2_shot_animation_clock <= 0.0f) {
+            data->p2_shot_animation_clock =
+                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        }
+    }
+    allstar_physics_shoot_ball(&data->ball, release_x, release_y,
+                               ALLSTAR_ONE_ON_ONE_HOOP_X + target_offset,
+                               ALLSTAR_ONE_ON_ONE_HOOP_Y,
+                               ALLSTAR_HOOP_HEIGHT,
+                               shooter, point_value);
+    allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+}
+
+static void one_on_one_update_shot_animations(SceneOneOnOneData *data,
+                                               float dt) {
+    if (data->p1_shot_animation_clock > 0.0f) {
+        data->p1_shot_animation_clock -= dt;
+        if (data->p1_shot_animation_clock <= 0.0f) {
+            data->p1_shot_animation_clock = 0.0f;
+            data->p1.is_shooting = false;
+            data->p1.is_jumping = false;
+        }
+    }
+    if (data->p2_shot_animation_clock > 0.0f) {
+        data->p2_shot_animation_clock -= dt;
+        if (data->p2_shot_animation_clock <= 0.0f) {
+            data->p2_shot_animation_clock = 0.0f;
+            data->p2.is_shooting = false;
+            data->p2.is_jumping = false;
+        }
+    }
 }
 
 static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
@@ -41,12 +128,14 @@ static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) {
         data->p1.has_ball = false;
         data->p2.has_ball = false;
+        allstar_one_on_one_shot_reset(&data->shot_attempt);
         allstar_physics_init_ball(&data->ball);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_BUZZER);
     }
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME_NOTICE) {
         data->p1.has_ball = false;
         data->p2.has_ball = false;
+        allstar_one_on_one_shot_reset(&data->shot_attempt);
         allstar_physics_init_ball(&data->ball);
     }
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME) {
@@ -121,72 +210,84 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 
     if (game->one_on_one.phase != ALLSTAR_ONE_ON_ONE_PLAYING) return;
 
+    one_on_one_update_shot_animations(data, dt);
+
+    events = allstar_one_on_one_shot_tick(&data->shot_attempt, dt);
+    if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING) {
+        events = allstar_one_on_one_match_call_traveling(&game->one_on_one, 1);
+        if (events & ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING) {
+            one_on_one_reset_possession(data, game, false);
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
+        }
+        return;
+    }
+
     {
         float speed = 75.0f;
         bool moved = false;
-        if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT))  { data->p1.x -= speed * dt; moved = true; }
-        if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) { data->p1.x += speed * dt; moved = true; }
-        if (allstar_input_is_held(input, ALLSTAR_BTN_UP))    { data->p1.y -= speed * dt; moved = true; }
-        if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN))  { data->p1.y += speed * dt; moved = true; }
+        if (data->shot_attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER) {
+            if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT))  { data->p1.x -= speed * dt; moved = true; }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) { data->p1.x += speed * dt; moved = true; }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_UP))    { data->p1.y -= speed * dt; moved = true; }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN))  { data->p1.y += speed * dt; moved = true; }
+        }
         if (moved && data->p1.has_ball && (int)(data->anim_timer * 4.0f) % 2 == 0) {
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
         }
     }
 
-    if (data->p1.x < 18.0f) data->p1.x = 18.0f;
-    if (data->p1.x > 142.0f) data->p1.x = 142.0f;
-    if (data->p1.y < 88.0f) data->p1.y = 88.0f;
-    if (data->p1.y > 136.0f) data->p1.y = 136.0f;
+    if (data->p1.x < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X)
+        data->p1.x = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X;
+    if (data->p1.x > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X)
+        data->p1.x = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X;
+    if (data->p1.y < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y)
+        data->p1.y = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y;
+    if (data->p1.y > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y)
+        data->p1.y = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y;
 
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-        float dist;
-        int pt_val;
-        int rating;
-        float target_offset;
-        const AllStarPlayerStats *p1_stats;
-        data->p1.has_ball = false;
-        data->p1.is_shooting = true;
-        dist = sqrtf((data->p1.x - 80.0f) * (data->p1.x - 80.0f) +
-                     (data->p1.y - 82.0f) * (data->p1.y - 82.0f));
-        pt_val = (dist > 45.0f) ? 3 : 2;
-        p1_stats = allstar_roster_get_player(&game->roster, game->selected_player_1);
-        rating = (pt_val == 3) ? (p1_stats ? p1_stats->shooting_3pt : 75)
-                               : (p1_stats ? p1_stats->shooting_2pt : 85);
-        target_offset = ((float)(rand() % 100) > (float)rating)
-            ? ((float)(rand() % 12) - 6.0f) : 0.0f;
-        allstar_physics_shoot_ball(&data->ball, data->p1.x, data->p1.y,
-                                   80.0f + target_offset, 82.0f, 96.0f, 1, pt_val);
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+        uint32_t shot_events = allstar_one_on_one_shot_press(
+            &data->shot_attempt, 1);
+        if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER) {
+            data->p1.is_jumping = true;
+            data->p1.is_shooting = true;
+            data->p1_shot_animation_clock =
+                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        } else if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
+            one_on_one_launch_shot(data, game, 1);
+            allstar_one_on_one_shot_reset(&data->shot_attempt);
+        }
     }
 
     allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball, dt);
     if (data->p2.has_ball && data->p2.is_shooting && !data->ball.in_flight) {
-        float dist;
-        int pt_val;
-        int rating;
-        float target_offset;
-        const AllStarPlayerStats *p2_stats;
-        data->p2.has_ball = false;
-        dist = sqrtf((data->p2.x - 80.0f) * (data->p2.x - 80.0f) +
-                     (data->p2.y - 82.0f) * (data->p2.y - 82.0f));
-        pt_val = (dist > 45.0f) ? 3 : 2;
-        p2_stats = allstar_roster_get_player(&game->roster, game->selected_player_2);
-        rating = (pt_val == 3) ? (p2_stats ? p2_stats->shooting_3pt : 75)
-                               : (p2_stats ? p2_stats->shooting_2pt : 85);
-        target_offset = ((float)(rand() % 100) > (float)rating)
-            ? ((float)(rand() % 12) - 6.0f) : 0.0f;
-        allstar_physics_shoot_ball(&data->ball, data->p2.x, data->p2.y,
-                                   80.0f + target_offset, 82.0f, 96.0f, 2, pt_val);
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+        one_on_one_launch_shot(data, game, 2);
     }
 
     allstar_physics_update_ball(&data->ball, dt);
+    if (allstar_physics_check_basket(&data->ball,
+                                     ALLSTAR_ONE_ON_ONE_HOOP_X,
+                                     ALLSTAR_ONE_ON_ONE_HOOP_Y,
+                                     ALLSTAR_HOOP_HEIGHT)) {
+        int shooter = data->ball.shooter_id;
+        int points = data->ball.point_value;
+        events = allstar_one_on_one_match_add_score(&game->one_on_one, shooter, points);
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
+        if (events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) {
+            one_on_one_handle_lifecycle_events(data, game, events);
+        } else {
+            int next_possession = allstar_one_on_one_next_possession_after_score(
+                &game->one_on_one, shooter);
+            one_on_one_reset_possession(data, game, next_possession == 1);
+        }
+        return;
+    }
+
+    allstar_physics_apply_rom_court_contacts(&data->ball);
+
     if (!data->ball.in_flight && !data->p1.has_ball && !data->p2.has_ball) {
-        float d1 = sqrtf((data->p1.x - data->ball.x) * (data->p1.x - data->ball.x) +
-                         (data->p1.y - data->ball.y) * (data->p1.y - data->ball.y));
-        float d2 = sqrtf((data->p2.x - data->ball.x) * (data->p2.x - data->ball.x) +
-                         (data->p2.y - data->ball.y) * (data->p2.y - data->ball.y));
-        if (d1 < 12.0f) {
+        if (allstar_one_on_one_player_can_pick_up_ball(
+                data->p1.x, data->p1.y, data->ball.x, data->ball.y)) {
             bool reset_shot_clock = !game->one_on_one.p1_possession;
             data->p1.has_ball = true;
             data->p1.is_shooting = false;
@@ -194,7 +295,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             allstar_one_on_one_match_take_possession(
                 &game->one_on_one, 1, reset_shot_clock);
             allstar_physics_init_ball(&data->ball);
-        } else if (d2 < 12.0f) {
+        } else if (allstar_one_on_one_player_can_pick_up_ball(
+                       data->p2.x, data->p2.y,
+                       data->ball.x, data->ball.y)) {
             bool reset_shot_clock = game->one_on_one.p1_possession;
             data->p2.has_ball = true;
             data->p1.is_shooting = false;
@@ -205,20 +308,6 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         }
     }
 
-    if (allstar_physics_check_basket(&data->ball, 80.0f, 82.0f, 112.0f)) {
-        int shooter = data->ball.shooter_id;
-        int points = data->ball.point_value;
-        data->ball.made_basket = true;
-        events = allstar_one_on_one_match_add_score(&game->one_on_one, shooter, points);
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
-        if (events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) {
-            one_on_one_handle_lifecycle_events(data, game, events);
-        } else {
-            int next_possession = allstar_one_on_one_next_possession_after_score(
-                &game->one_on_one, shooter);
-            one_on_one_reset_possession(data, game, next_possession == 1);
-        }
-    }
 }
 
 static void one_on_one_draw_result(AllStarGame *game, AllStarRenderer *renderer) {

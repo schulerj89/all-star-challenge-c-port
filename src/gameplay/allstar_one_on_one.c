@@ -129,6 +129,18 @@ bool allstar_one_on_one_rom_release_offset(
     return true;
 }
 
+/* $7F37 stores ball ground Y as player +$15 minus two while held or minus
+   four in an active shot. Ball height is that ground byte minus player
+   visual Y (+$05) and the selected signed table offset. */
+int allstar_one_on_one_rom_release_height(
+    int player_visual_y,
+    int player_ground_y,
+    uint8_t shot_phase,
+    int height_offset) {
+    int ball_ground_y = player_ground_y - (shot_phase == 0 ? 2 : 4);
+    return ball_ground_y - (player_visual_y + height_offset);
+}
+
 /* Bank 1 $6A8C record advancement. Actions $0A and $12 share twelve
    duration records totaling 67 frames; $0A ends on display frame $0C,
    while $12 remains on $0B. Active shot phases override the record frame

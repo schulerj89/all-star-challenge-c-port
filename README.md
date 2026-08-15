@@ -20,7 +20,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
 | Ghidra-to-C routine coverage | 3/94 verified | 94 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$1F4D`, and `$28E1` are narrowly verified, 21 mappings remain candidates, and 70 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
-| Scoped One-on-One parity | 64.00% | 32 of 50 Ghidra/manual-grounded gameplay requirements; partial work receives no credit. |
+| Scoped One-on-One parity | 66.00% | 33 of 50 Ghidra/manual-grounded gameplay requirements; partial work receives no credit. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 

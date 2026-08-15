@@ -127,6 +127,11 @@ bool allstar_one_on_one_rom_release_offset(
     uint8_t shot_variant,
     bool facing_left,
     AllStarOneOnOneReleaseOffset *offset);
+int allstar_one_on_one_rom_release_height(
+    int player_visual_y,
+    int player_ground_y,
+    uint8_t shot_phase,
+    int height_offset);
 bool allstar_one_on_one_rom_shot_animation_frame(
     uint8_t action,
     uint8_t shot_phase,

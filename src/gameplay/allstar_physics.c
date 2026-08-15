@@ -176,6 +176,15 @@ uint32_t allstar_physics_apply_rom_court_contacts(AllStarBall *ball) {
 void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
                                 float target_x, float target_y, float target_z,
                                 int shooter_id, int point_value) {
+    allstar_physics_shoot_ball_from_height(
+        ball, start_x, start_y, ALLSTAR_BALL_RELEASE_HEIGHT,
+        target_x, target_y, target_z, shooter_id, point_value);
+}
+
+void allstar_physics_shoot_ball_from_height(
+    AllStarBall *ball, float start_x, float start_y, float start_z,
+    float target_x, float target_y, float target_z,
+    int shooter_id, int point_value) {
     int32_t start_x_raw;
     int32_t start_y_raw;
     int32_t start_z_raw;
@@ -186,7 +195,7 @@ void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
     if (!ball) return;
     ball->x = start_x;
     ball->y = start_y;
-    ball->z = ALLSTAR_BALL_RELEASE_HEIGHT;
+    ball->z = start_z;
     ball->previous_x = ball->x;
     ball->previous_y = ball->y;
     ball->previous_z = ball->z;

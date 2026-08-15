@@ -189,7 +189,7 @@
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "Exact action/facing/phase/variant offset selection and position-derived variant input are ported and tested; the player jump-height field and byte-identical RAM coordinate calculation are not yet represented."
+      "note": "Exact action/facing/phase/variant offset selection, position-derived variant input, and the +$05/+$15 release-height coordinate calculation are ported and boundary-tested; complete launch/contact state and emulator traces remain missing."
     },
     "rom_b00_28e1": {
       "status": "verified",

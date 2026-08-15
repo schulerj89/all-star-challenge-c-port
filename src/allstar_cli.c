@@ -638,6 +638,12 @@ int allstar_cli_test_one_on_one_shooting(void) {
         fprintf(stderr, "[Test] $7F37 release-offset table mapping was incorrect\n");
         return 1;
     }
+    if (allstar_one_on_one_rom_release_height(90, 130, 0, -2) != 40 ||
+        allstar_one_on_one_rom_release_height(90, 130, 2, -2) != 38 ||
+        allstar_one_on_one_rom_release_height(90, 130, 2, 1) != 35) {
+        fprintf(stderr, "[Test] $7F37 release-height coordinate calculation was incorrect\n");
+        return 1;
+    }
 
     if (!allstar_one_on_one_rom_shot_animation_frame(
             ALLSTAR_ROM_SHOT_ACTION_A, 0, 0, &animation_frame) ||

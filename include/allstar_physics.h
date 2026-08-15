@@ -82,6 +82,10 @@ uint32_t allstar_physics_apply_rom_court_contacts(AllStarBall *ball);
 void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
                                 float target_x, float target_y, float target_z,
                                 int shooter_id, int point_value);
+void allstar_physics_shoot_ball_from_height(
+    AllStarBall *ball, float start_x, float start_y, float start_z,
+    float target_x, float target_y, float target_z,
+    int shooter_id, int point_value);
 void allstar_physics_launch_shot(AllStarBall *ball, float start_x, float start_y,
                                  float target_x, float target_y, float target_z,
                                  int shooter_id, int point_value);

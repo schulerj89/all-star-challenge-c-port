@@ -37,7 +37,7 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 | `$7C58` | Branches on the player's existing shot/jump state, constructs shot state, and transfers possession to the in-flight ball state. | Staged `allstar_one_on_one_shot_press` plus `one_on_one_launch_shot`. |
 | `$7EA9` | For the normal shot vector, shifts signed target displacement left three bits. In 8.8 state this reaches the target in `256/8 = 32` frames. | `allstar_physics_shoot_ball` constructs a 32-frame target crossing. |
 | `$791D/$794B` | Classifies player field `+$16` as 0, 1, or 2 from the exact left/right court wedge tables at `$79B6/$79D2`. | `allstar_one_on_one_rom_shot_variant` applies the recovered thresholds after converting native center X back to ROM field `+$06`. |
-| `$7F37` | Chooses release offsets by action/facing while held and by shot phase/variant during the jump; phase 3 leaves the origin unchanged. | `allstar_one_on_one_rom_release_offset` contains the exact signed table and One-on-One launches consume its phase-two, position-selected variant result. |
+| `$7F37` | Chooses release offsets by action/facing while held and by shot phase/variant during the jump; computes height from player fields `+$05/+$15`; phase 3 leaves the origin unchanged. | `allstar_one_on_one_rom_release_offset` contains the signed table and `allstar_one_on_one_rom_release_height` reproduces the coordinate subtraction used by the scene launch. |
 | `$6A8C` animation dispatcher | Action `$0A/$12` advances through twelve duration/frame records totaling 67 frames, then transitions to action `$0D`; active shot phases force display frames `$12/$13/$14`. | `allstar_one_on_one_rom_shot_animation_frame` reproduces both record tables and phase overrides, and the scene stores the selected byte in native player animation state. |
 | Fixed `$1CED` | Dispatches outer limits, back-court return, hoop/backboard contact, and ground/bounce behavior. | The exact outer-limit and `y<$5C` return branches are ported; later contact branches remain partial. |
 | Fixed `$1F4D` | Zeroes the two planar 8.8 velocity words. | `allstar_physics_apply_rom_court_contacts` zeroes native `vx` and `vy`; deterministic boundary tests cover the semantic result. |
@@ -51,7 +51,6 @@ The original control description also establishes that A begins the jump, A rele
 This is a **partial rules improvement**, not verified shot or physics parity:
 
 - the native two-press/30-frame gather window is still a gameplay approximation; `$702D` input and `$C16A` phase timing need an emulator trace;
-- the `$7F37` height offset still lacks the ROM player jump-height field (`+$05`), so native release `z` remains the existing release-height constant;
 - launch selection and remaining contact state are incomplete even though the `$7BE8` step itself now uses byte-sized 8.8 state;
 - the alternate `<<2` 64-frame trajectory class and `$7C58` launch tables are not yet classified;
 - accuracy ratings, contests, blocks, the remaining `$1CED` rim/backboard/bounce branches, and full rebound gates are not trace-matched;

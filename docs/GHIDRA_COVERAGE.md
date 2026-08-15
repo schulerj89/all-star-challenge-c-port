@@ -12,7 +12,7 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
 
-The separate One-on-One behavior manifest is **32/50 (64.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
+The separate One-on-One behavior manifest is **33/50 (66.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
 
 ## Scope
 

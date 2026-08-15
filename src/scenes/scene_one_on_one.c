@@ -65,6 +65,7 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     float target_offset = 0.0f;
     float release_x = player->x;
     float release_y = player->y;
+    float release_z = ALLSTAR_BALL_RELEASE_HEIGHT;
     uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
         player->x, player->y);
     uint8_t shot_action = shot_variant == 1
@@ -86,6 +87,9 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         release_x += (float)release_offset.x_offset -
                      ALLSTAR_ROM_PLAYER_X_TO_CENTER;
         release_y += (float)release_offset.ground_y_offset;
+        release_z = (float)allstar_one_on_one_rom_release_height(
+            (int)player->y - 40, (int)player->y, 2,
+            release_offset.height_offset);
     }
     if (shooter == 1) {
         data->p1_shot_action = shot_action;
@@ -100,11 +104,11 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
         }
     }
-    allstar_physics_shoot_ball(&data->ball, release_x, release_y,
-                               ALLSTAR_ONE_ON_ONE_HOOP_X + target_offset,
-                               ALLSTAR_ONE_ON_ONE_HOOP_Y,
-                               ALLSTAR_HOOP_HEIGHT,
-                               shooter, point_value);
+    allstar_physics_shoot_ball_from_height(
+        &data->ball, release_x, release_y, release_z,
+        ALLSTAR_ONE_ON_ONE_HOOP_X + target_offset,
+        ALLSTAR_ONE_ON_ONE_HOOP_Y, ALLSTAR_HOOP_HEIGHT,
+        shooter, point_value);
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
 }
 

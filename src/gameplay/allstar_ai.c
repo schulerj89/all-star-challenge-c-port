@@ -107,6 +107,44 @@ bool allstar_ai_rom_should_steal_71b3(uint8_t skill_level,
     return random_byte < thresholds[skill_level - 1];
 }
 
+/* Bank 1 $75CD consumes the latest $C16B movement-block signal.  The CPU
+   ballhandler reroutes until the fourteenth qualified contact, which forces
+   A; the defender saves its exact position and holds that target for ten
+   countdown updates. */
+bool allstar_ai_rom_contact_response_75cd(
+    AllStarAIController *ai,
+    bool movement_blocked,
+    bool owns_ball,
+    uint8_t random_byte,
+    uint8_t ball_x,
+    float cpu_center_x,
+    float cpu_ground_y) {
+    static const uint8_t thresholds[3] = {0xbe, 0xaa, 0x96};
+    uint8_t skill;
+    if (!ai || !movement_blocked || ai->rom_contact_hold_frames != 0)
+        return false;
+    skill = ai->rom_skill_level;
+    if (skill < 1 || skill > 3) skill = 1;
+    if (random_byte < thresholds[skill - 1]) return false;
+
+    if (owns_ball) {
+        ai->rom_contact_offense_count++;
+        if (ai->rom_contact_offense_count == 14) {
+            ai->rom_force_shot = true;
+        } else {
+            allstar_ai_rom_offense_target_72ea(
+                ball_x, random_byte, &ai->rom_target_x, &ai->rom_target_y);
+        }
+    } else {
+        ai->rom_contact_saved_y = (uint8_t)cpu_ground_y;
+        ai->rom_contact_saved_x = (uint8_t)cpu_center_x;
+        ai->rom_target_x = ai->rom_contact_saved_x;
+        ai->rom_target_y = ai->rom_contact_saved_y;
+        ai->rom_contact_hold_frames = 10;
+    }
+    return true;
+}
+
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
                        const AllStarPlayerState *human,
                        const AllStarBall *ball, uint8_t rom_random_byte,
@@ -116,7 +154,12 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
     ai->rom_steal_pressed = false;
 
     ai->decision_timer -= dt;
-    if (ai->decision_timer <= 0.0f) {
+    if (ai->rom_force_shot && cpu->has_ball) {
+        ai->rom_force_shot = false;
+        ai->state = ALLSTAR_AI_STATE_PULL_UP_JUMPER;
+    } else if (ai->rom_contact_hold_frames != 0) {
+        ai->state = ALLSTAR_AI_STATE_DEFEND_PERIMETER;
+    } else if (ai->decision_timer <= 0.0f) {
         ai->decision_timer = ai->decision_interval;
 
         if (cpu->has_ball) {
@@ -158,9 +201,17 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
     float move_speed = 65.0f * ai->reaction_speed;
     switch (ai->state) {
         case ALLSTAR_AI_STATE_DEFEND_PERIMETER: {
-            uint8_t direction = allstar_ai_rom_direction_74bb(
-                cpu->x, cpu->y, (uint8_t)human->x,
-                (uint8_t)(human->y - 8.0f));
+            uint8_t direction;
+            if (ai->rom_contact_hold_frames != 0) {
+                direction = allstar_ai_rom_direction_74bb(
+                    cpu->x, cpu->y,
+                    ai->rom_contact_saved_x, ai->rom_contact_saved_y);
+                ai->rom_contact_hold_frames--;
+            } else {
+                direction = allstar_ai_rom_direction_74bb(
+                    cpu->x, cpu->y, (uint8_t)human->x,
+                    (uint8_t)(human->y - 8.0f));
+            }
             if (direction & 0x10) cpu->x += move_speed * dt;
             if (direction & 0x20) cpu->x -= move_speed * dt;
             if (direction & 0x80) cpu->y += move_speed * dt;

@@ -37,6 +37,7 @@
 #define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y 152.0f
 #define ALLSTAR_ROM_PLAYER_X_TO_CENTER 8.0f
 #define ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y -2.0f
+#define ALLSTAR_ROM_CONTACT_VIOLATION_FRAMES 25
 #define ALLSTAR_ONE_ON_ONE_HOOP_X 84.0f
 #define ALLSTAR_ONE_ON_ONE_HOOP_Y 92.0f
 
@@ -96,6 +97,17 @@ typedef struct {
 typedef struct {
     uint8_t cooldown_frames;
 } AllStarOneOnOneRecoveryState;
+
+typedef struct {
+    bool blocked_contact;
+    uint8_t violation_counter;
+} AllStarRomPlayerContactState;
+
+typedef enum {
+    ALLSTAR_ROM_CONTACT_NONE = 0,
+    ALLSTAR_ROM_CONTACT_CHARGING,
+    ALLSTAR_ROM_CONTACT_BLOCKING
+} AllStarRomContactEvent;
 
 typedef struct {
     uint8_t action;
@@ -220,6 +232,26 @@ bool allstar_one_on_one_rom_player_pair_blocks_6e3c(
     uint8_t player_y,
     uint8_t other_x,
     uint8_t other_y);
+bool allstar_one_on_one_rom_player_move_6b72(
+    uint8_t direction,
+    uint8_t game_mode,
+    float *player_center_x,
+    float *player_ground_y,
+    float other_center_x,
+    float other_ground_y,
+    bool *blocked_contact);
+AllStarRomContactEvent allstar_one_on_one_rom_contact_tick_2c50(
+    bool possession_active,
+    int possession_owner,
+    AllStarRomPlayerContactState *p1_contact,
+    AllStarRomPlayerContactState *p2_contact,
+    uint8_t p1_action,
+    uint8_t p2_action,
+    float p1_center_x,
+    float p1_ground_y,
+    float p2_center_x,
+    float p2_ground_y,
+    int *offender);
 int allstar_one_on_one_rom_recovery_dispatch(
     AllStarOneOnOneRecoveryState *state,
     bool possession_active,

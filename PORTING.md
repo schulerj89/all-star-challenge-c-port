@@ -17,8 +17,8 @@ This guide separates the intended architecture from the implementation that exis
      .\build\allstar_port.exe --build-assetpack <ROM_PATH.gb> build\allstar.assetpack
      ```
 
-   - The current implementation only decodes a fixed range of 2bpp tiles and copies a hardcoded roster into the pack. Court/menu tilemaps, portraits, animations, roster records, and audio sequences are not yet fully extracted.
-   - Several runtime screens and sprites currently use compiled derived-art headers. Moving these assets behind the user-supplied asset-pack boundary remains required.
+   - Version 4 extracts the complete One-on-One court tile set/map, three player tile families, 60 frame maps, ball/shadow graphics and descriptors, and all 24 animation-control lists.
+   - The One-on-One runtime no longer requires its former compiled derived-art header. Portraits, other-mode graphics, roster records, and audio still need migration behind the same boundary.
 
 3. **No decompilation dependency at runtime**
    - Ghidra pseudocode, assembly, symbols, and traces are reference evidence only.
@@ -40,7 +40,7 @@ The checked USA/Europe ROM header reports the following:
 | ROM | 64 KiB, four 16 KiB banks | File loader accepts the full 64 KiB image. Some constants and analysis docs still need migration from the former 32 KiB assumption. |
 | Cartridge RAM | None | No save-RAM behavior required. |
 | Display | 160×144, four DMG shades | 32-bit software framebuffer with selectable palettes. |
-| Tiles | 2bpp planar, 16 bytes per 8×8 tile | Basic decoder exists; ROM layout-specific extraction is incomplete. |
+| Tiles | 2bpp planar, 16 bytes per 8×8 tile | One-on-One layout-specific extraction and composition are verified; other modes remain incomplete. |
 | Sprites | Up to 40 OAM entries | Rendered as native sprite/player concepts rather than hardware OAM. |
 | Audio | Two pulse, wave, and noise channels | Current port uses PCM WAV mixing; ROM sequence interpretation is not implemented. |
 
@@ -59,15 +59,15 @@ Banks 2 and 3 must not be analyzed as CPU addresses `$8000..$FFFF`; those ranges
 
 ### Current Ghidra result
 
-The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for physical banks 1, 2, and 3, then recovers a conservative seed set rather than sweeping unknown data as code. The validated inventory contains 100 functions that all create and decompile successfully:
+The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for physical banks 1, 2, and 3, then recovers a conservative seed set rather than sweeping unknown data as code. The validated inventory contains 111 functions that all create and decompile successfully:
 
-- 45 fixed-bank functions in bank 0;
+- 56 fixed-bank functions in bank 0;
 - 47 functions in bank 1's coherent `$6945..$7FFF` gameplay region;
 - 8 functions in bank 2's reviewed `$4000..$42A1` code region.
 
-The generated C listing contains 113 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
+The generated C listing contains 124 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
 
-`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 66 functions as unmapped, 26 as candidate native analogues, and eight as verified for narrowly tested behavior.
+`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 57 functions as unmapped, 29 as candidate native analogues, and 25 as verified for narrowly tested behavior.
 
 ### Current `mgbdis` result
 
@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **30/50 (60.00%)** overall, comprising RNG **10/10**, animation/assets **10/20**, and collision/reaction **10/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
+One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. The second fixed denominator in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json` is also complete at **50/50 (100.00%)**, comprising RNG **10/10**, animation/assets **20/20**, and collision/reaction **20/20**. Frame-perfect synchronization remains deliberately excluded. Check both manifests with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
 
 ## 4. Current Native Architecture
 
@@ -102,12 +102,12 @@ One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE
 | `src/allstar_game.c` | Scene ownership and per-frame orchestration | Implemented structurally; not tied to ROM dispatcher states. |
 | `src/scenes/` | Intro, menu, settings, roster, and game-mode scenes | Broad scaffolding; most game-mode rules are partial. |
 | `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` uses exact 8.8 gravity/friction/integration operations; `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
-| `src/gameplay/allstar_ai.c` | CPU targets, decisions, defense, and shared ROM RNG consumption | Scoped One-on-One decisions are verified; collision branches and the rest of `$7170` remain incomplete. |
+| `src/gameplay/allstar_ai.c` | CPU targets, decisions, defense, contact response, and shared ROM RNG consumption | Scoped One-on-One decisions and exact `$75CD` contact routing/hold behavior are verified; unrelated `$7170` states remain incomplete. |
 | `src/gameplay/allstar_rng.c` | Fixed `$0714/$072F` shared-frame RNG and BCD entropy | Exact low-byte recurrence/cadence is Ghidra- and Mesen-verified. |
-| `src/gameplay/allstar_one_on_one.c` | Match clocks, endings, overtime, possession, staged shot state, and `$782E/$6A8C` movement animation | High-level lifecycle, record-state engine, and directional selection are verified for their scoped paths; graphics and remaining collision reactions are incomplete. |
-| `src/allstar_renderer.c` | Software pixels, tiles, court, players, and ball | Functional; several assets are compiled headers rather than asset-pack data. |
+| `src/gameplay/allstar_one_on_one.c` | Match clocks, possession, shots, `$782E/$6A8C/$6B72` movement, and `$2C50/$2CCA/$0AC5` contact rules | The scoped One-on-One lifecycle, animation, direct movement, contact latch, and charging/blocking paths are verified. |
+| `src/allstar_renderer.c` | Software pixels and ROM-derived court/player/ball composition | One-on-One `$2945/$2A2B` player and `$6945/$69F5` ball/shadow paths consume the user-built pack; other screens retain legacy assets. |
 | `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Functional mixer; ROM sequencer and most sound events are missing. |
-| `src/allstar_asset_pack.c` | Versioned container, basic tile decoding, and `$6C60` animation-list extraction | All 24 animation control lists are extracted; graphics region/composition extraction remains partial. |
+| `src/allstar_asset_pack.c` | Versioned container, `$050F` decoding, and One-on-One graphics/animation extraction | Version 4 extracts and validates the complete One-on-One court/player/ball data set; other modes, roster records, and audio remain partial. |
 
 The actual frame tick is:
 
@@ -129,7 +129,7 @@ Input is updated by the Win32 host before this call.
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Scoped gameplay 50/50; remaining focus 30/50 | Core rules, shooting, steals, contests, recovery, RNG, movement animation, and `$6E3C/$6EC0/$6EEA` player-pair collision are verified. Remaining work is graphics extraction and contact-reaction behavior. |
+| One-on-One | Gameplay 50/50; remaining focus 50/50 | Rules, shooting, steals, contests, recovery, RNG, animation records, direct movement/contact, charging/blocking, CPU contact response, and ROM-derived court/player/ball presentation are verified. Frame-perfect synchronization remains excluded. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |
@@ -158,7 +158,7 @@ The native port currently loads three BGM WAV files and two menu SFX WAV files. 
 | `--test-mode-routing` | All five ROM menu IDs reach the intended native scenes | Rules within those scenes. |
 | `--test-settings` | ROM defaults/value cycles persist and affect the relevant mode state | Full mode or presentation parity. |
 | `--test-one-on-one-lifecycle` | Endings, shot-clock turnover, overtime, result dismissal, exit, and tournament return | Detailed rules, physics, AI, or frame parity. |
-| `--test-one-on-one-shooting` | Gather/release, `$7F37` offsets, exact `$0714/$072F` RNG, `$6A8C/$6C60` animation record state, shot and defensive-jump records, steals, contacts, recovery gates, traveling, and possession resets | Remaining directional action selection, extracted animation art, player collision reactions, other modes, or full frame parity. |
+| `--test-one-on-one-shooting` | Gather/release, `$7F37` offsets, exact `$0714/$072F` RNG, `$6A8C/$6C60` animation state, `$6B72/$6E3C` movement/contact, `$2C50/$2CCA/$0AC5` violations, `$75CD` CPU response, player/ball composition, steals, contacts, recovery gates, traveling, and possession resets | Other modes or full frame parity. |
 | `--test-tournament` | All seven bracket matches propagate valid winners through champion and exit | Roster-selection or pixel-level bracket presentation parity. |
 | `--test-headless-frames` | Seven scenes can tick and draw without crashing | Input flow, rules, results, visual parity, or completion. |
 

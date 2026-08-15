@@ -54,6 +54,11 @@ bool allstar_renderer_init(AllStarRenderer *renderer, uint32_t width, uint32_t h
     return true;
 }
 
+void allstar_renderer_set_asset_pack(AllStarRenderer *renderer,
+                                     const AllStarAssetPack *asset_pack) {
+    if (renderer) renderer->asset_pack = asset_pack;
+}
+
 void allstar_renderer_free(AllStarRenderer *renderer) {
     if (renderer && renderer->pixels) {
         free(renderer->pixels);
@@ -226,8 +231,6 @@ void allstar_renderer_draw_sprite(AllStarRenderer *renderer, const AllStarTile *
     }
 }
 
-#include "allstar_court_art.h"
-
 void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32_t hoop_y) {
     if (!renderer) return;
 
@@ -258,88 +261,174 @@ void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32
     }
 }
 
-static inline uint8_t allstar_decode_2bpp_pixel(const uint8_t *tile_16bytes, int x, int y) {
-    uint8_t b1 = tile_16bytes[y * 2];
-    uint8_t b2 = tile_16bytes[y * 2 + 1];
-    int bit = 7 - x;
-    return (uint8_t)(((b1 >> bit) & 1) | (((b2 >> bit) & 1) << 1));
-}
-
 void allstar_renderer_draw_court(AllStarRenderer *renderer) {
+    const AllStarAssetPack *pack;
     if (!renderer) return;
-
-    /* Render directly from raw 384 VRAM tilebank using signed $8800..$97FF tile addressing */
-    for (int r = 0; r < 18; r++) {
-        for (int c = 0; c < 20; c++) {
-            uint8_t t_idx = ALLSTAR_COURT_TILEMAP[r][c];
-            int signed_idx = (t_idx < 128) ? t_idx : (t_idx - 256);
-            int vram_tile = 256 + signed_idx;
-            if (vram_tile < 0 || vram_tile >= ALLSTAR_VRAM_TILE_COUNT) continue;
-
-            const uint8_t *tile_data = ALLSTAR_VRAM_TILES[vram_tile];
-            for (int ty = 0; ty < 8; ty++) {
-                for (int tx = 0; tx < 8; tx++) {
-                    uint8_t shade = allstar_decode_2bpp_pixel(tile_data, tx, ty);
-                    allstar_renderer_set_pixel(renderer, c * 8 + tx, r * 8 + ty, shade);
+    pack = renderer->asset_pack;
+    if (pack && (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) != 0) {
+        int row;
+        int column;
+        /* $04B1/$050F expands 20 rows with a 32-byte VRAM stride. */
+        for (row = 0; row < 18; row++) {
+            for (column = 0; column < 20; column++) {
+                uint8_t tile = pack->court_tilemap[row * 32 + column];
+                if (tile < pack->header.court_tile_count) {
+                    allstar_renderer_draw_tile(
+                        renderer, &pack->court_tiles[tile],
+                        column * 8, row * 8, false, false);
                 }
             }
         }
+        return;
+    }
+    /* Source-free fallback keeps development builds playable. */
+    allstar_renderer_clear(renderer, 0);
+    allstar_renderer_draw_rect_outline(renderer, 4, 48, 152, 92, 2);
+    allstar_renderer_draw_line(renderer, 80, 48, 80, 140, 1);
+    allstar_renderer_draw_rect_outline(renderer, 56, 48, 48, 36, 2);
+}
+
+static void allstar_renderer_draw_asset_tile_skin(
+    AllStarRenderer *renderer, const AllStarTile *tile,
+    int x, int y, bool flip_x, uint8_t skin_tone) {
+    int ty;
+    int tx;
+    if (!renderer || !tile) return;
+    for (ty = 0; ty < 8; ty++) {
+        for (tx = 0; tx < 8; tx++) {
+            int source_x = flip_x ? 7 - tx : tx;
+            uint8_t shade = tile->pixels[ty * 8 + source_x];
+            if (shade == 0) continue;
+            if (skin_tone == 0x90 && shade == 1) shade = 2;
+            allstar_renderer_set_pixel(renderer, x + tx, y + ty, shade);
+        }
     }
 }
 
-/* Helper to render an 8x16 hardware sprite directly from raw ROM VRAM tile arrays */
-static void allstar_renderer_draw_8x16_sprite(AllStarRenderer *renderer, int sx, int sy, int tile_base, bool flip_x, uint8_t skin_tone) {
-    int top_tile = tile_base & 0xFE;
-    int bot_tile = tile_base | 1;
-    if (top_tile < 0 || bot_tile >= ALLSTAR_VRAM_TILE_COUNT) return;
-
-    const uint8_t *top_tile_data = ALLSTAR_VRAM_TILES[top_tile];
-    const uint8_t *bot_tile_data = ALLSTAR_VRAM_TILES[bot_tile];
-
-    for (int py = 0; py < 16; py++) {
-        int ry = sy + py;
-        if (ry < 0 || ry >= 144) continue;
-        const uint8_t *tile_16b = (py < 8) ? top_tile_data : bot_tile_data;
-        int sub_y = py % 8;
-
-        for (int px = 0; px < 8; px++) {
-            int rx = sx + px;
-            if (rx < 0 || rx >= 160) continue;
-            int src_x = flip_x ? (7 - px) : px;
-            uint8_t raw_shade = allstar_decode_2bpp_pixel(tile_16b, src_x, sub_y);
-            if (raw_shade == 0) continue; /* Transparent in Game Boy OAM */
-
-            /* Apply OBP1 skin palette for skin tone */
-            uint8_t final_shade = raw_shade;
-            if (skin_tone == 0x90 && raw_shade == 1) {
-                final_shade = 2; /* Dark skin tone mapping */
-            }
-            allstar_renderer_set_pixel(renderer, rx, ry, final_shade);
+/* Bank 1 $6945 selects eight phases from X&7, optionally rotates the phase
+   half when the ball is behind its owner, and selects one of three $6A5C
+   shadow tables from the unsigned height. */
+void allstar_renderer_rom_ball_presentation_6945(
+    uint8_t ball_x, uint8_t ball_y, uint8_t ball_z,
+    bool behind_owner, AllStarRomBallPresentation *presentation) {
+    uint8_t phase;
+    uint8_t adjusted;
+    uint8_t aligned_x;
+    uint8_t tier;
+    if (!presentation) return;
+    phase = ball_x & 7;
+    adjusted = phase;
+    aligned_x = ball_x & 0xf8;
+    if (behind_owner) {
+        if (phase < 4) {
+            adjusted = (uint8_t)(phase + 4);
+            aligned_x = (uint8_t)(aligned_x - 4);
+        } else {
+            adjusted = (uint8_t)(phase - 4);
+            aligned_x = (uint8_t)(aligned_x + 4);
         }
     }
+    tier = ball_z >= 0x1f ? 0 : (ball_z >= 8 ? 1 : 2);
+    presentation->phase = phase;
+    presentation->adjusted_phase = adjusted;
+    presentation->oam_x = aligned_x;
+    presentation->ball_oam_y = (uint8_t)(ball_y - ball_z);
+    presentation->shadow_oam_y = ball_y;
+    presentation->shadow_tier = tier;
+    presentation->ball_pair_index = adjusted;
+    presentation->shadow_pair_index = (uint8_t)(8 + tier * 8 + adjusted);
+}
+
+/* Fixed $2933/$293D->$2945->$2A2B selects one of three action families and
+   traverses each 18-index frame as nine top/bottom 8x16 sprite pairs. */
+bool allstar_renderer_rom_player_tiles_2945(
+    const AllStarAssetPack *pack, uint8_t action, uint8_t display_frame,
+    bool horizontal_flip,
+    uint16_t output_tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT]) {
+    static const uint16_t tile_offsets[3] = {0, 147, 358};
+    static const uint8_t frame_offsets[3] = {0, 16, 38};
+    static const uint8_t frame_counts[3] = {16, 22, 22};
+    size_t family;
+    size_t frame_index;
+    const AllStarRomPlayerFrame *frame;
+    int sprite_row;
+    int column;
+    if (!pack || !output_tiles ||
+        action >= ALLSTAR_ROM_ANIMATION_ACTION_COUNT) return false;
+    family = action >> 3;
+    frame_index = frame_offsets[family] +
+        (display_frame % frame_counts[family]);
+    frame = &pack->player_frames[frame_index];
+    for (sprite_row = 0; sprite_row < 3; sprite_row++) {
+        size_t source_row = (size_t)sprite_row * 6;
+        size_t output_row = (size_t)sprite_row * 6;
+        for (column = 0; column < 3; column++) {
+            int source_column = horizontal_flip ? 2 - column : column;
+            output_tiles[output_row + column * 2] =
+                (uint16_t)(tile_offsets[family] +
+                    frame->tile_indices[source_row + source_column]);
+            output_tiles[output_row + column * 2 + 1] =
+                (uint16_t)(tile_offsets[family] +
+                    frame->tile_indices[source_row + 3 + source_column]);
+        }
+    }
+    return true;
+}
+
+static void allstar_renderer_draw_oam_pair(
+    AllStarRenderer *renderer, const AllStarAssetPack *pack,
+    const AllStarRomOamPair *pair, uint8_t oam_x, uint8_t oam_y) {
+    uint8_t ids[2];
+    int column;
+    if (!renderer || !pack || !pair) return;
+    ids[0] = pair->left_tile;
+    ids[1] = pair->right_tile;
+    for (column = 0; column < 2; column++) {
+        uint8_t id = ids[column];
+        size_t source_index;
+        if (id < 0x24 || (id & 1) != 0) continue;
+        source_index = (size_t)((id - 0x24) >> 1);
+        if (source_index >= pack->header.ball_source_tile_count) continue;
+        allstar_renderer_draw_asset_tile_skin(
+            renderer, &pack->ball_source_tiles[source_index],
+            (int)oam_x - 8 + column * 8, (int)oam_y - 16,
+            false, 0);
+    }
+}
+
+static void allstar_renderer_draw_ball_rom_6945(
+    AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z,
+    float spin_time, bool behind_owner) {
+    const AllStarAssetPack *pack;
+    AllStarRomBallPresentation presentation;
+    if (!renderer) return;
+    (void)spin_time;
+    pack = renderer->asset_pack;
+    allstar_renderer_rom_ball_presentation_6945(
+        (uint8_t)x, (uint8_t)y, (uint8_t)z,
+        behind_owner, &presentation);
+    if (pack && (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) != 0) {
+        allstar_renderer_draw_oam_pair(
+            renderer, pack,
+            &pack->ball_oam_pairs[presentation.shadow_pair_index],
+            presentation.oam_x, presentation.shadow_oam_y);
+        allstar_renderer_draw_oam_pair(
+            renderer, pack,
+            &pack->ball_oam_pairs[presentation.ball_pair_index],
+            presentation.oam_x, presentation.ball_oam_y);
+        return;
+    }
+    allstar_renderer_draw_rect_fill(
+        renderer, (int)presentation.oam_x - 7,
+        (int)presentation.ball_oam_y - 15, 6, 6, 3);
+    allstar_renderer_draw_line(renderer, x - 4, y, x + 4, y, 1);
 }
 
 void allstar_renderer_draw_ball_ex(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z, float spin_time) {
-    if (!renderer) return;
-
-    /* Dynamic Floor Shadow */
-    if (z > 2) {
-        int shadow_w = (z > 20) ? 2 : 4;
-        for (int sx = -shadow_w; sx <= shadow_w; sx++) {
-            uint8_t shade = (abs(sx) == shadow_w) ? 1 : 2;
-            allstar_renderer_set_pixel(renderer, x + sx, y, shade);
-        }
-    }
-
-    /* Ball Position with Z elevation */
-    int draw_y = y - (int)(z * 0.5f);
-    int frame = (int)(spin_time * 8.0f) % 3;
-    if (frame < 0) frame = 0;
-
-    /* Authentic 16x16 Basketball Sprite Pair: Tiles 0x3A and 0x3C in VRAM */
-    int base_tile = 0x3A + (frame * 4);
-    allstar_renderer_draw_8x16_sprite(renderer, x - 8, draw_y - 8, base_tile, false, 0);
-    allstar_renderer_draw_8x16_sprite(renderer, x,     draw_y - 8, base_tile + 2, false, 0);
+    allstar_renderer_draw_ball_rom_6945(
+        renderer, x, y, z, spin_time, false);
 }
 
 void allstar_renderer_draw_ball(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t z) {
@@ -369,9 +458,12 @@ void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t 
     }
 }
 
-void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_display_frame, float anim_time, bool facing_left) {
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_action, uint8_t rom_display_frame, float anim_time, bool facing_left) {
+    const AllStarAssetPack *pack;
     if (!renderer) return;
     (void)is_p1;
+    (void)is_shooting;
+    (void)is_defending;
 
     /* Dynamic Floor Shadow beneath player feet */
     for (int sx = -8; sx <= 8; sx++) {
@@ -379,57 +471,56 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         allstar_renderer_set_pixel(renderer, x + sx, y + 1, shade);
     }
 
-    /* Select Animated 32x48 Sprite Frame */
-    const uint8_t (*frame_data)[32] = ALLSTAR_ANIM_DRIBBLE[0];
-    int jump_y = 0;
-
-    if (is_shooting) {
-        frame_data = ALLSTAR_ANIM_SHOOT_APEX;
-        jump_y = -12;
-    } else if (is_defending) {
-        int f = rom_display_frame % ALLSTAR_ANIM_DEFEND_COUNT;
-        frame_data = ALLSTAR_ANIM_DEFEND[f];
-    } else if (has_ball) {
-        int f = rom_display_frame % ALLSTAR_ANIM_DRIBBLE_COUNT;
-        frame_data = ALLSTAR_ANIM_DRIBBLE[f];
-    } else {
-        int f = rom_display_frame % ALLSTAR_ANIM_DRIBBLE_COUNT;
-        frame_data = ALLSTAR_ANIM_DRIBBLE[f];
-    }
-
-    int top_x = x - 16;
-    int top_y = y - 44 + jump_y;
-
-    /* Render 32x48 Frame */
-    for (int r = 0; r < 48; r++) {
-        int ry = top_y + r;
-        if (ry < 0 || ry >= 144) continue;
-        for (int c = 0; c < 32; c++) {
-            int rx = top_x + c;
-            if (rx < 0 || rx >= 160) continue;
-            int src_c = facing_left ? (31 - c) : c;
-            uint8_t raw = frame_data[r][src_c];
-            if (raw == 0) continue; /* Transparent */
-
-            /* Apply OBP1 skin tone remapping */
-            uint8_t final_shade = raw;
-            if (skin_tone == 0x90 && raw == 1) {
-                final_shade = 2; /* Dark skin tone */
+    pack = renderer->asset_pack;
+    if (pack && (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) != 0 &&
+        rom_action < ALLSTAR_ROM_ANIMATION_ACTION_COUNT) {
+        uint16_t tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT];
+        int sprite_row;
+        int column;
+        int top_x = x - 16;
+        int top_y = y - 56;
+        if (!allstar_renderer_rom_player_tiles_2945(
+                pack, rom_action, rom_display_frame,
+                facing_left, tiles)) return;
+        for (sprite_row = 0; sprite_row < 3; sprite_row++) {
+            for (column = 0; column < 3; column++) {
+                size_t output = (size_t)sprite_row * 6 + column * 2;
+                allstar_renderer_draw_asset_tile_skin(
+                    renderer, &pack->player_source_tiles[tiles[output]],
+                    top_x + column * 8, top_y + sprite_row * 16,
+                    facing_left, skin_tone);
+                allstar_renderer_draw_asset_tile_skin(
+                    renderer, &pack->player_source_tiles[tiles[output + 1]],
+                    top_x + column * 8, top_y + sprite_row * 16 + 8,
+                    facing_left, skin_tone);
             }
-            allstar_renderer_set_pixel(renderer, rx, ry, final_shade);
         }
+    } else {
+        /* Source-free fallback silhouette. */
+        allstar_renderer_draw_rect_fill(renderer, x - 5, y - 30, 10, 22, 2);
+        allstar_renderer_draw_rect_fill(renderer, x - 4, y - 38, 8, 8,
+                                        skin_tone == 0x90 ? 2 : 1);
+        allstar_renderer_draw_line(renderer, x - 4, y - 8, x - 7, y, 3);
+        allstar_renderer_draw_line(renderer, x + 4, y - 8, x + 7, y, 3);
     }
 
     /* If dribbling ball */
     if (has_ball && !is_shooting) {
         int ball_x = x + (facing_left ? -8 : 8);
         int bounce_y = y - 4 + (((int)(anim_time * 8.0f) % 2) ? 3 : -2);
-        allstar_renderer_draw_ball_ex(renderer, ball_x, bounce_y, 0, anim_time);
+        uint8_t owner_rom_x = (uint8_t)(x - 8);
+        bool behind_owner = ((uint8_t)bounce_y < (uint8_t)y) ==
+            ((owner_rom_x & 4) != 0);
+        allstar_renderer_draw_ball_rom_6945(
+            renderer, ball_x, bounce_y, 0, anim_time, behind_owner);
     }
 }
 
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {
-    allstar_renderer_draw_player_ex(renderer, x, y, is_p1, is_p1 ? 0x90 : 0x91, has_ball, is_shooting, false, 0, anim_time, false);
+    allstar_renderer_draw_player_ex(renderer, x, y, is_p1,
+        is_p1 ? 0x90 : 0x91, has_ball, is_shooting, false,
+        has_ball ? 0x01 : 0x02, 0, anim_time, false);
 }
 
 void allstar_renderer_present(AllStarRenderer *renderer) {

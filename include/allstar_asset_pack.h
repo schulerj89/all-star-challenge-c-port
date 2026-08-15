@@ -5,12 +5,19 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 3
+#define ALLSTAR_ASSET_VERSION 4
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
 #define ALLSTAR_ROM_ANIMATION_ACTION_COUNT 24
 #define ALLSTAR_ROM_ANIMATION_MAX_RECORDS 13
+#define ALLSTAR_PLAYER_SOURCE_TILE_COUNT 563
+#define ALLSTAR_PLAYER_FRAME_COUNT 60
+#define ALLSTAR_PLAYER_FRAME_TILE_COUNT 18
+#define ALLSTAR_BALL_SOURCE_TILE_COUNT 42
+#define ALLSTAR_BALL_OAM_PAIR_COUNT 32
+#define ALLSTAR_COURT_TILE_COUNT 86
+#define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
 
 /* Bank 1 $6A8C consumes the lists selected by the pointer table at $6C60.
    Normal records use all three bytes. Loop records use only control; action
@@ -26,6 +33,17 @@ typedef struct {
     uint8_t record_count;
     AllStarRomAnimationRecord records[ALLSTAR_ROM_ANIMATION_MAX_RECORDS];
 } AllStarRomAnimationAction;
+
+typedef struct {
+    uint8_t tile_indices[ALLSTAR_PLAYER_FRAME_TILE_COUNT];
+} AllStarRomPlayerFrame;
+
+typedef struct {
+    uint8_t left_tile;
+    uint8_t right_tile;
+    uint8_t extra_left_tile;
+    uint8_t extra_right_tile;
+} AllStarRomOamPair;
 
 typedef struct {
     char name[24];
@@ -52,6 +70,12 @@ typedef struct {
     uint32_t player_count;
     uint32_t audio_sequence_count;
     uint32_t animation_action_count;
+    uint32_t player_source_tile_count;
+    uint32_t player_frame_count;
+    uint32_t ball_source_tile_count;
+    uint32_t ball_oam_pair_count;
+    uint32_t court_tile_count;
+    uint32_t feature_flags;
     uint32_t checksum;
 } AllStarAssetHeader;
 
@@ -63,6 +87,11 @@ typedef struct {
     uint8_t menu_tilemap[32 * 32];
     AllStarRomAnimationAction
         animation_actions[ALLSTAR_ROM_ANIMATION_ACTION_COUNT];
+    AllStarTile player_source_tiles[ALLSTAR_PLAYER_SOURCE_TILE_COUNT];
+    AllStarRomPlayerFrame player_frames[ALLSTAR_PLAYER_FRAME_COUNT];
+    AllStarTile ball_source_tiles[ALLSTAR_BALL_SOURCE_TILE_COUNT];
+    AllStarRomOamPair ball_oam_pairs[ALLSTAR_BALL_OAM_PAIR_COUNT];
+    AllStarTile court_tiles[ALLSTAR_COURT_TILE_COUNT];
     bool is_loaded;
 } AllStarAssetPack;
 

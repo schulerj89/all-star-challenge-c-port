@@ -175,6 +175,132 @@ static bool extract_rom_animation_actions(AllStarAssetPack *pack,
     return true;
 }
 
+/* Fixed bank $050F: the first byte is the escape marker.  Literals copy
+   directly; marker,count,value emits value count times; marker,0 ends. */
+static bool decode_rom_rle_050f(const AllStarRom *rom,
+                                size_t start, size_t end,
+                                uint8_t *output, size_t output_size) {
+    uint8_t marker;
+    size_t source;
+    size_t written = 0;
+    if (!rom || !output || start >= rom->size || end >= rom->size ||
+        start >= end) return false;
+    marker = rom->data[start];
+    source = start + 1;
+    while (source <= end) {
+        uint8_t value = rom->data[source++];
+        if (value != marker) {
+            if (written >= output_size) return false;
+            output[written++] = value;
+            continue;
+        }
+        if (source > end) return false;
+        {
+            uint8_t count = rom->data[source++];
+            size_t i;
+            if (count == 0) {
+                return written == output_size && source == end + 1;
+            }
+            if (source > end || written + count > output_size) return false;
+            value = rom->data[source++];
+            for (i = 0; i < count; i++) output[written++] = value;
+        }
+    }
+    return false;
+}
+
+static void decode_tile_bytes(const uint8_t *bytes, size_t tile_count,
+                              AllStarTile *tiles) {
+    size_t tile;
+    for (tile = 0; tile < tile_count; tile++) {
+        decode_gb_tile_2bpp(bytes + tile * 16, &tiles[tile]);
+    }
+}
+
+/* Ghidra path $024A->$2243->$04B1/$050F and per-frame
+   $100F->$2933/$293D->$2945/$2A2B plus bank-1 $6945/$69F5.  Bank-3 CPU
+   addresses are translated to file offsets by adding $8000. */
+static bool extract_one_on_one_art(AllStarAssetPack *pack,
+                                   const AllStarRom *rom) {
+    uint8_t player_bytes[ALLSTAR_PLAYER_SOURCE_TILE_COUNT * 16];
+    uint8_t ball_bytes[ALLSTAR_BALL_SOURCE_TILE_COUNT * 16];
+    uint8_t court_bytes[ALLSTAR_COURT_TILE_COUNT * 16];
+    uint8_t court_map[640];
+    static const size_t frame_starts[3] = {0x4000, 0x4120, 0x42ac};
+    static const size_t frame_counts[3] = {16, 22, 22};
+    static const size_t frame_offsets[3] = {0, 16, 38};
+    size_t family;
+    size_t frame;
+    size_t pair;
+
+    if (!pack || !rom || rom->size < 0x10000) return false;
+    memcpy(player_bytes, rom->data + 0x44b8, 147 * 16);
+    if (!decode_rom_rle_050f(
+            rom, 0x4de8, 0x582a, player_bytes + 147 * 16, 211 * 16) ||
+        !decode_rom_rle_050f(
+            rom, 0x582b, 0x62a5, player_bytes + 358 * 16, 205 * 16) ||
+        !decode_rom_rle_050f(
+            rom, 0x62a6, 0x640e, ball_bytes, sizeof(ball_bytes)) ||
+        !decode_rom_rle_050f(
+            rom, 0xfa23, 0xfe47, court_bytes, sizeof(court_bytes)) ||
+        !decode_rom_rle_050f(
+            rom, 0xfe48, 0xff68, court_map, sizeof(court_map))) {
+        return false;
+    }
+
+    decode_tile_bytes(player_bytes, ALLSTAR_PLAYER_SOURCE_TILE_COUNT,
+                      pack->player_source_tiles);
+    decode_tile_bytes(ball_bytes, ALLSTAR_BALL_SOURCE_TILE_COUNT,
+                      pack->ball_source_tiles);
+    decode_tile_bytes(court_bytes, ALLSTAR_COURT_TILE_COUNT,
+                      pack->court_tiles);
+
+    for (family = 0; family < 3; family++) {
+        for (frame = 0; frame < frame_counts[family]; frame++) {
+            size_t source = frame_starts[family] +
+                frame * ALLSTAR_PLAYER_FRAME_TILE_COUNT;
+            memcpy(pack->player_frames[frame_offsets[family] + frame].tile_indices,
+                   rom->data + source, ALLSTAR_PLAYER_FRAME_TILE_COUNT);
+        }
+    }
+    for (frame = 0; frame < ALLSTAR_PLAYER_FRAME_COUNT; frame++) {
+        static const uint16_t family_tile_count[3] = {147, 211, 205};
+        size_t group = frame < 16 ? 0 : (frame < 38 ? 1 : 2);
+        size_t i;
+        for (i = 0; i < ALLSTAR_PLAYER_FRAME_TILE_COUNT; i++) {
+            uint8_t index = pack->player_frames[frame].tile_indices[i];
+            if (index >= family_tile_count[group]) return false;
+        }
+    }
+
+    for (pair = 0; pair < ALLSTAR_BALL_OAM_PAIR_COUNT; pair++) {
+        const uint8_t *source = rom->data + 0x4438 + pair * 4;
+        AllStarRomOamPair *target = &pack->ball_oam_pairs[pair];
+        target->left_tile = source[0];
+        target->right_tile = source[1];
+        target->extra_left_tile = source[2];
+        target->extra_right_tile = source[3];
+        if (target->left_tile < 0x24 || target->right_tile < 0x24 ||
+            ((target->left_tile - 0x24) >> 1) >=
+                ALLSTAR_BALL_SOURCE_TILE_COUNT ||
+            ((target->right_tile - 0x24) >> 1) >=
+                ALLSTAR_BALL_SOURCE_TILE_COUNT) {
+            return false;
+        }
+    }
+    memset(pack->court_tilemap, 0, sizeof(pack->court_tilemap));
+    memcpy(pack->court_tilemap, court_map, sizeof(court_map));
+
+    pack->header.player_source_tile_count =
+        ALLSTAR_PLAYER_SOURCE_TILE_COUNT;
+    pack->header.player_frame_count = ALLSTAR_PLAYER_FRAME_COUNT;
+    pack->header.ball_source_tile_count = ALLSTAR_BALL_SOURCE_TILE_COUNT;
+    pack->header.ball_oam_pair_count = ALLSTAR_BALL_OAM_PAIR_COUNT;
+    pack->header.court_tile_count = ALLSTAR_COURT_TILE_COUNT;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART;
+    return true;
+}
+
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
     if (!pack) return;
     memset(pack, 0, sizeof(AllStarAssetPack));
@@ -186,6 +312,7 @@ void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
     pack->header.audio_sequence_count = 10;
     pack->header.animation_action_count =
         ALLSTAR_ROM_ANIMATION_ACTION_COUNT;
+    pack->header.feature_flags = 0;
     pack->header.checksum = 0;
 
     init_rom_animation_fallback(pack);
@@ -237,6 +364,10 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid bank-1 $6C60 animation map\n");
         return false;
     }
+    if (!extract_one_on_one_art(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
+        return false;
+    }
 
     /* Verify and retain authentic 27-player roster */
     AllStarRoster temp_roster;
@@ -247,7 +378,7 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
     }
 
     printf("[AssetPack] Built asset pack from ROM: '%s' "
-           "(%u tiles, %u players, %u animation actions)\n",
+           "(%u tiles, %u players, %u animation actions, One-on-One art)\n",
            rom->header.title, pack->header.tile_count,
            pack->header.player_count, pack->header.animation_action_count);
 
@@ -270,7 +401,22 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
         fwrite(pack->menu_tilemap, 1, sizeof(pack->menu_tilemap), f) != sizeof(pack->menu_tilemap) ||
         fwrite(pack->animation_actions, sizeof(AllStarRomAnimationAction),
                pack->header.animation_action_count, f) !=
-               pack->header.animation_action_count) {
+               pack->header.animation_action_count ||
+        fwrite(pack->player_source_tiles, sizeof(AllStarTile),
+               pack->header.player_source_tile_count, f) !=
+               pack->header.player_source_tile_count ||
+        fwrite(pack->player_frames, sizeof(AllStarRomPlayerFrame),
+               pack->header.player_frame_count, f) !=
+               pack->header.player_frame_count ||
+        fwrite(pack->ball_source_tiles, sizeof(AllStarTile),
+               pack->header.ball_source_tile_count, f) !=
+               pack->header.ball_source_tile_count ||
+        fwrite(pack->ball_oam_pairs, sizeof(AllStarRomOamPair),
+               pack->header.ball_oam_pair_count, f) !=
+               pack->header.ball_oam_pair_count ||
+        fwrite(pack->court_tiles, sizeof(AllStarTile),
+               pack->header.court_tile_count, f) !=
+               pack->header.court_tile_count) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -319,6 +465,27 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
         allstar_asset_pack_init_default(pack);
         return false;
     }
+    if (((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) != 0 &&
+         (pack->header.player_source_tile_count !=
+              ALLSTAR_PLAYER_SOURCE_TILE_COUNT ||
+          pack->header.player_frame_count != ALLSTAR_PLAYER_FRAME_COUNT ||
+          pack->header.ball_source_tile_count !=
+              ALLSTAR_BALL_SOURCE_TILE_COUNT ||
+          pack->header.ball_oam_pair_count != ALLSTAR_BALL_OAM_PAIR_COUNT ||
+          pack->header.court_tile_count != ALLSTAR_COURT_TILE_COUNT)) ||
+        ((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) == 0 &&
+         (pack->header.player_source_tile_count != 0 ||
+          pack->header.player_frame_count != 0 ||
+          pack->header.ball_source_tile_count != 0 ||
+          pack->header.ball_oam_pair_count != 0 ||
+          pack->header.court_tile_count != 0))) {
+        fprintf(stderr, "[AssetPack] Invalid One-on-One asset counts\n");
+        fclose(f);
+        allstar_asset_pack_init_default(pack);
+        return false;
+    }
 
     if (fread(pack->tiles, sizeof(AllStarTile), pack->header.tile_count, f) !=
             pack->header.tile_count ||
@@ -330,7 +497,22 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
             sizeof(pack->menu_tilemap) ||
         fread(pack->animation_actions, sizeof(AllStarRomAnimationAction),
               pack->header.animation_action_count, f) !=
-            pack->header.animation_action_count) {
+            pack->header.animation_action_count ||
+        fread(pack->player_source_tiles, sizeof(AllStarTile),
+              pack->header.player_source_tile_count, f) !=
+            pack->header.player_source_tile_count ||
+        fread(pack->player_frames, sizeof(AllStarRomPlayerFrame),
+              pack->header.player_frame_count, f) !=
+            pack->header.player_frame_count ||
+        fread(pack->ball_source_tiles, sizeof(AllStarTile),
+              pack->header.ball_source_tile_count, f) !=
+            pack->header.ball_source_tile_count ||
+        fread(pack->ball_oam_pairs, sizeof(AllStarRomOamPair),
+              pack->header.ball_oam_pair_count, f) !=
+            pack->header.ball_oam_pair_count ||
+        fread(pack->court_tiles, sizeof(AllStarTile),
+              pack->header.court_tile_count, f) !=
+            pack->header.court_tile_count) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);

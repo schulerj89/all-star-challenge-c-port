@@ -37,21 +37,40 @@ including their asymmetric endpoints. The deterministic native test checks
 all eight in/out boundaries. `allstar_one_on_one_rom_player_pair_blocks_6e3c`
 implements the four probe branches and the `$02/$03` bypass.
 
-The live scene applies the gate before each human axis move. CPU intent is
-captured from its Ghidra-backed controller displacement, then each axis is
-accepted or rejected through the same gate. Native center X is converted back
+The live scene applies movement only when `$6A8C` loads a normal animation
+record. `allstar_one_on_one_rom_player_move_6b72` clears the record's contact
+latch, processes right/left/up/down callbacks, applies four pixels when clear,
+and sets the latch when blocked. CPU intent is captured first and then routed
+through the same record-boundary callback. Native center X is converted back
 to ROM `+$06` by subtracting eight; native ground Y already matches `+$15`.
 
 `trace_one_on_one_player_collision.lua` drives the original cartridge with
-rightward input and controlled player coordinates. It observes `$C16B=1` for
-an overlapping player ahead, then `$C16B=0` for motion away and for vertical
-separation.
+rightward input and controlled player coordinates. It observes `$C16B=1` and
+zero displacement for an overlapping player ahead, then `$C16B=0` and exactly
+four pixels for motion away and for vertical separation. The action byte is
+unchanged in all three callbacks.
 
-## Coverage limit
+## Charging, blocking, and AI response
 
-The detector and side selection are verified. `$6E3C` remains a whole-routine
-candidate because the native scene consumes the Boolean result directly
-instead of reproducing the ROM's persistent player `+$0C` and shared `$C16B`
-latch ownership. Contact-hit actions, displacement reactions, velocity
-cancellation, recovery duration, and re-entry state remain separate open
-requirements.
+`$100F` calls fixed `$2C50` before the movement path. `$2CCA` therefore
+consumes the prior update's `+$0C` latch. A clear/protected contact reloads
+`+$0D=$19`; continuous eligible contact decrements it, and zero calls `$0AC5`.
+The possession owner's `+$16` selects one exact spacing: defender X at owner
+X plus 12, defender Y at owner Y minus 8, or defender X at owner X minus 12.
+An owner offender is charging; a defender offender is blocking. `$20F7`
+restarts possession for the player opposite the offender.
+
+`trace_one_on_one_contact_rules.lua` verifies charging, blocking, and the
+protected `$0A` shot action. The native C mirrors player-one-first priority,
+the unsigned 25-count lifecycle, failed-alignment latch clear, and live
+possession restart.
+
+Bank-1 `$75CD` is the CPU's only body-contact response. It does not assign a
+hit action. It uses skill thresholds `$BE/$AA/$96`; a ballhandler reroutes and
+forces A on the fourteenth qualified response, while a defender stores its
+position and holds that target for ten counts. `allstar_ai_rom_contact_response_75cd`
+implements and deterministic-tests those outcomes.
+
+There is no player recoil, knockback, or velocity object in this ROM path.
+Blocked callbacks simply return before their direct coordinate write, and the
+next normal animation record clears/recomputes the latch.

@@ -13,11 +13,11 @@
       "space": "default",
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
-        "0100", "0150", "0444", "045e", "047e", "0496", "050f",
-        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0b35", "0b80", "0b9a", "10a5",
+        "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
+        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "10a5",
         "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
-        "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
-        "28e1", "2ae2", "2b14", "2b6c", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
+        "20d0", "20f7", "2219", "2243", "22ef", "2639", "2729", "276d",
+        "28e1", "2933", "293d", "2945", "2a2b", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2f88", "3014"
       ]
     },
@@ -66,16 +66,40 @@
       "note": "Exact seed*9+$002B recurrence, low-byte $C133/$C0B6 additions without high-byte carry, and traced low-byte sequence are deterministic-tested."
     },
     "rom_b01_6a8c": {
-      "status": "candidate",
+      "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_animation_tick_6a8c",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "All 24 $6C60 action lists, three-byte record timing, loops, transitions, idle, steal, shot, and $782E directional subsets are native and trace-tested. Whole-routine credit remains withheld because movement side effects and contact/rebound action callers are not yet equivalent."
+      "note": "All 24 $6C60 action lists, record timing, loops, transitions, protected-action side effects, and the exact $6B72 movement callback path are native and trace-tested. Ghidra and Mesen also verify that contact and rebound do not assign separate actions."
     },
     "rom_b01_6e3c": {
-      "status": "candidate",
+      "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_player_pair_blocks_6e3c",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "All directional probes, mode bypass, contact-side decisions, and live human/CPU movement blocking are trace-tested. Whole-routine credit remains withheld because the native scene consumes the Boolean directly instead of reproducing +$0C/$C16B latch ownership."
+      "note": "All directional probes, mode bypass, contact-side decisions, +$0C latch ownership, and direct four-pixel callback effects are trace-tested and integrated for human and CPU movement."
+    },
+    "rom_b01_6bad": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_move_6b72",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Right boundary, $6E3C early return, four-pixel displacement, and contact latch are deterministic-tested and observed in Mesen."
+    },
+    "rom_b01_6bba": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_move_6b72",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Left boundary, $6E3C early return, four-pixel displacement, and callback order are represented by the shared movement dispatcher."
+    },
+    "rom_b01_6bc7": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_move_6b72",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Down boundary, $6E3C early return, four-pixel displacement, and callback order are represented by the shared movement dispatcher."
+    },
+    "rom_b01_6bd4": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_move_6b72",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Up boundary, $6E3C early return, four-pixel displacement, and callback order are represented by the shared movement dispatcher."
     },
     "rom_b01_6ec0": {
       "status": "verified",
@@ -88,6 +112,78 @@
       "native_symbol": "allstar_one_on_one_rom_player_y_side_6eea",
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Exact unsigned subtraction, signed probe offset, side 1/2 return values, and asymmetric [-6,+5] endpoints are boundary-tested and exercised by the live Mesen collision trace."
+    },
+    "rom_b00_0ac5": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_contact_alignment_0ac5",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Possession-owner +$16 orientation and all three unsigned exact-spacing comparisons classify charging/blocking eligibility."
+    },
+    "rom_b00_2c50": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_contact_tick_2c50",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Player-one-first contact-rule dispatch, offender classification, and opposite-player possession restart are native and deterministic-tested."
+    },
+    "rom_b00_2cca": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_contact_counter_2cca",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Previous-update latch consumption, protected-action clear, $19 reload, unsigned decrement, expiry, and failed-alignment reentry match the recovered routine."
+    },
+    "rom_b01_75cd": {
+      "status": "verified",
+      "native_symbol": "allstar_ai_rom_contact_response_75cd",
+      "source": "src/gameplay/allstar_ai.c",
+      "note": "Skill RNG thresholds, fourteenth offensive-contact shot, and ten-count defensive saved-position hold are deterministic-tested and live-integrated."
+    },
+    "rom_b01_6945": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_ball_presentation_6945",
+      "source": "src/allstar_renderer.c",
+      "note": "Eight X phases, rear-side phase rotation/X shift, exact Y-Z height, and three $6A5C shadow tiers are ported and renderer-integrated."
+    },
+    "rom_b01_69f5": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_ball_presentation_6945",
+      "source": "src/allstar_renderer.c",
+      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v4."
+    },
+    "rom_b00_2243": {
+      "status": "verified",
+      "native_symbol": "extract_one_on_one_art",
+      "source": "src/allstar_asset_pack.c",
+      "note": "One-on-One player, ball/shadow, and court sources are decoded from the exact bank-1/bank-3 ranges during user-ROM asset-pack construction."
+    },
+    "rom_b00_2945": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_player_tiles_2945",
+      "source": "src/allstar_renderer.c",
+      "note": "Action-family selection and all 60 18-index frame maps feed the native player composer."
+    },
+    "rom_b00_2a2b": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_player_tiles_2945",
+      "source": "src/allstar_renderer.c",
+      "note": "Normal and horizontally flipped 3x3 8x16 traversal are deterministic-tested and rendered from asset-pack tiles."
+    },
+    "rom_b00_04b1": {
+      "status": "candidate",
+      "native_symbol": "extract_one_on_one_art",
+      "source": "src/allstar_asset_pack.c",
+      "note": "The One-on-One court $050F tile/tilemap load is exact; other callers and mode-specific loads remain outside this mapping."
+    },
+    "rom_b00_2933": {
+      "status": "candidate",
+      "native_symbol": "allstar_renderer_rom_player_tiles_2945",
+      "source": "src/allstar_renderer.c",
+      "note": "P1 frame composition is exact, but the native renderer intentionally skips the Game Boy VRAM cache copy."
+    },
+    "rom_b00_293d": {
+      "status": "candidate",
+      "native_symbol": "allstar_renderer_rom_player_tiles_2945",
+      "source": "src/allstar_renderer.c",
+      "note": "P2 frame composition is exact, but the native renderer intentionally skips the Game Boy VRAM cache copy."
     },
     "rom_b00_0100": {
       "status": "candidate",

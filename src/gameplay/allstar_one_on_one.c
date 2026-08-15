@@ -653,6 +653,165 @@ bool allstar_one_on_one_rom_player_pair_blocks_6e3c(
     return cross_side != 0;
 }
 
+/* Bank 1 $6A8C->$6B72 dispatches movement only when a normal animation
+   record loads. $6BAD/$6BBA move +$06 right/left by four pixels and
+   $6BD4/$6BC7 move visual +$05 up/down by four before rebuilding ground
+   +$15 as visual+40. Each callback returns before displacement when $6E3C
+   reports player overlap or the court boundary rejects the move. */
+bool allstar_one_on_one_rom_player_move_6b72(
+    uint8_t direction,
+    uint8_t game_mode,
+    float *player_center_x,
+    float *player_ground_y,
+    float other_center_x,
+    float other_ground_y,
+    bool *blocked_contact) {
+    uint8_t player_x;
+    uint8_t player_y;
+    uint8_t other_x;
+    uint8_t other_y;
+    bool moved = false;
+
+    if (!player_center_x || !player_ground_y) return false;
+    if (blocked_contact) *blocked_contact = false;
+    player_x = (uint8_t)(*player_center_x - ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    player_y = (uint8_t)*player_ground_y;
+    other_x = (uint8_t)(other_center_x - ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    other_y = (uint8_t)other_ground_y;
+
+    if ((direction & ALLSTAR_BTN_RIGHT) != 0 && player_x < 0x94) {
+        if (allstar_one_on_one_rom_player_pair_blocks_6e3c(
+                ALLSTAR_BTN_RIGHT, game_mode,
+                player_x, player_y, other_x, other_y)) {
+            if (blocked_contact) *blocked_contact = true;
+        } else {
+            player_x = (uint8_t)(player_x + 4);
+            moved = true;
+        }
+    }
+    if ((direction & ALLSTAR_BTN_LEFT) != 0 && player_x >= 0x08) {
+        if (allstar_one_on_one_rom_player_pair_blocks_6e3c(
+                ALLSTAR_BTN_LEFT, game_mode,
+                player_x, player_y, other_x, other_y)) {
+            if (blocked_contact) *blocked_contact = true;
+        } else {
+            player_x = (uint8_t)(player_x - 4);
+            moved = true;
+        }
+    }
+    if ((direction & ALLSTAR_BTN_UP) != 0 && player_y >= 0x62) {
+        if (allstar_one_on_one_rom_player_pair_blocks_6e3c(
+                ALLSTAR_BTN_UP, game_mode,
+                player_x, player_y, other_x, other_y)) {
+            if (blocked_contact) *blocked_contact = true;
+        } else {
+            player_y = (uint8_t)(player_y - 4);
+            moved = true;
+        }
+    }
+    if ((direction & ALLSTAR_BTN_DOWN) != 0 && player_y < 0x98) {
+        if (allstar_one_on_one_rom_player_pair_blocks_6e3c(
+                ALLSTAR_BTN_DOWN, game_mode,
+                player_x, player_y, other_x, other_y)) {
+            if (blocked_contact) *blocked_contact = true;
+        } else {
+            player_y = (uint8_t)(player_y + 4);
+            moved = true;
+        }
+    }
+
+    *player_center_x = (float)player_x + ALLSTAR_ROM_PLAYER_X_TO_CENTER;
+    *player_ground_y = (float)player_y;
+    return moved;
+}
+
+/* Fixed bank $2CCA consumes the previous player update's +$0C latch.  A
+   clear latch reloads +$0D with $19; a held latch decrements it as an
+   unsigned byte and calls $0AC5 on zero. */
+static bool allstar_one_on_one_rom_contact_counter_2cca(
+    bool possession_active,
+    AllStarRomPlayerContactState *contact,
+    uint8_t action) {
+    if (!contact) return false;
+    if (!possession_active ||
+        !allstar_one_on_one_rom_action_eligible_0a78(action)) {
+        contact->blocked_contact = false;
+    }
+    if (!contact->blocked_contact) {
+        contact->violation_counter = ALLSTAR_ROM_CONTACT_VIOLATION_FRAMES;
+        return false;
+    }
+    contact->violation_counter--;
+    return contact->violation_counter == 0;
+}
+
+/* Fixed bank $0AC5 tests one exact defender alignment selected by the
+   possession owner's +$16 court variant.  The byte comparisons wrap. */
+static bool allstar_one_on_one_rom_contact_alignment_0ac5(
+    int owner,
+    float p1_center_x,
+    float p1_ground_y,
+    float p2_center_x,
+    float p2_ground_y) {
+    uint8_t owner_x = (uint8_t)((owner == 1 ? p1_center_x : p2_center_x) -
+                                ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    uint8_t owner_y = (uint8_t)(owner == 1 ? p1_ground_y : p2_ground_y);
+    uint8_t defender_x = (uint8_t)((owner == 1 ? p2_center_x : p1_center_x) -
+                                   ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    uint8_t defender_y = (uint8_t)(owner == 1 ? p2_ground_y : p1_ground_y);
+    uint8_t variant = allstar_one_on_one_rom_shot_variant(
+        owner == 1 ? p1_center_x : p2_center_x,
+        owner == 1 ? p1_ground_y : p2_ground_y);
+
+    if (variant == 0) return defender_x == (uint8_t)(owner_x + 12);
+    if (variant == 1) return defender_y == (uint8_t)(owner_y - 8);
+    return defender_x == (uint8_t)(owner_x - 12);
+}
+
+/* Fixed bank $2C50 checks player one before player two.  $0AC5 classifies
+   the expiring actor as charging when it owns the ball and blocking when it
+   does not; both outcomes award the restarted possession to the opposite
+   player through the later $20F7 dispatcher. */
+AllStarRomContactEvent allstar_one_on_one_rom_contact_tick_2c50(
+    bool possession_active,
+    int possession_owner,
+    AllStarRomPlayerContactState *p1_contact,
+    AllStarRomPlayerContactState *p2_contact,
+    uint8_t p1_action,
+    uint8_t p2_action,
+    float p1_center_x,
+    float p1_ground_y,
+    float p2_center_x,
+    float p2_ground_y,
+    int *offender) {
+    AllStarRomPlayerContactState *contacts[2] = {p1_contact, p2_contact};
+    uint8_t actions[2] = {p1_action, p2_action};
+    int player;
+
+    if (offender) *offender = 0;
+    if (possession_owner != 1 && possession_owner != 2) {
+        possession_active = false;
+    }
+    for (player = 1; player <= 2; player++) {
+        AllStarRomPlayerContactState *contact = contacts[player - 1];
+        if (!allstar_one_on_one_rom_contact_counter_2cca(
+                possession_active, contact, actions[player - 1])) {
+            continue;
+        }
+        if (!allstar_one_on_one_rom_contact_alignment_0ac5(
+                possession_owner, p1_center_x, p1_ground_y,
+                p2_center_x, p2_ground_y)) {
+            contact->blocked_contact = false;
+            continue;
+        }
+        if (offender) *offender = player;
+        return player == possession_owner
+            ? ALLSTAR_ROM_CONTACT_CHARGING
+            : ALLSTAR_ROM_CONTACT_BLOCKING;
+    }
+    return ALLSTAR_ROM_CONTACT_NONE;
+}
+
 /* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early
    exits, player 1 is tested before player 2, and an award reloads $C12D
    with 20 frames. $FFEB blocks during counted waits; $FFE2 blocks a pending

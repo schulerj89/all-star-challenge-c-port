@@ -61,7 +61,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
-    printf("  --dump-screenshots <out_dir>       Render all game scenes to BMP screenshots\n");
+    printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
     printf("  --test-mode-routing                Verify all ROM menu IDs route correctly\n");
@@ -702,6 +702,14 @@ int allstar_cli_test_one_on_one_shooting(void) {
     AllStarAssetPack animation_pack;
     AllStarRomAnimationState animation_state;
     bool animation_flip;
+    bool contact_latch;
+    AllStarRomPlayerContactState p1_contact;
+    AllStarRomPlayerContactState p2_contact;
+    AllStarRomContactEvent contact_event;
+    int contact_offender;
+    AllStarAIController contact_ai;
+    AllStarRomBallPresentation ball_presentation;
+    uint16_t composed_tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT];
     static const uint8_t movement_cases[4][3] = {
         {ALLSTAR_BTN_RIGHT, 0x10, 0x11},
         {ALLSTAR_BTN_LEFT,  0x10, 0x11},
@@ -724,6 +732,54 @@ int allstar_cli_test_one_on_one_shooting(void) {
         animation_pack.animation_actions[0x17].rom_pointer != 0x6940 ||
         animation_pack.animation_actions[0x0a].record_count != 13) {
         fprintf(stderr, "[Test] $6C60 action pointer map was incorrect\n");
+        return 1;
+    }
+    {
+        int tile;
+        for (tile = 0; tile < ALLSTAR_PLAYER_FRAME_TILE_COUNT; tile++) {
+            animation_pack.player_frames[0].tile_indices[tile] = (uint8_t)tile;
+            animation_pack.player_frames[37].tile_indices[tile] = (uint8_t)tile;
+            animation_pack.player_frames[59].tile_indices[tile] = (uint8_t)tile;
+        }
+    }
+    if (!allstar_renderer_rom_player_tiles_2945(
+            &animation_pack, 0x00, 0, false, composed_tiles) ||
+        composed_tiles[0] != 0 || composed_tiles[1] != 3 ||
+        composed_tiles[2] != 1 || composed_tiles[3] != 4 ||
+        composed_tiles[4] != 2 || composed_tiles[5] != 5 ||
+        !allstar_renderer_rom_player_tiles_2945(
+            &animation_pack, 0x00, 0, true, composed_tiles) ||
+        composed_tiles[0] != 2 || composed_tiles[1] != 5 ||
+        composed_tiles[4] != 0 || composed_tiles[5] != 3 ||
+        !allstar_renderer_rom_player_tiles_2945(
+            &animation_pack, 0x08, 21, false, composed_tiles) ||
+        composed_tiles[0] != 147 ||
+        !allstar_renderer_rom_player_tiles_2945(
+            &animation_pack, 0x10, 21, false, composed_tiles) ||
+        composed_tiles[0] != 358) {
+        fprintf(stderr, "[Test] $2945/$2A2B player OAM traversal was incorrect\n");
+        return 1;
+    }
+    allstar_renderer_rom_ball_presentation_6945(
+        0x43, 0x70, 7, false, &ball_presentation);
+    if (ball_presentation.phase != 3 ||
+        ball_presentation.adjusted_phase != 3 ||
+        ball_presentation.oam_x != 0x40 ||
+        ball_presentation.ball_oam_y != 0x69 ||
+        ball_presentation.shadow_tier != 2 ||
+        ball_presentation.ball_pair_index != 3 ||
+        ball_presentation.shadow_pair_index != 27) {
+        fprintf(stderr, "[Test] $6945 ground ball phase/shadow selection was incorrect\n");
+        return 1;
+    }
+    allstar_renderer_rom_ball_presentation_6945(
+        0x43, 0x70, 0x1f, true, &ball_presentation);
+    if (ball_presentation.adjusted_phase != 7 ||
+        ball_presentation.oam_x != 0x3c ||
+        ball_presentation.shadow_tier != 0 ||
+        ball_presentation.ball_pair_index != 7 ||
+        ball_presentation.shadow_pair_index != 15) {
+        fprintf(stderr, "[Test] $6945 rear/high ball phase selection was incorrect\n");
         return 1;
     }
     allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x10);
@@ -925,6 +981,30 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_ai_rom_should_steal_71b3(3, 0x46, true) ||
         allstar_ai_rom_should_steal_71b3(3, 0x00, false)) {
         fprintf(stderr, "[Test] $71B3/$762C CPU steal thresholds were incorrect\n");
+        return 1;
+    }
+
+    allstar_ai_init(&contact_ai, NULL);
+    allstar_ai_set_skill(&contact_ai, 1);
+    if (allstar_ai_rom_contact_response_75cd(
+            &contact_ai, true, false, 0xbd, 0x40, 80.0f, 112.0f) ||
+        !allstar_ai_rom_contact_response_75cd(
+            &contact_ai, true, false, 0xbe, 0x40, 80.0f, 112.0f) ||
+        contact_ai.rom_contact_hold_frames != 10 ||
+        contact_ai.rom_contact_saved_x != 80 ||
+        contact_ai.rom_contact_saved_y != 112 ||
+        allstar_ai_rom_contact_response_75cd(
+            &contact_ai, true, false, 0xff, 0x40, 80.0f, 112.0f)) {
+        fprintf(stderr, "[Test] $75CD defender threshold/hold response was incorrect\n");
+        return 1;
+    }
+    allstar_ai_init(&contact_ai, NULL);
+    contact_ai.rom_contact_offense_count = 13;
+    if (!allstar_ai_rom_contact_response_75cd(
+            &contact_ai, true, true, 0xbe, 0x40, 80.0f, 112.0f) ||
+        contact_ai.rom_contact_offense_count != 14 ||
+        !contact_ai.rom_force_shot) {
+        fprintf(stderr, "[Test] $75CD fourteenth-contact shot response was incorrect\n");
         return 1;
     }
 
@@ -1221,6 +1301,114 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_one_on_one_rom_player_pair_blocks_6e3c(
             0, 0, 64, 112, 72, 112)) {
         fprintf(stderr, "[Test] $6E3C directional player-pair gate was incorrect\n");
+        return 1;
+    }
+    court_x = 80.0f;
+    court_y = 120.0f;
+    contact_latch = true;
+    if (!allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_RIGHT, 0, &court_x, &court_y,
+            140.0f, 140.0f, &contact_latch) ||
+        court_x != 84.0f || court_y != 120.0f || contact_latch) {
+        fprintf(stderr, "[Test] $6B72/$6BAD four-pixel movement was incorrect\n");
+        return 1;
+    }
+    court_x = 72.0f;
+    court_y = 112.0f;
+    contact_latch = false;
+    if (allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_RIGHT, 0, &court_x, &court_y,
+            80.0f, 112.0f, &contact_latch) ||
+        court_x != 72.0f || court_y != 112.0f || !contact_latch) {
+        fprintf(stderr, "[Test] $6BAD did not return before contact displacement\n");
+        return 1;
+    }
+    court_x = 72.0f;
+    court_y = 112.0f;
+    if (!allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_RIGHT, 0, &court_x, &court_y,
+            68.0f, 112.0f, NULL) ||
+        court_x != 76.0f || court_y != 112.0f) {
+        fprintf(stderr, "[Test] $6BAD did not permit movement away from contact\n");
+        return 1;
+    }
+    court_x = 80.0f;
+    court_y = 120.0f;
+    if (!allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_UP | ALLSTAR_BTN_LEFT, 0,
+            &court_x, &court_y, 140.0f, 140.0f, NULL) ||
+        court_x != 76.0f || court_y != 116.0f) {
+        fprintf(stderr, "[Test] $6B72 direction order/displacement was incorrect\n");
+        return 1;
+    }
+    court_x = 156.0f;
+    court_y = 152.0f;
+    if (allstar_one_on_one_rom_player_move_6b72(
+            ALLSTAR_BTN_RIGHT | ALLSTAR_BTN_DOWN, 0,
+            &court_x, &court_y, 20.0f, 100.0f, NULL) ||
+        court_x != 156.0f || court_y != 152.0f) {
+        fprintf(stderr, "[Test] $6BAD/$6BC7 court return gates were incorrect\n");
+        return 1;
+    }
+
+    memset(&p1_contact, 0, sizeof(p1_contact));
+    memset(&p2_contact, 0, sizeof(p2_contact));
+    p1_contact.blocked_contact = true;
+    p1_contact.violation_counter = 1;
+    contact_event = allstar_one_on_one_rom_contact_tick_2c50(
+        true, 1, &p1_contact, &p2_contact, 0x01, 0x09,
+        72.0f, 96.0f, 84.0f, 96.0f, &contact_offender);
+    if (contact_event != ALLSTAR_ROM_CONTACT_CHARGING ||
+        contact_offender != 1) {
+        fprintf(stderr, "[Test] $2CCA/$0AC5 charging classification was incorrect\n");
+        return 1;
+    }
+    memset(&p1_contact, 0, sizeof(p1_contact));
+    memset(&p2_contact, 0, sizeof(p2_contact));
+    p2_contact.blocked_contact = true;
+    p2_contact.violation_counter = 1;
+    contact_event = allstar_one_on_one_rom_contact_tick_2c50(
+        true, 1, &p1_contact, &p2_contact, 0x01, 0x09,
+        72.0f, 96.0f, 84.0f, 96.0f, &contact_offender);
+    if (contact_event != ALLSTAR_ROM_CONTACT_BLOCKING ||
+        contact_offender != 2) {
+        fprintf(stderr, "[Test] $2CCA/$0AC5 blocking classification was incorrect\n");
+        return 1;
+    }
+    p1_contact.blocked_contact = true;
+    p1_contact.violation_counter = 1;
+    p2_contact.blocked_contact = true;
+    p2_contact.violation_counter = 1;
+    contact_event = allstar_one_on_one_rom_contact_tick_2c50(
+        true, 1, &p1_contact, &p2_contact, 0x01, 0x09,
+        72.0f, 96.0f, 84.0f, 96.0f, &contact_offender);
+    if (contact_event != ALLSTAR_ROM_CONTACT_CHARGING ||
+        contact_offender != 1) {
+        fprintf(stderr, "[Test] $2C50 player-one violation priority was incorrect\n");
+        return 1;
+    }
+    memset(&p1_contact, 0, sizeof(p1_contact));
+    memset(&p2_contact, 0, sizeof(p2_contact));
+    p1_contact.blocked_contact = true;
+    p1_contact.violation_counter = 1;
+    contact_event = allstar_one_on_one_rom_contact_tick_2c50(
+        true, 1, &p1_contact, &p2_contact,
+        ALLSTAR_ROM_SHOT_ACTION_A, 0x09,
+        72.0f, 96.0f, 84.0f, 96.0f, &contact_offender);
+    if (contact_event != ALLSTAR_ROM_CONTACT_NONE ||
+        p1_contact.blocked_contact ||
+        p1_contact.violation_counter != ALLSTAR_ROM_CONTACT_VIOLATION_FRAMES) {
+        fprintf(stderr, "[Test] $2CCA protected-action contact clear was incorrect\n");
+        return 1;
+    }
+    p1_contact.blocked_contact = true;
+    p1_contact.violation_counter = 1;
+    contact_event = allstar_one_on_one_rom_contact_tick_2c50(
+        true, 1, &p1_contact, &p2_contact, 0x01, 0x09,
+        72.0f, 96.0f, 88.0f, 96.0f, &contact_offender);
+    if (contact_event != ALLSTAR_ROM_CONTACT_NONE ||
+        p1_contact.blocked_contact) {
+        fprintf(stderr, "[Test] $0AC5 rejected-alignment reentry was incorrect\n");
         return 1;
     }
 
@@ -1597,10 +1785,11 @@ int allstar_cli_test_headless_frames(void) {
     return 0;
 }
 
-int allstar_cli_dump_screenshots(const char *out_dir) {
+int allstar_cli_dump_screenshots(const char *out_dir,
+                                 const char *asset_pack_path) {
     printf("[Screenshots] Exporting scene screenshots to: %s\n", out_dir);
     AllStarGame game;
-    if (!allstar_game_init(&game, NULL)) {
+    if (!allstar_game_init(&game, asset_pack_path)) {
         fprintf(stderr, "[Screenshots] Failed initializing game\n");
         return 1;
     }
@@ -1751,7 +1940,7 @@ int allstar_cli_main(int argc, char **argv) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");
             return 1;
         }
-        return allstar_cli_dump_screenshots(argv[2]);
+        return allstar_cli_dump_screenshots(argv[2], argc >= 4 ? argv[3] : NULL);
     } else if (strcmp(cmd, "--test-roster") == 0) {
         return allstar_cli_test_roster();
     } else if (strcmp(cmd, "--test-physics") == 0) {

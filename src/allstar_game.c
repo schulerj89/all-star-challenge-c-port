@@ -173,6 +173,7 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     } else {
         allstar_asset_pack_init_default(game->asset_pack);
     }
+    allstar_renderer_set_asset_pack(game->renderer, game->asset_pack);
 
     /* Initialize Roster */
     allstar_roster_load_from_asset_pack(&game->roster, game->asset_pack);

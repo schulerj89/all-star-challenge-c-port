@@ -81,17 +81,23 @@ boundary, retaining prior direction and the horizontal-flip bit per player.
 It uses `$70FD`'s family selector for defense jumps, `$2B14`'s family selector
 for steals, and passes the resulting display-frame byte to the renderer.
 
-Asset-pack version 3 adds 24 `AllStarRomAnimationAction` entries. Building a
+Asset-pack version 4 retains the 24 `AllStarRomAnimationAction` entries. Building a
 pack reads the `$6C60` pointers and their control lists directly from the
-user-supplied ROM. The repository contains only a small native control-table
-fallback; it does not contain extracted sprite sheets.
+user-supplied ROM. It also extracts the three player tile families and all 60
+18-index frame maps used by fixed `$2933/$293D->$2945->$2A2B`. The repository
+contains only a small native control-table and procedural-art fallback; it
+does not contain the extracted One-on-One sprite sheets.
 
-## Deliberate coverage limits
+## Contact and recovery caller correction
 
-This checkpoint does **not** claim the remaining graphics work. The renderer
-still maps ROM display-frame IDs onto its existing compiled derived art. Player
-tile regions, frame tilemaps, OAM composition, court tiles/tilemap, and ball
-sprite extraction remain open. `$782E` remains a whole-routine candidate rather
-than verified because its `$2F88` action-change sound command is not yet
-sequenced equivalently; this does not affect the verified movement action and
-record-state subsets.
+Ghidra shows no contact-hit or rebound-pickup action setter. Ordinary contact
+returns from `$6BAD/$6BBA/$6BC7/$6BD4` before displacement and leaves the
+action untouched. `$2AE2/$2B88` recovery changes possession fields without
+touching animation fields `+$00..+$04`; normal `$782E/$6A8C` selection resumes.
+The native scene now preserves both behaviors instead of forcing invented
+animations.
+
+Player composition, court art, and `$6945/$69F5` eight-phase ball/shadow OAM
+are documented in `ONE_ON_ONE_ASSETS.md`. `$782E` is verified for its complete
+movement/idle selector; audio command sequencing remains tracked separately
+from this gameplay/animation focus.

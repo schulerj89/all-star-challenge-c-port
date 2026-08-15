@@ -48,9 +48,23 @@ directional idle, `$70FD`'s middle-family jump, the following steal family,
 and a six-frame record reload through player fields `+$00..+$04`. Require exit
 code `0` and `TRACE PASSED: $782E/$6A8C directional actions and record cadence`.
 
-`trace_one_on_one_player_collision.lua` follows bank 1 `$6E3C/$6EC0/$6EEA`.
-It injects controlled player coordinates during rightward input and observes
-the ROM's `$C16B` result after the collision routine returns. Require exit code
-`0` and `TRACE PASSED: $6E3C directional player-pair collision`; this proves
-blocking with a player ahead and allowance while moving away or while
-vertically separated.
+`trace_one_on_one_player_collision.lua` follows bank 1
+`$6A8C->$6B72->$6BAD->$6E3C/$6EC0/$6EEA`. It injects controlled player
+coordinates during rightward input and verifies both the coordinate result and
+the ROM's player `+$0C`/global `$C16B` contact latches. Require exit code `0`
+and `TRACE PASSED: $6E3C directional player-pair collision`; this proves a
+blocked move preserves X while moving away or vertical separation permits the
+exact four-pixel move.
+
+`trace_one_on_one_contact_rules.lua` drives fixed-bank
+`$2C50->$2CCA->$0AC5` with exact possession-owner geometry. It proves charging
+when the owner is the expiring offender, blocking when the defender is the
+offender, and latch clearing for the protected shot-gather action `$0A`.
+Require exit code `0` and `TRACE PASSED: $2C50/$2CCA/$0AC5 charging, blocking,
+and protected action`.
+
+`trace_one_on_one_assets.lua` captures the decompressed player, court, and
+ball graphics from the original ROM and checks exact lengths and hashes. It
+also exercises `$6945->$69F5` and verifies one ball phase across all three
+shadow-height bands. Require exit code `0` and `TRACE PASSED: One-on-One asset
+regions and $6945/$69F5 OAM composition`.

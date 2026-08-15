@@ -484,7 +484,8 @@ static bool one_on_one_update_score_presentation(SceneOneOnOneData *data,
 
     previous_frame = data->score_presentation.elapsed_frames;
     score_events = allstar_one_on_one_score_presentation_tick_0c13(
-        &data->score_presentation, dt);
+        &data->score_presentation,
+        dt * ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE);
 
     /* $1E0E pins the made ball to $54/$5E and applies raw VZ=$FFE8
        without the normal $7BE8 gravity while the score effect is live. */

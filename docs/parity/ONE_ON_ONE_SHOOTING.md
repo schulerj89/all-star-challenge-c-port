@@ -22,7 +22,7 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | Shot action animation | Use the recovered 67 frame-duration total from the action `$0A/$12` animation tables instead of the former arbitrary 15-frame timer. |
 | Player jump presentation | Apply the signed `$6C4D` lift every rendered record while leaving the floor shadow anchored, so the shooter visibly rises and falls through the full gather. |
 | Made basket | `$1E0E` begins a score presentation instead of immediately resetting play. `$1F23` commits the score and dispatches sound command `$05` 65 frames after contact. |
-| Post-score transition | Preserve the cartridge's two counted holds, four-step `$27C7/$27EA` fade-out, `$20F7` possession rebuild, reverse `$27CC/$27EA` fade-in, and final counted hold. `$702D` runs with `$FFEB=1` at frame 254; OBJ display and playable input return at frame 258. |
+| Post-score transition | Preserve the cartridge's two counted holds, four-step `$27C7/$27EA` fade-out, `$20F7` possession rebuild, reverse `$27CC/$27EA` fade-in, and final counted hold. `$702D` runs with `$FFEB=1` at ROM frame 254; OBJ display and playable input return at ROM frame 258. The native scene intentionally consumes this presentation timeline at 2× speed, reducing the wall-clock wait from about 4.3 to 2.15 seconds without changing shot flight. |
 | Miss travels behind the hoop (`y<$5C`) | Apply `$1CED`: return it to `y=$5E` with the recovered small positive court velocity. |
 | Ball reaches `x<$0A`, `x>=$A0`, or `y>=$97` | Apply `$1CED->$1F4D`: zero planar velocity and leave possession unresolved until recovery. |
 | Loose ball recovery | Use `$077D`'s strict `|dx|<12`, `|dy|<8` collision limits, then apply possession through the existing match state. |
@@ -82,6 +82,12 @@ at `+254` with `$FFEB=1`; and playable input/LCDC OBJ return at `+258`. The
 eight observed BGP writes are exactly
 `E4,F9,FE,FF,FF,FE,F9,E4`.
 
+The pure presentation helper and Mesen trace retain those exact ROM-frame
+boundaries. The live native scene applies `ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE=2`
+as an explicit usability override, so it renders the same state sequence in
+approximately 129 display frames. This is the only intentional pacing
+deviation in the focused shooting path.
+
 From a captured gameplay state the input trace
 asserts the A-A path (`$FFAE=1`, phase 0, immediate possession transfer) and the
 A-B path (`$FFAF=2`, phase 1/`$C16A=1`, then phase 2/release one update later).
@@ -104,6 +110,7 @@ The scoped launch/contact path is verified, but complete gameplay parity is not:
 
 - player collision penalties and unrelated `$7170` branches remain unmapped;
 - the audible fallback reproduces the traced `$05` dispatch time and a DMG-like cue, but it is not a cycle-accurate port of the complete `$3014` APU sequencer;
+- the post-score presentation runs at 2× cartridge speed in the native scene to avoid the original 4.3-second input lock;
 - `$1CED` branches belonging exclusively to other game modes remain outside this One-on-One claim.
 
 The former One-on-One implementation used an interpolated descending plane at `z=16` plus a five-pixel circle. Recovered `$1CED` proves that model was not native: the ROM compares integer 8.8 bytes in discrete score/contact cells and never reads vertical-velocity sign in the score decision. One-on-One now consumes the exact contact event; the generic plane helper remains available only for the other prototype shooting scenes.

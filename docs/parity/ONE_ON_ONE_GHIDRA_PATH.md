@@ -32,6 +32,11 @@ boundary above. The focused shooting denominator was therefore expanded from
 the former contact-only 12 items to 22 items; it moved from **12/22 (54.55%)**
 to **22/22 (100.00%)** once this complete path was converted.
 
+The pure C state machine retains those ROM-frame boundaries for regression
+proof. The live native scene deliberately consumes two presentation frames per
+display frame, shortening score contact through playable inbound from about
+4.3 seconds to 2.15 seconds while preserving the recovered event order.
+
 ## Per-frame contact and movement path
 
 | ROM path followed in Ghidra | Recovered behavior | Native C path |

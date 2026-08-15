@@ -23,6 +23,9 @@
 #define ALLSTAR_ROM_SCORE_FADE_IN_FRAME 219
 #define ALLSTAR_ROM_SCORE_COUNTED_INBOUND_FRAME 254
 #define ALLSTAR_ROM_SCORE_INBOUND_FRAME 258
+/* Intentional native pacing override: retain every ROM presentation state,
+   but consume two score-presentation frames per rendered gameplay frame. */
+#define ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE 2.0f
 
 /* $077D compares these player reference coordinates to the loose ball. */
 #define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f

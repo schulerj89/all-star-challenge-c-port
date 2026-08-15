@@ -1616,6 +1616,23 @@ int allstar_cli_test_one_on_one_shooting(void) {
         return 1;
     }
 
+    allstar_one_on_one_score_presentation_begin_1e0e(
+        &score_presentation, 1, 2);
+    for (frame = 1;
+         frame <= (int)ceilf(ALLSTAR_ROM_SCORE_INBOUND_FRAME /
+                             ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE);
+         frame++) {
+        allstar_one_on_one_score_presentation_tick_0c13(
+            &score_presentation,
+            ALLSTAR_PHYSICS_STEP_SECONDS *
+                ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE);
+    }
+    if (score_presentation.active || frame - 1 != 129) {
+        fprintf(stderr,
+                "[Test] Native 2x score presentation did not finish in 129 frames\n");
+        return 1;
+    }
+
     /* End-to-end native scene proof: for roster profile zero at the reset
        class-one location, pointer 5 couples Z=$3E with table VZ=$01D4 and
        enters $1CED's live score branch. The cartridge trace uses pointer 7
@@ -1651,8 +1668,12 @@ int allstar_cli_test_one_on_one_shooting(void) {
     if (game.one_on_one.p1_score != 2 || game.one_on_one.p1_possession ||
         allstar_one_on_one_rom_shot_record_index(25) != 5 ||
         score_frame < 0 || possession_frame - score_frame !=
-            ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME -
-            ALLSTAR_ROM_SCORE_COMMIT_FRAME ||
+            (int)ceilf(
+                ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME /
+                    ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE) -
+            (int)ceilf(
+                ALLSTAR_ROM_SCORE_COMMIT_FRAME /
+                    ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE) ||
         score_sfx != ALLSTAR_SFX_SWISH) {
         fprintf(stderr,
                 "[Test] Timed native make did not follow $1E0E->$1F23->$20F7 "
@@ -2086,19 +2107,19 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    for (int i = 20; i < 129; i++)
+    for (int i = 20; i < 98; i++)
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path), "%s\\04g_one_on_one_score_cue.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    for (int i = 129; i < 267; i++)
+    for (int i = 98; i < 160; i++)
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path), "%s\\04h_one_on_one_fade.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    for (int i = 267; i < 324; i++)
+    for (int i = 160; i < 196; i++)
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     snprintf(path, sizeof(path), "%s\\04i_one_on_one_inbound.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,

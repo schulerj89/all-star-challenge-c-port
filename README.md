@@ -22,7 +22,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. |
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
-| One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The earlier 12/12 claim ended at hoop contact; the expanded audit includes jump lift, score/sound timing, fades, possession rebuild, and the next inbound. |
+| One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-frame state sequence is complete; the native presentation intentionally plays it at 2× speed for a roughly 2.15-second score-to-inbound transition. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 

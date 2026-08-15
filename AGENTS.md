@@ -8,6 +8,7 @@ These notes define standards and procedures for AI agents (Antigravity/Codex) wo
 - **Data Boundary**: NEVER commit ROM binaries, raw PRG/CHR dumps, extracted copyright sprite sheets, or private binary blobs.
 - **Asset Pipeline**: Assets must be extracted dynamically from the user's ROM file using `--build-assetpack`.
 - **Ghidra & MCP Integration**: Use the Ghidra MCP tools / scripts in `tools/ghidra` to analyze functions, query symbol tables, and decompile routines.
+- **Evidence-Based Coverage**: Do not count comments, declarations, similarly named functions, or scene scaffolds as ROM-routine coverage. Mark behavior verified only when a trace or deterministic comparison supports it.
 - **Keep Verification Green**: Ensure `.\build.ps1` builds cleanly without warnings and all verification tests pass.
 
 ## 2. Standard Build & Test Commands
@@ -41,5 +42,5 @@ These notes define standards and procedures for AI agents (Antigravity/Codex) wo
 - `src/`: Core logic, CLI parsing, ROM loading, and asset packing.
 - `src/scenes/`: Individual scene state machines (Intro, Menu, 1-on-1, 3-Point, Free Throw, HORSE).
 - `src/gameplay/`: Physics, rules, and AI decision logic.
-- `src/audio/`: APU emulation and sound synthesizer.
+- `src/audio/`: Native audio output. The current implementation is a Win32 PCM mixer; ROM sequence interpretation remains planned work.
 - `tools/`: Reverse engineering helpers, Ghidra MCP server bridge, and extraction scripts.

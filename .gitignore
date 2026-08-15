@@ -9,6 +9,8 @@ obj/
 *.lib
 *.dll
 *.o
+*.pyc
+__pycache__/
 
 # Disassembly & Decompilation (Strictly local reverse-engineering data, NEVER committed)
 disassembly/

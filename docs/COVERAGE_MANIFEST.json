@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "verified_project_milestones",
+    "description": "Strict all-or-nothing milestones. Only verified items count; partial work receives zero credit.",
+    "total_milestones": 25,
+    "points_per_milestone": 4.0,
+    "commit_gate_delta_points": 2.0
+  },
+  "milestones": [
+    {
+      "id": "analysis.rom_identity",
+      "group": "analysis",
+      "description": "ROM size, cartridge type, bank count, and RAM configuration are validated from the header.",
+      "status": "verified",
+      "evidence": ["src/allstar_rom.c", "tools/scripts/gb_rom_analyzer.py"],
+      "verification_command": ".\\build\\allstar_port.exe --rom-test <ROM_PATH>"
+    },
+    {
+      "id": "analysis.bank0_mapping",
+      "group": "analysis",
+      "description": "Physical bank 0 is mapped and byte-verified at CPU $0000-$3fff.",
+      "status": "verified",
+      "evidence": ["tools/ghidra/setup_banked_rom.py", "tools/check_ghidra_banks.py"],
+      "verification_command": "python tools/check_ghidra_banks.py"
+    },
+    {
+      "id": "analysis.bank1_mapping",
+      "group": "analysis",
+      "description": "Physical bank 1 is mapped and byte-verified in a CPU $4000-$7fff overlay.",
+      "status": "verified",
+      "evidence": ["tools/ghidra/setup_banked_rom.py", "tools/check_ghidra_banks.py"],
+      "verification_command": "python tools/check_ghidra_banks.py"
+    },
+    {
+      "id": "analysis.bank2_mapping",
+      "group": "analysis",
+      "description": "Physical bank 2 is mapped and byte-verified in a CPU $4000-$7fff overlay.",
+      "status": "verified",
+      "evidence": ["tools/ghidra/setup_banked_rom.py", "tools/check_ghidra_banks.py"],
+      "verification_command": "python tools/check_ghidra_banks.py"
+    },
+    {
+      "id": "analysis.bank3_mapping",
+      "group": "analysis",
+      "description": "Physical bank 3 is mapped and byte-verified in a CPU $4000-$7fff overlay.",
+      "status": "verified",
+      "evidence": ["tools/ghidra/setup_banked_rom.py", "tools/check_ghidra_banks.py"],
+      "verification_command": "python tools/check_ghidra_banks.py"
+    },
+    {
+      "id": "analysis.code_data_map",
+      "group": "analysis",
+      "description": "All four banks have reviewed code/data boundaries.",
+      "status": "identified"
+    },
+    {
+      "id": "analysis.symbol_manifest",
+      "group": "analysis",
+      "description": "Confirmed ROM functions have stable banked symbols and machine-readable native mappings.",
+      "status": "unmapped"
+    },
+    {
+      "id": "behavior.mode_routing",
+      "group": "gameplay",
+      "description": "Every menu item routes to the correct native mode.",
+      "status": "identified"
+    },
+    {
+      "id": "behavior.settings",
+      "group": "gameplay",
+      "description": "All configurable settings persist and affect gameplay.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.one_on_one_lifecycle",
+      "group": "gameplay",
+      "description": "One-on-One has verified start, play, result, replay/exit, and tournament-return flow.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.one_on_one_rules",
+      "group": "gameplay",
+      "description": "One-on-One scoring, possession, clock, winners-outs, collision, steal, block, and rebound rules match the ROM.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.free_throw",
+      "group": "gameplay",
+      "description": "Free Throw timing, attempts, scoring, results, and exit flow match the ROM.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.tournament",
+      "group": "gameplay",
+      "description": "Tournament winner propagation, rounds, bracket state, and championship flow match the ROM.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.horse",
+      "group": "gameplay",
+      "description": "H-O-R-S-E called-shot, matching, letter, turn, and win rules match the ROM.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.accuracy",
+      "group": "gameplay",
+      "description": "Accuracy Shootout targets, timing, scoring, and completion match the ROM.",
+      "status": "unmapped"
+    },
+    {
+      "id": "behavior.two_player",
+      "group": "gameplay",
+      "description": "The native port supports the selected two-player gameplay flow with two input streams.",
+      "status": "unmapped"
+    },
+    {
+      "id": "behavior.physics",
+      "group": "gameplay",
+      "description": "Shot, rim, backboard, bounce, and rebound physics are verified against ROM traces.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.ai",
+      "group": "gameplay",
+      "description": "CPU decisions and difficulty/player-rating effects are verified against ROM traces.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "behavior.animation",
+      "group": "presentation",
+      "description": "Player and ball animation-state selection is verified against the ROM.",
+      "status": "partial"
+    },
+    {
+      "id": "behavior.audio_sequences",
+      "group": "presentation",
+      "description": "ROM music/SFX commands, timing, and channel behavior are represented natively and verified.",
+      "status": "unmapped"
+    },
+    {
+      "id": "assets.extraction",
+      "group": "assets",
+      "description": "Required tilemaps, portraits, logos, animations, roster records, and audio data are extracted from the user ROM.",
+      "status": "scaffolded"
+    },
+    {
+      "id": "assets.runtime_boundary",
+      "group": "assets",
+      "description": "Runtime presentation uses the generated asset pack rather than compiled derived-art arrays.",
+      "status": "unmapped"
+    },
+    {
+      "id": "verification.deterministic_inputs",
+      "group": "verification",
+      "description": "Emulator and native builds can run the same deterministic scripted inputs.",
+      "status": "unmapped"
+    },
+    {
+      "id": "verification.state_parity",
+      "group": "verification",
+      "description": "Automated checkpoints compare ROM WRAM state with native game state.",
+      "status": "unmapped"
+    },
+    {
+      "id": "verification.frame_parity",
+      "group": "verification",
+      "description": "Automated frame comparisons cover representative states and complete mode flows.",
+      "status": "unmapped"
+    }
+  ],
+  "history": [
+    {
+      "date": "2026-08-14",
+      "verified": 3,
+      "total": 25,
+      "percent": 12.0,
+      "note": "Audited baseline: ROM identity plus physical banks 0 and 1 mapped."
+    },
+    {
+      "date": "2026-08-14",
+      "verified": 5,
+      "total": 25,
+      "percent": 20.0,
+      "note": "MBC1 overlays added and byte-verified for physical banks 2 and 3."
+    }
+  ]
+}

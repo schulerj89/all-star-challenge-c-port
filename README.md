@@ -1,52 +1,106 @@
-# NBA All-Star Challenge (Game Boy to Native C Port)
+# NBA All-Star Challenge — Native C Port
 
-A high-performance, native C port of **NBA All-Star Challenge** (Game Boy, 1991/1992, Beam Software / LJN).
+Work-in-progress native C99 port of **NBA All-Star Challenge** for Game Boy (Beam Software / LJN).
 
-This project decompiles and ports the game logic directly into standard C99 with a clean-room ROM asset extraction pipeline, software rasterizer, APU audio synthesizer, and multi-mode gameplay engine.
+The project is a native reimplementation, not an emulator wrapper. The current build has a working Win32 shell, software renderer, scene prototypes, roster presentation, basic projectile physics, simple CPU behavior, and PCM playback. It is **not yet a gameplay-complete or frame-accurate port**.
 
----
+## Current Status
 
-## Features
+| Area | Status | Notes |
+|---|---|---|
+| Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
+| Intro, menu, settings, and roster screens | Partial | Screen flow exists; settings are not yet carried into gameplay. |
+| One-on-One | Prototype | Basic movement, shooting, scoring, and CPU movement exist; rules and match lifecycle are incomplete. |
+| Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
+| H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
+| Accuracy/three-point scene | Prototype | Currently modeled as a generic five-rack contest and is routed incorrectly from the menu. |
+| Tournament | Prototype | Bracket display exists; winner propagation and round progression do not. |
+| Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
+| Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
+| ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
+| Ghidra-to-C routine coverage | Not yet measurable | All four MBC1 banks are now mapped correctly, but the preliminary decompiler export still contains only 16 mostly hardware/boot functions. |
+| Verified project milestones | 20.00% | 5 of 25 strict milestones; gameplay parity remains 0%. |
 
-- **Native C Implementation**: Pure C99 game engine, not an emulator wrapper.
-- **ROM Asset Extraction**: Automatically extracts graphics, tilemaps, fonts, rosters, and animation frames from an original Game Boy ROM into a single `.assetpack` binary file.
-- **Game Modes Supported**:
-  - One-on-One
-  - Three-Point Shootout
-  - Free Throw Competition
-  - H-O-R-S-E
-  - Tournament Bracket
-- **Display Options**: Authentic 160×144 resolution with integer scaling (1x, 2x, 3x, 4x) and multiple palette styles (Original DMG Green, Game Boy Pocket Grayscale, Modern).
-- **Automated Verification**: Comprehensive unit test suites and headless regression testing.
+See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
----
+Run the machine-readable coverage gate with:
 
-## Building the Port
+```powershell
+python tools\check_coverage.py
+```
 
-### Windows (MSVC)
+For future commit decisions, compare the working tree with the currently committed manifest:
+
+```powershell
+python tools\check_coverage.py --baseline-ref HEAD --require-delta 2
+```
+
+## ROM Facts
+
+The verified USA/Europe ROM is:
+
+- 64 KiB (`0x10000` bytes)
+- MBC1 cartridge type (`0x01`)
+- Four 16 KiB ROM banks
+- No cartridge RAM
+
+Banks 1–3 all execute in the Game Boy switchable CPU window at `$4000..$7FFF`. Ghidra must represent them as separate overlays or equivalent banked address spaces; treating the ROM as one flat CPU address space produces incorrect analysis.
+
+## Building
+
+### Windows with MSVC
+
 ```powershell
 .\build.ps1
 ```
-This produces two binaries in `build/`:
-- `allstar_port.exe` — Console CLI test harness, ROM validator, and asset packer.
-- `allstar_port_game.exe` — Win32 GUI game executable.
 
-### Building Asset Pack
+This produces:
+
+- `build/allstar_port.exe` — CLI test harness, ROM validator, and asset-pack builder.
+- `build/allstar_port_game.exe` — Win32 game executable.
+
+The current build succeeds, although MSVC reports `fopen` deprecation warnings that still need cleanup.
+
+### Validate the ROM
+
 ```powershell
-.\build\allstar_port.exe --build-assetpack path\to\nba_allstar_challenge.gb build\allstar.assetpack
+.\build\allstar_port.exe --rom-test "path\to\NBA All-Star Challenge (USA, Europe).gb"
 ```
 
-### Running the Game
+### Build the current asset pack
+
 ```powershell
-.\build\allstar_port_game.exe --play
+.\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
----
+This command currently extracts a fixed tile range and packages the hardcoded roster. It does not yet extract all tilemaps, portraits, animation tables, roster records, or audio sequences from the ROM.
 
-## Reverse Engineering Tooling
+### Run the game
 
-- **Ghidra + GhidraBoy**: Decompilation and disassembly of the Sharp SM83 core.
-- **Ghidra MCP Server**: Model Context Protocol bridge allowing AI agents to query functions and symbol tables.
-- **mgbdis**: Symbolic disassembly generation into RGBDS format.
+```powershell
+.\build\allstar_port_game.exe
+```
 
-See [PORTING.md](PORTING.md) and [AGENTS.md](AGENTS.md) for full engineering specifications.
+## Verification
+
+```powershell
+.\build\allstar_port.exe --test-all
+```
+
+The current tests cover basic roster invariants, a projectile smoke test, and input-free scene ticking. Passing them proves that the native shell remains stable; it does not prove equivalence with the Game Boy game.
+
+For manual comparison with the original ROM:
+
+```powershell
+.\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
+```
+
+Automated emulator traces, WRAM snapshots, scripted-input comparisons, and frame-difference tests remain to be implemented.
+
+## Reverse Engineering
+
+- `disassembly/` contains the four-bank `mgbdis` output. Labels generated by `mgbdis` are analysis candidates and may identify data as code.
+- `tools/ghidra/` contains the bank-aware headless scripts and MCP bridge helper.
+- `tools/decomp/ghidra_decompiled.c` is the current preliminary Ghidra export.
+
+Read [PORTING.md](PORTING.md) for architecture and verification rules, and [AGENTS.md](AGENTS.md) for repository contribution requirements.

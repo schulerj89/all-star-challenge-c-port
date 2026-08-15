@@ -5,7 +5,9 @@ $GhidraHome = "C:\Users\joshs\Downloads\ghidra_11.3_PUBLIC_20250205\ghidra_11.3_
 $JdkHome = "C:\Users\joshs\Downloads\jdk-21\jdk-21.0.6+7"
 $RomPath = "F:\Games\GBA\GB\NBA All-Star Challenge\NBA All-Star Challenge (USA, Europe).gb"
 $GhidraProjectsDir = Join-Path $ProjectRoot "build\ghidra_project"
-$DecompScript = Join-Path $ProjectRoot "tools\ghidra\decompile_all.py"
+$GhidraScriptDir = Join-Path $ProjectRoot "tools\ghidra"
+$BankInventoryPath = Join-Path $ProjectRoot "build\ghidra_bank_inventory.json"
+$BankCheckScript = Join-Path $ProjectRoot "tools\check_ghidra_banks.py"
 
 New-Item -ItemType Directory -Force -Path $GhidraProjectsDir | Out-Null
 
@@ -21,7 +23,18 @@ Write-Host "Running Ghidra Headless Decompiler on NBA All-Star Challenge ($Clean
 & $AnalyzeHeadless "$GhidraProjectsDir" "NBA_AllStar_GB" `
     -import "$CleanRomPath" `
     -processor "SM83:LE:16:default" `
-    -postScript "$DecompScript" `
+    -scriptPath "$GhidraScriptDir" `
+    -postScript "setup_banked_rom.py" "$BankInventoryPath" `
+    -postScript "decompile_all.py" `
     -overwrite
 
-Write-Host "Ghidra Headless Decompilation Run Finished!" -ForegroundColor Green
+if ($LASTEXITCODE -ne 0) {
+    throw "Ghidra headless analysis failed with exit code $LASTEXITCODE"
+}
+
+python "$BankCheckScript" "$BankInventoryPath"
+if ($LASTEXITCODE -ne 0) {
+    throw "Ghidra bank inventory verification failed with exit code $LASTEXITCODE"
+}
+
+Write-Host "Ghidra four-bank setup and preliminary decompilation finished." -ForegroundColor Green

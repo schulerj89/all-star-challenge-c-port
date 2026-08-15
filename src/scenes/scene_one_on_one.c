@@ -13,6 +13,7 @@ typedef struct {
     AllStarBall ball;
     AllStarAIController ai;
     AllStarOneOnOneShotAttempt shot_attempt;
+    AllStarOneOnOneRecoveryState recovery;
     float p1_shot_animation_clock;
     float p2_shot_animation_clock;
     float anim_timer;
@@ -60,6 +61,10 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     float target_offset = 0.0f;
     float release_x = player->x;
     float release_y = player->y;
+    uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
+        player->x, player->y);
+    uint8_t shot_action = shot_variant == 1
+        ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
     AllStarOneOnOneReleaseOffset release_offset;
 
     if (rand() % 100 >= rating) {
@@ -70,13 +75,12 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     player->has_ball = false;
     player->is_shooting = true;
     player->is_jumping = false;
-    /* The native roster does not yet expose the ROM's +$16 animation class,
-       so use class zero while preserving the exact phase-two table lookup. */
     if (allstar_one_on_one_rom_release_offset(
-            ALLSTAR_ROM_SHOT_ACTION_B, 2, 0,
+            shot_action, 2, shot_variant,
             player->x > (shooter == 1 ? data->p2.x : data->p1.x),
             &release_offset)) {
-        release_x += (float)release_offset.x_offset;
+        release_x += (float)release_offset.x_offset -
+                     ALLSTAR_ROM_PLAYER_X_TO_CENTER;
         release_y += (float)release_offset.ground_y_offset;
     }
     if (shooter == 1) {
@@ -187,6 +191,7 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
 static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     uint32_t events;
+    int recovering_player;
     data->anim_timer += dt;
 
     events = allstar_one_on_one_match_tick(&game->one_on_one, dt);
@@ -285,9 +290,26 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 
     allstar_physics_apply_rom_court_contacts(&data->ball);
 
-    if (!data->ball.in_flight && !data->p1.has_ball && !data->p2.has_ball) {
-        if (allstar_one_on_one_player_can_pick_up_ball(
-                data->p1.x, data->p1.y, data->ball.x, data->ball.y)) {
+    recovering_player = allstar_one_on_one_rom_recovery_dispatch(
+        &data->recovery,
+        data->p1.has_ball || data->p2.has_ball,
+        false,
+        data->ball.z,
+        false,
+        false,
+        !data->ball.recoverable,
+        !data->p1.is_shooting,
+        allstar_one_on_one_player_can_pick_up_ball(
+            data->p1.x,
+            data->p1.y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+            data->ball.x, data->ball.y),
+        !data->p2.is_shooting,
+        allstar_one_on_one_player_can_pick_up_ball(
+            data->p2.x,
+            data->p2.y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+            data->ball.x, data->ball.y));
+
+    if (recovering_player == 1) {
             bool reset_shot_clock = !game->one_on_one.p1_possession;
             data->p1.has_ball = true;
             data->p1.is_shooting = false;
@@ -295,9 +317,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             allstar_one_on_one_match_take_possession(
                 &game->one_on_one, 1, reset_shot_clock);
             allstar_physics_init_ball(&data->ball);
-        } else if (allstar_one_on_one_player_can_pick_up_ball(
-                       data->p2.x, data->p2.y,
-                       data->ball.x, data->ball.y)) {
+    } else if (recovering_player == 2) {
             bool reset_shot_clock = game->one_on_one.p1_possession;
             data->p2.has_ball = true;
             data->p1.is_shooting = false;
@@ -305,7 +325,6 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             allstar_one_on_one_match_take_possession(
                 &game->one_on_one, 2, reset_shot_clock);
             allstar_physics_init_ball(&data->ball);
-        }
     }
 
 }

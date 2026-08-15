@@ -38,6 +38,7 @@ typedef struct {
     float target_crossing_x;
     float target_crossing_y;
     bool target_plane_crossed;
+    bool recoverable;
     bool in_flight;
     bool made_basket;
     int shooter_id;

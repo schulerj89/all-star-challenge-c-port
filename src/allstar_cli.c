@@ -157,6 +157,7 @@ int allstar_cli_test_physics(void) {
     AllStarBall chunk_stepped;
     AllStarBall miss;
     AllStarBall contact;
+    AllStarBall rebound;
     uint32_t contacts;
     int frame;
 
@@ -223,6 +224,18 @@ int allstar_cli_test_physics(void) {
     if (allstar_physics_check_basket(&miss, 80.0f, 82.0f,
                                      ALLSTAR_HOOP_HEIGHT)) {
         fprintf(stderr, "[Test] Offset shot incorrectly passed through the rim\n");
+        return 1;
+    }
+
+    allstar_physics_init_ball(&rebound);
+    allstar_physics_shoot_ball(&rebound, 80.0f, 130.0f, 90.0f, 92.0f,
+                               ALLSTAR_HOOP_HEIGHT, 1, 2);
+    for (frame = 0; frame < 120 && !rebound.recoverable; frame++) {
+        allstar_physics_update_ball(&rebound,
+                                    ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (!rebound.recoverable || !rebound.in_flight || rebound.z != 0.0f) {
+        fprintf(stderr, "[Test] First ground contact did not enable live rebound recovery\n");
         return 1;
     }
 
@@ -517,6 +530,7 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
 
 int allstar_cli_test_one_on_one_shooting(void) {
     AllStarOneOnOneShotAttempt attempt;
+    AllStarOneOnOneRecoveryState recovery;
     AllStarOneOnOneMatch match;
     AllStarGame game;
     uint32_t events;
@@ -598,6 +612,19 @@ int allstar_cli_test_one_on_one_shooting(void) {
         return 1;
     }
 
+    if (allstar_one_on_one_rom_shot_variant(16.0f, 96.0f) != 0 ||
+        allstar_one_on_one_rom_shot_variant(76.0f, 96.0f) != 0 ||
+        allstar_one_on_one_rom_shot_variant(77.0f, 96.0f) != 1 ||
+        allstar_one_on_one_rom_shot_variant(88.0f, 96.0f) != 1 ||
+        allstar_one_on_one_rom_shot_variant(89.0f, 96.0f) != 2 ||
+        allstar_one_on_one_rom_shot_variant(64.0f, 112.0f) != 0 ||
+        allstar_one_on_one_rom_shot_variant(65.0f, 112.0f) != 1 ||
+        allstar_one_on_one_rom_shot_variant(101.0f, 112.0f) != 2 ||
+        allstar_one_on_one_rom_shot_variant(80.0f, 129.0f) != 1) {
+        fprintf(stderr, "[Test] $791D/$794B shot-position class was incorrect\n");
+        return 1;
+    }
+
     if (!allstar_one_on_one_player_can_pick_up_ball(
             80.0f, 100.0f, 91.0f, 107.0f) ||
         allstar_one_on_one_player_can_pick_up_ball(
@@ -605,6 +632,36 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_one_on_one_player_can_pick_up_ball(
             80.0f, 100.0f, 91.0f, 108.0f)) {
         fprintf(stderr, "[Test] $077D loose-ball collision limits were incorrect\n");
+        return 1;
+    }
+
+    memset(&recovery, 0, sizeof(recovery));
+    recovery.cooldown_frames = 1;
+    if (allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 23.0f, false, false, false,
+            true, true, true, true) != 1 ||
+        recovery.cooldown_frames != ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES) {
+        fprintf(stderr, "[Test] $2AE2 cooldown order or P1 recovery priority was incorrect\n");
+        return 1;
+    }
+    if (allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, true, false, 0.0f, false, false, false,
+            true, true, true, true) != 0 ||
+        recovery.cooldown_frames != ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES - 1) {
+        fprintf(stderr, "[Test] $2AE2 cooldown did not tick before possession exit\n");
+        return 1;
+    }
+    recovery.cooldown_frames = 0;
+    if (allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 24.0f, false, false, false,
+            true, true, true, true) != 0 ||
+        allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 0.0f, false, false, true,
+            true, true, true, true) != 0 ||
+        allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 0.0f, false, false, false,
+            false, true, true, true) != 2) {
+        fprintf(stderr, "[Test] $2AE2/$2B07/$2B88 recovery gates were incorrect\n");
         return 1;
     }
 

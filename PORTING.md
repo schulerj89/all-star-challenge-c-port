@@ -67,7 +67,7 @@ The headless pipeline now creates byte-verified `$4000..$7FFF` overlays for phys
 
 The generated C listing contains 107 functions when reset/interrupt vectors and thunks are included. Bank 3 has no reviewed function seeds yet: current references select it as an asset-copy source, but a complete code/data review is still required. Bank 1 `$76A7` is recorded as a deferred call-target candidate because unresolved flows make Ghidra build an invalid oversized body and time out.
 
-`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 72 functions as unmapped, 19 as candidate native analogues, and three as verified for narrowly tested behavior.
+`tools/ghidra/function_seeds.json` is the checked-in symbol/native-status source. The latest inventory records 70 functions as unmapped, 21 as candidate native analogues, and three as verified for narrowly tested behavior.
 
 ### Current `mgbdis` result
 
@@ -92,6 +92,8 @@ These figures are an analysis queue, not a function count. Without code/data map
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
+
+One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **30/50 (60.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
 
 ## 4. Current Native Architecture
 

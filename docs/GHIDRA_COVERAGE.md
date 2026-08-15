@@ -4,13 +4,15 @@ Last audited: **2026-08-14**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 72 are explicitly unmapped, 19 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. Shooting mappings `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete fixed-point state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 70 are explicitly unmapped, 21 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. Shooting mappings `$791D`, `$794B`, `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
 The port currently has broad native scene scaffolding. Mode routing, settings persistence/consumption, the high-level One-on-One lifecycle, and the seven-match tournament progression are verified against reviewed fixed-bank control flow; most detailed game rules remain partial, simplified, or unverified.
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
+
+The separate One-on-One behavior manifest is **30/50 (60.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
 
 ## Scope
 
@@ -34,7 +36,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 94 functions | 40 in bank 0, 46 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 107 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 3 of 94 | `$077D`, `$1F4D`, and `$28E1` are verified for their narrow tested semantics; 19 candidate analogues remain below the evidence threshold. |
+| Reviewed routine-to-C parity | 3 of 94 | `$077D`, `$1F4D`, and `$28E1` are verified for their narrow tested semantics; 21 candidate analogues remain below the evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
@@ -102,7 +104,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | Lifecycle plus narrow contact helpers | Endings, result/overtime flow, score comparison, `$7F37` release-offset selection, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; the full shot/contact state machine remains partial. |
+| One-on-One | Yes | Lifecycle plus narrow shot/contact helpers | Endings, result/overtime flow, score comparison, `$791D/$794B` shot variants, `$7F37` release offsets, `$077D` pickup limits, and `$1F4D` dead-ball stop are covered; the full shot/contact state machine remains partial. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |

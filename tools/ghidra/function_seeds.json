@@ -145,15 +145,27 @@
     },
     "rom_b00_2ae2": {
       "status": "candidate",
-      "native_symbol": "one_on_one_update",
-      "source": "src/scenes/scene_one_on_one.c",
-      "note": "Loose-ball recovery analogue uses the recovered collision helper and possession reset distinction; the ROM's cooldown and flight-state gates remain incomplete."
+      "native_symbol": "allstar_one_on_one_rom_recovery_dispatch",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Native dispatcher preserves cooldown decrement, possession/global/height gates, player order, action/collision eligibility, final locks, and the 20-frame reload. Three global lock meanings and emulator state traces remain missing."
     },
     "rom_b01_6ca2": {
       "status": "candidate",
       "native_symbol": "three_point_init",
       "source": "src/scenes/scene_three_point.c",
       "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
+    },
+    "rom_b01_791d": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_shot_variant",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Native code reproduces the position-to-shot-variant flow, while full player-state update parity remains incomplete."
+    },
+    "rom_b01_794b": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_shot_variant",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Both recovered wedge tables and their strict/inclusive coordinate comparisons are ported and boundary-tested; an emulator state trace is still missing."
     },
     "rom_b01_7c58": {
       "status": "candidate",
@@ -177,7 +189,7 @@
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "Exact action/facing/phase/variant offset selection is ported and tested; the player jump-height field and byte-identical RAM coordinate calculation are not yet represented."
+      "note": "Exact action/facing/phase/variant offset selection and position-derived variant input are ported and tested; the player jump-height field and byte-identical RAM coordinate calculation are not yet represented."
     },
     "rom_b00_28e1": {
       "status": "verified",

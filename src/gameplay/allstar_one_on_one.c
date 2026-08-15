@@ -129,17 +129,117 @@ bool allstar_one_on_one_rom_release_offset(
     return true;
 }
 
+static bool allstar_one_on_one_rom_position_in_table(
+    uint8_t player_x,
+    uint8_t player_y,
+    const uint8_t table[][3],
+    size_t row_count) {
+    size_t row;
+    for (row = 0; row < row_count; row++) {
+        if (table[row][0] >= player_y) {
+            return table[row][1] < player_x &&
+                   table[row][2] >= player_x;
+        }
+    }
+    return false;
+}
+
+/* Bank 1 $791D/$794B classifies the player's $+06/$+15 position through
+   the wedge tables at $79B6 and $79D2, producing shot variant 0, 1, or 2. */
+uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
+                                            float player_ground_y) {
+    static const uint8_t left_wedge[][3] = {
+        {0x60, 0x00, 0x44}, {0x64, 0x00, 0x44},
+        {0x68, 0x00, 0x44}, {0x6c, 0x00, 0x40},
+        {0x70, 0x00, 0x38}, {0x74, 0x00, 0x2c},
+        {0x78, 0x00, 0x1c}, {0x7c, 0x00, 0x14},
+        {0x80, 0x00, 0x0c}
+    };
+    static const uint8_t right_wedge[][3] = {
+        {0x60, 0x50, 0xa0}, {0x64, 0x50, 0xa0},
+        {0x68, 0x50, 0xa0}, {0x6c, 0x54, 0xa0},
+        {0x70, 0x5c, 0xa0}, {0x74, 0x68, 0xa0},
+        {0x78, 0x78, 0xa0}, {0x7c, 0x80, 0xa0},
+        {0x80, 0x88, 0xa0}
+    };
+    int raw_x = (int)(player_center_x - ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    int raw_y = (int)player_ground_y;
+    uint8_t player_x;
+    uint8_t player_y;
+
+    if (raw_x < 0) raw_x = 0;
+    if (raw_x > 255) raw_x = 255;
+    if (raw_y < 0) raw_y = 0;
+    if (raw_y > 255) raw_y = 255;
+    player_x = (uint8_t)raw_x;
+    player_y = (uint8_t)raw_y;
+
+    if (allstar_one_on_one_rom_position_in_table(
+            player_x, player_y, left_wedge,
+            sizeof(left_wedge) / sizeof(left_wedge[0]))) {
+        return 0;
+    }
+    if (allstar_one_on_one_rom_position_in_table(
+            player_x, player_y, right_wedge,
+            sizeof(right_wedge) / sizeof(right_wedge[0]))) {
+        return 2;
+    }
+    return 1;
+}
+
 /* Fixed-bank $077D uses strict unsigned-distance limits of 12 by 8. */
-bool allstar_one_on_one_player_can_pick_up_ball(float player_x,
-                                                float player_y,
+bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
+                                                float player_reference_y,
                                                 float ball_x,
                                                 float ball_y) {
-    float dx = player_x - ball_x;
-    float dy = player_y - ball_y;
+    float dx = player_reference_x - ball_x;
+    float dy = player_reference_y - ball_y;
     if (dx < 0.0f) dx = -dx;
     if (dy < 0.0f) dy = -dy;
     return dx < ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS &&
            dy < ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS;
+}
+
+/* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early
+   exits, player 1 is tested before player 2, and an award reloads $C12D
+   with 20 frames. The three lock inputs correspond to $FFE2/$FFE7/$FFF8. */
+int allstar_one_on_one_rom_recovery_dispatch(
+    AllStarOneOnOneRecoveryState *state,
+    bool possession_active,
+    bool global_blocked,
+    float ball_height,
+    bool contact_locked,
+    bool secondary_locked,
+    bool flight_locked,
+    bool p1_action_eligible,
+    bool p1_collision,
+    bool p2_action_eligible,
+    bool p2_collision) {
+    int recovering_player = 0;
+
+    if (!state) return 0;
+    if (state->cooldown_frames > 0) state->cooldown_frames--;
+
+    if (possession_active || global_blocked ||
+        ball_height >= ALLSTAR_ROM_RECOVERY_MAX_HEIGHT) {
+        return 0;
+    }
+
+    if (p1_action_eligible && p1_collision) {
+        recovering_player = 1;
+    } else if (p2_action_eligible && p2_collision) {
+        recovering_player = 2;
+    } else {
+        return 0;
+    }
+
+    if (contact_locked || secondary_locked || flight_locked ||
+        state->cooldown_frames > 0) {
+        return 0;
+    }
+
+    state->cooldown_frames = ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES;
+    return recovering_player;
 }
 
 void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt) {

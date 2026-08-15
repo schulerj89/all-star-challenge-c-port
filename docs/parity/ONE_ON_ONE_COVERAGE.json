@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "one_on_one_parity_requirements",
+    "description": "Fifty equal, all-or-nothing requirements scoped to native One-on-One gameplay. Only Ghidra/manual-grounded behavior with deterministic evidence is verified.",
+    "total": 50,
+    "points_per_requirement": 2.0,
+    "target_percent_min": 96.0,
+    "target_percent_max": 99.0
+  },
+  "requirements": [
+    {"id":"lifecycle.mode_route","group":"lifecycle","status":"verified","evidence":["docs/parity/MODE_ROUTING.md"],"test":"--test-mode-routing"},
+    {"id":"lifecycle.match_init","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.settings_consumed","group":"lifecycle","status":"verified","evidence":["docs/parity/SETTINGS.md"],"test":"--test-settings"},
+    {"id":"lifecycle.clock_ending","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.score_ending","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.result_wait_input","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.tie_overtime_notice","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.overtime_scores_preserved","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"lifecycle.exit_and_tournament_return","group":"lifecycle","status":"verified","evidence":["docs/parity/ONE_ON_ONE_LIFECYCLE.md"],"test":"--test-one-on-one-lifecycle"},
+
+    {"id":"rules.shot_clock_turnover","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"rules.winners_outs_on","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"rules.winners_outs_off","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"rules.offensive_rebound_clock","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"rules.defensive_rebound_clock","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-lifecycle"},
+    {"id":"rules.traveling_possession","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"rules.pickup_proximity_077d","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"rules.pickup_player_priority","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"rules.pickup_height_gate","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"rules.pickup_cooldown","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"rules.pickup_global_locks","group":"rules","status":"partial","note":"Dispatcher accepts all recovered locks, but scene meanings for $FFE2/$FFE7/$FFEB are not mapped."},
+
+    {"id":"shooting.position_variant_791d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.action_variant_714d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.held_offset_7f37","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.phase_offset_7f37","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.gather_input_702d","group":"shooting","status":"partial","note":"Raw player input-bit meanings still need trace confirmation."},
+    {"id":"shooting.release_input_702d","group":"shooting","status":"partial","note":"Native uses a provisional second-press window."},
+    {"id":"shooting.traveling_timing","group":"shooting","status":"partial","note":"Rule exists; exact landing frame is not traced."},
+    {"id":"shooting.animation_duration_6945","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.animation_frames_6945","group":"shooting","status":"partial","note":"Renderer does not consume the recovered per-record frame sequence."},
+    {"id":"shooting.jump_height_7f37","group":"shooting","status":"partial","note":"Player field +$05 is not represented in the release height."},
+    {"id":"shooting.normal_trajectory_7ea9","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
+    {"id":"shooting.alternate_trajectory_7c58","group":"shooting","status":"unmapped","note":"The 64-frame <<2 class and launch table selectors remain unclassified."},
+
+    {"id":"physics.fixed_step_invariance","group":"physics","status":"verified","evidence":["src/allstar_cli.c"],"test":"--test-physics"},
+    {"id":"physics.gravity_7be8","group":"physics","status":"partial","note":"Equivalent order/constant exists in floats; byte-state trace missing."},
+    {"id":"physics.descending_rim_crossing","group":"physics","status":"partial","note":"Native interpolation is deterministic but not ROM state-traced."},
+    {"id":"physics.make_radius","group":"physics","status":"partial","note":"Five-pixel native radius is not yet tied to the complete ROM contact dispatcher."},
+    {"id":"physics.two_three_point_value","group":"physics","status":"partial","note":"Native distance threshold is not recovered from ROM scoring tables."},
+    {"id":"physics.outer_boundary_1f4d","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
+    {"id":"physics.backcourt_return_1ced","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-physics"},
+    {"id":"physics.first_ground_unlock_1e77","group":"physics","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-physics"},
+    {"id":"physics.rim_backboard_contacts_1ced","group":"physics","status":"partial","note":"Only outer and back-court branches are ported."},
+    {"id":"physics.ground_bounce_1ced","group":"physics","status":"partial","note":"Native restitution/drag remain provisional."},
+
+    {"id":"defense.player_court_bounds","group":"defense_ai","status":"partial","note":"Coordinates are normalized, but complete movement/collision paths are not traced."},
+    {"id":"defense.skill_cadence_1ffa","group":"defense_ai","status":"verified","evidence":["docs/parity/SETTINGS.md"],"test":"--test-settings"},
+    {"id":"defense.cpu_positioning","group":"defense_ai","status":"partial","note":"Generic native six-state controller is not ROM-equivalent."},
+    {"id":"defense.cpu_shot_decision","group":"defense_ai","status":"partial","note":"CPU reaches native shooting but ROM decision state is not ported."},
+    {"id":"defense.rating_accuracy","group":"defense_ai","status":"partial","note":"Native random rating roll is not recovered ROM behavior."},
+    {"id":"defense.shot_contest","group":"defense_ai","status":"unmapped"},
+    {"id":"defense.steal","group":"defense_ai","status":"unmapped"},
+    {"id":"defense.block_goaltend","group":"defense_ai","status":"unmapped"}
+  ],
+  "history": [
+    {"date":"2026-08-14","verified":25,"total":50,"percent":50.0,"note":"Reconstructed e9751ca checkpoint before position-derived variants and complete pickup gating."},
+    {"date":"2026-08-14","verified":30,"total":50,"percent":60.0,"note":"Position-derived shot variant, normalized coordinates, first-contact/height recovery, player priority, and 20-frame cooldown."}
+  ]
+}

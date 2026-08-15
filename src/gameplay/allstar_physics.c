@@ -54,6 +54,9 @@ void allstar_physics_update_ball(AllStarBall *ball, float dt) {
            deterministic native rebound after the traced flight integration. */
         if (ball->z <= 0.0f) {
             ball->z = 0.0f;
+            /* $1E77 clears $FFF8 at the first ground contact, enabling the
+               later $2AE2 low-ball recovery checks while bounces continue. */
+            ball->recoverable = true;
             ball->vz = -ball->vz * BALL_GROUND_RESTITUTION;
             ball->vx *= BALL_GROUND_DRAG;
             ball->vy *= BALL_GROUND_DRAG;
@@ -113,6 +116,7 @@ void allstar_physics_shoot_ball(AllStarBall *ball, float start_x, float start_y,
     ball->step_accumulator = 0.0f;
     ball->target_z = target_z;
     ball->target_plane_crossed = false;
+    ball->recoverable = false;
     ball->shooter_id = shooter_id;
     ball->point_value = point_value;
     ball->in_flight = true;

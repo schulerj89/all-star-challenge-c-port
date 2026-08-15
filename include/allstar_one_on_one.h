@@ -18,12 +18,16 @@
 /* $077D compares these player reference coordinates to the loose ball. */
 #define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f
 #define ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS 8.0f
+#define ALLSTAR_ROM_RECOVERY_MAX_HEIGHT 24.0f
+#define ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES 20
 
-/* Native player coordinates correspond to the ROM's collision references. */
+/* Native x is the player center ($+06 + 8); native y is ground field $+15. */
 #define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X 16.0f
 #define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X 156.0f
-#define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y 96.0f
-#define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y 150.0f
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y 98.0f
+#define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y 152.0f
+#define ALLSTAR_ROM_PLAYER_X_TO_CENTER 8.0f
+#define ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y -2.0f
 #define ALLSTAR_ONE_ON_ONE_HOOP_X 84.0f
 #define ALLSTAR_ONE_ON_ONE_HOOP_Y 92.0f
 
@@ -79,6 +83,10 @@ typedef struct {
 } AllStarOneOnOneReleaseOffset;
 
 typedef struct {
+    uint8_t cooldown_frames;
+} AllStarOneOnOneRecoveryState;
+
+typedef struct {
     uint16_t p1_score;
     uint16_t p2_score;
     int play_to;
@@ -119,10 +127,24 @@ bool allstar_one_on_one_rom_release_offset(
     uint8_t shot_variant,
     bool facing_left,
     AllStarOneOnOneReleaseOffset *offset);
-bool allstar_one_on_one_player_can_pick_up_ball(float player_x,
-                                                float player_y,
+uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
+                                            float player_ground_y);
+bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
+                                                float player_reference_y,
                                                 float ball_x,
                                                 float ball_y);
+int allstar_one_on_one_rom_recovery_dispatch(
+    AllStarOneOnOneRecoveryState *state,
+    bool possession_active,
+    bool global_blocked,
+    float ball_height,
+    bool contact_locked,
+    bool secondary_locked,
+    bool flight_locked,
+    bool p1_action_eligible,
+    bool p1_collision,
+    bool p2_action_eligible,
+    bool p2_collision);
 void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt);
 uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
                                        int player);

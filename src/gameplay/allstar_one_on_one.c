@@ -431,6 +431,14 @@ uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index) {
     return 2;
 }
 
+/* $711F/$714D both finish at $7138: raw player X +$06 is converted to its
+   center by adding eight and compared with $54. Left-half gathers set +$02
+   bit 4; right-half gathers clear it, so every shot faces the hoop. */
+bool allstar_one_on_one_rom_shot_horizontal_flip_7138(
+        float player_center_x) {
+    return (uint8_t)player_center_x < 0x54;
+}
+
 /* $6C90 starts player +$03 at zero. On the gather frame $6A8C loads the
    first three-byte animation record and increments +$03 to one. $702D runs
    before the following $6A8C tick, so a release sees the loaded-record
@@ -875,6 +883,78 @@ AllStarRomContactEvent allstar_one_on_one_rom_contact_tick_2c50(
             : ALLSTAR_ROM_CONTACT_BLOCKING;
     }
     return ALLSTAR_ROM_CONTACT_NONE;
+}
+
+void allstar_one_on_one_foul_presentation_begin_05a3(
+        AllStarRomFoulPresentation *presentation,
+        AllStarRomContactEvent violation,
+        int offender) {
+    if (!presentation ||
+        (violation != ALLSTAR_ROM_CONTACT_CHARGING &&
+         violation != ALLSTAR_ROM_CONTACT_BLOCKING) ||
+        (offender != 1 && offender != 2)) return;
+    memset(presentation, 0, sizeof(*presentation));
+    presentation->active = true;
+    presentation->message_visible = true;
+    presentation->sprites_visible = true;
+    presentation->violation = violation;
+    presentation->offender = offender;
+    presentation->bg_palette = 0xe4;
+}
+
+/* $05A3 consumes four display frames building the popup before $0C49 holds
+   it for $78 frames. Live callbacks then observe BGP stages at offsets
+   136/147/158, $20F7 at 160, reverse stages at 177/188/199, and LCDC/play
+   restoration at 203. */
+uint32_t allstar_one_on_one_foul_presentation_tick_0c49(
+        AllStarRomFoulPresentation *presentation,
+        float dt) {
+    uint32_t events = ALLSTAR_ROM_FOUL_EVENT_NONE;
+    if (!presentation || !presentation->active || dt <= 0.0f)
+        return events;
+    presentation->step_accumulator += dt;
+    while (presentation->active &&
+           presentation->step_accumulator + 0.000001f >= (1.0f / 60.0f)) {
+        uint16_t previous = presentation->elapsed_frames;
+        presentation->step_accumulator -= 1.0f / 60.0f;
+        if (presentation->step_accumulator < 0.0f)
+            presentation->step_accumulator = 0.0f;
+        presentation->elapsed_frames++;
+
+        if (presentation->elapsed_frames < 136) {
+            presentation->bg_palette = 0xe4;
+        } else if (presentation->elapsed_frames < 147) {
+            presentation->bg_palette = 0xf9;
+        } else if (presentation->elapsed_frames < 158) {
+            presentation->bg_palette = 0xfe;
+        } else if (presentation->elapsed_frames < 177) {
+            presentation->bg_palette = 0xff;
+        } else if (presentation->elapsed_frames < 188) {
+            presentation->bg_palette = 0xfe;
+        } else if (presentation->elapsed_frames < 199) {
+            presentation->bg_palette = 0xf9;
+        } else {
+            presentation->bg_palette = 0xe4;
+        }
+        presentation->message_visible = presentation->elapsed_frames <
+            ALLSTAR_ROM_FOUL_RESET_FRAME;
+        presentation->sprites_visible = presentation->elapsed_frames <
+            ALLSTAR_ROM_FOUL_SPRITES_HIDE_FRAME ||
+            presentation->elapsed_frames >=
+                ALLSTAR_ROM_FOUL_SPRITES_RESTORE_FRAME;
+
+        if (previous < ALLSTAR_ROM_FOUL_RESET_FRAME &&
+            presentation->elapsed_frames >=
+                ALLSTAR_ROM_FOUL_RESET_FRAME) {
+            events |= ALLSTAR_ROM_FOUL_EVENT_RESET_POSSESSION;
+        }
+        if (presentation->elapsed_frames >=
+                ALLSTAR_ROM_FOUL_COMPLETE_FRAME) {
+            presentation->active = false;
+            events |= ALLSTAR_ROM_FOUL_EVENT_COMPLETE;
+        }
+    }
+    return events;
 }
 
 /* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early

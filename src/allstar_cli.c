@@ -61,7 +61,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
-    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav> <09.wav>\n");
+    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav> <09.wav> <04.wav>\n");
     printf("                                        Export decoded ROM cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
@@ -744,6 +744,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
     AllStarOneOnOneShotAttempt attempt;
     AllStarOneOnOneRecoveryState recovery;
     AllStarOneOnOneScorePresentation score_presentation;
+    AllStarRomFoulPresentation foul_presentation;
     AllStarOneOnOneMatch match;
     AllStarGame game;
     uint32_t events;
@@ -782,6 +783,20 @@ int allstar_cli_test_one_on_one_shooting(void) {
         {ALLSTAR_BTN_UP,    0x0b, 0x0d},
         {ALLSTAR_BTN_DOWN,  0x04, 0x06}
     };
+
+    if (allstar_renderer_rom_player_palette_21fa(true, 0x90) != 0xe4 ||
+        allstar_renderer_rom_player_palette_21fa(true, 0x91) != 0xd9 ||
+        allstar_renderer_rom_player_palette_21fa(false, 0x90) != 0xe0 ||
+        allstar_renderer_rom_player_palette_21fa(false, 0x91) != 0xd0) {
+        fprintf(stderr, "[Test] $21FA roster OBJ palette table was incorrect\n");
+        return 1;
+    }
+    if (!allstar_one_on_one_rom_shot_horizontal_flip_7138(83.0f) ||
+        allstar_one_on_one_rom_shot_horizontal_flip_7138(84.0f) ||
+        allstar_one_on_one_rom_shot_horizontal_flip_7138(156.0f)) {
+        fprintf(stderr, "[Test] $7138 hoop-facing shot boundary was incorrect\n");
+        return 1;
+    }
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
 
@@ -1583,6 +1598,37 @@ int allstar_cli_test_one_on_one_shooting(void) {
         return 1;
     }
 
+    allstar_one_on_one_foul_presentation_begin_05a3(
+        &foul_presentation, ALLSTAR_ROM_CONTACT_CHARGING, 1);
+    if (!foul_presentation.active || !foul_presentation.message_visible ||
+        !foul_presentation.sprites_visible ||
+        foul_presentation.bg_palette != 0xe4) {
+        fprintf(stderr, "[Test] $05A3 charging popup did not begin correctly\n");
+        return 1;
+    }
+    for (frame = 1; frame <= ALLSTAR_ROM_FOUL_COMPLETE_FRAME; frame++) {
+        events = allstar_one_on_one_foul_presentation_tick_0c49(
+            &foul_presentation, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if ((frame == ALLSTAR_ROM_FOUL_SPRITES_HIDE_FRAME &&
+             (foul_presentation.sprites_visible ||
+              foul_presentation.bg_palette != 0xf9)) ||
+            (frame == ALLSTAR_ROM_FOUL_RESET_FRAME &&
+             (!(events & ALLSTAR_ROM_FOUL_EVENT_RESET_POSSESSION) ||
+              foul_presentation.message_visible ||
+              foul_presentation.bg_palette != 0xff)) ||
+            (frame == ALLSTAR_ROM_FOUL_SPRITES_RESTORE_FRAME &&
+             (!foul_presentation.sprites_visible ||
+              foul_presentation.bg_palette != 0xe4)) ||
+            (frame == ALLSTAR_ROM_FOUL_COMPLETE_FRAME &&
+             (!(events & ALLSTAR_ROM_FOUL_EVENT_COMPLETE) ||
+              foul_presentation.active))) {
+            fprintf(stderr,
+                    "[Test] $0C49 foul presentation diverged at frame %d\n",
+                    frame);
+            return 1;
+        }
+    }
+
     memset(&recovery, 0, sizeof(recovery));
     recovery.cooldown_frames = 1;
     if (allstar_one_on_one_rom_recovery_dispatch(
@@ -2135,7 +2181,8 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
                                const char *dribble_path,
                                const char *navigation_path,
                                const char *confirm_path,
-                               const char *rim_path) {
+                               const char *rim_path,
+                               const char *foul_path) {
     AllStarAssetPack pack;
     const AllStarRomSfxProgram *squeak;
     const AllStarRomSfxProgram *score;
@@ -2143,6 +2190,7 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
     const AllStarRomSfxProgram *rim;
+    const AllStarRomSfxProgram *foul;
     if (!allstar_asset_pack_load_file(&pack, pack_path)) return 1;
     if (pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
         return 1;
@@ -2152,12 +2200,14 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
     navigation = &pack.rom_sfx_programs[3];
     confirm = &pack.rom_sfx_programs[4];
     rim = &pack.rom_sfx_programs[5];
+    foul = &pack.rom_sfx_programs[6];
     if (!allstar_audio_export_rom_sfx_wav(&pack, 0x05, score_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0c, dribble_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0f, navigation_path) ||
         !allstar_audio_export_rom_sfx_wav(&pack, 0x0e, confirm_path) ||
-        !allstar_audio_export_rom_sfx_wav(&pack, 0x09, rim_path)) {
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x09, rim_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x04, foul_path)) {
         fprintf(stderr, "[ROM SFX] Failed to export decoded WAV proof\n");
         return 1;
     }
@@ -2194,9 +2244,16 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
            rim->noise_length, rim->noise_envelope,
            rim->frames[0].noise_polynomial, rim->noise_control,
            rim->source_checksum);
-    printf("[ROM SFX] Exported %s, %s, %s, %s, %s, and %s\n",
+    printf("[ROM SFX] command $04 -> program $%02X, priority %u, "
+           "streams $%04X/$%04X, %u frames, first Hz $%04X/$%04X, "
+           "source FNV-1a %08X\n",
+           foul->program_id, foul->priority_frames,
+           foul->stream_pointer_1, foul->stream_pointer_2,
+           foul->frame_count, foul->frames[0].square1_frequency,
+           foul->frames[0].square2_frequency, foul->source_checksum);
+    printf("[ROM SFX] Exported %s, %s, %s, %s, %s, %s, and %s\n",
            score_path, squeak_path, dribble_path,
-           navigation_path, confirm_path, rim_path);
+           navigation_path, confirm_path, rim_path, foul_path);
     return 0;
 }
 
@@ -2317,6 +2374,78 @@ int allstar_cli_test_one_on_one_presentation(void) {
     }
     printf("  Defender recovered $05->$06 and moved %.0f->%.0f\n",
            defender_start_x, debug.p1_x);
+
+    /* Fixed $2B14->$2B88 uses the live $6F2A ball point and each player's
+       stored +$10 direction. A transfer changes owner in place and never
+       enters the score/foul presentation machinery. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(
+        game.active_scene, &game, 1);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 152.0f, 90.0f, 152.0f);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 1, 0x13, 0, ALLSTAR_BTN_LEFT, true);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 2, 0x0d, 0, ALLSTAR_BTN_RIGHT, false);
+    if (!allstar_scene_one_on_one_try_test_steal(
+            game.active_scene, &game, 2) ||
+        !allstar_scene_one_on_one_get_debug_state(
+            game.active_scene, &debug) ||
+        !debug.p2_has_ball || debug.p1_has_ball ||
+        debug.p1_x != 84.0f || debug.p2_x != 90.0f ||
+        debug.score_presentation_active || debug.foul_presentation_active ||
+        debug.steal_transfer_events != 1) {
+        fprintf(stderr,
+                "[Test] $2B14/$2B88 CPU steal did not continue live in place\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(
+        game.active_scene, &game, 1);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 152.0f, 90.0f, 152.0f);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 1, 0x13, 0, ALLSTAR_BTN_LEFT, true);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 2, 0x0d, 0, ALLSTAR_BTN_LEFT, false);
+    if (allstar_scene_one_on_one_try_test_steal(
+            game.active_scene, &game, 2)) {
+        fprintf(stderr,
+                "[Test] $2B14 allowed same-direction left-movement steal\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    /* $05A3->$0C49: command $04, 120-frame message, fade/restart, resume. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    if (!allstar_scene_one_on_one_begin_test_foul(
+            game.active_scene, &game, ALLSTAR_ROM_CONTACT_CHARGING, 1) ||
+        game.audio.last_sfx != ALLSTAR_SFX_WHISTLE) {
+        fprintf(stderr, "[Test] $05A3 command-$04 foul cue was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < ALLSTAR_ROM_FOUL_RESET_FRAME; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (!debug.foul_presentation_active || debug.foul_message_visible ||
+        !debug.p2_has_ball || debug.p1_has_ball || debug.foul_events != 1) {
+        fprintf(stderr,
+                "[Test] $0C49 charging restart did not award opposite player\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    for (; frame < ALLSTAR_ROM_FOUL_COMPLETE_FRAME; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (debug.foul_presentation_active) {
+        fprintf(stderr, "[Test] $0C49 foul presentation did not resume play\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
 
     /* Exact $1F5F rim cell: the scene emits command $09 but preserves the
        $FFF8-equivalent first-flight lock until $1E5B/$1E77 ground bounce. */
@@ -2647,6 +2776,74 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 4r. $2DD2 roster records feed $21FA's exact P1/P2 OBJ palettes;
+       gameplay body tiles remain the shared $2945 animation families. */
+    game.selected_player_1 = 0; /* Ainge: roster skin byte $91. */
+    game.selected_player_2 = 1; /* Barkley: roster skin byte $90. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 48.0f, 144.0f, 116.0f, 136.0f);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path),
+             "%s\\04r_one_on_one_roster_palettes.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4s-4t. $7138 forces either sideline gather to face the center hoop. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 20.0f, 144.0f, 132.0f, 112.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04s_one_on_one_left_shot_faces_hoop.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 140.0f, 144.0f, 28.0f, 112.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path),
+             "%s\\04t_one_on_one_right_shot_faces_hoop.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4u. $2B14->$2B88 transfers possession in place, with no score fade. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(
+        game.active_scene, &game, 1);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 84.0f, 152.0f, 90.0f, 152.0f);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 1, 0x13, 0, ALLSTAR_BTN_LEFT, true);
+    allstar_scene_one_on_one_set_test_player_state(
+        game.active_scene, 2, 0x0d, 0, ALLSTAR_BTN_RIGHT, false);
+    allstar_scene_one_on_one_try_test_steal(game.active_scene, &game, 2);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path),
+             "%s\\04u_one_on_one_cpu_steal_live.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4v-4w. $05A3 uses explicit CHARGING/BLOCKING popups before $0C49. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_begin_test_foul(
+        game.active_scene, &game, ALLSTAR_ROM_CONTACT_CHARGING, 1);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path),
+             "%s\\04v_one_on_one_charging_foul.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_begin_test_foul(
+        game.active_scene, &game, ALLSTAR_ROM_CONTACT_BLOCKING, 2);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path),
+             "%s\\04w_one_on_one_blocking_foul.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 5. Three Point */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
@@ -2723,14 +2920,15 @@ int allstar_cli_main(int argc, char **argv) {
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
     } else if (strcmp(cmd, "--export-rom-sfx") == 0) {
-        if (argc < 9) {
+        if (argc < 10) {
             fprintf(stderr, "Error: --export-rom-sfx requires <pack>, "
                     "<05.wav>, <0D.wav>, <0C.wav>, <0F.wav>, <0E.wav>, "
-                    "and <09.wav>\n");
+                    "<09.wav>, and <04.wav>\n");
             return 1;
         }
         return allstar_cli_export_rom_sfx(
-            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
+            argv[9]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");

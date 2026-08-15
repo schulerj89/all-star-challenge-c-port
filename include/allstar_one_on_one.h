@@ -30,6 +30,15 @@
    but consume three score-presentation frames per rendered gameplay frame. */
 #define ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE 3.0f
 
+/* Fixed $05A3->$0C49 foul presentation. Live Mesen counts four frames while
+   $05A3 builds the popup, then the $78 wait, $27C7/$27CC fades, and final
+   four-frame $2D08 hold. Offsets are from entry into $05A3. */
+#define ALLSTAR_ROM_FOUL_MESSAGE_FRAMES 120
+#define ALLSTAR_ROM_FOUL_SPRITES_HIDE_FRAME 136
+#define ALLSTAR_ROM_FOUL_RESET_FRAME 160
+#define ALLSTAR_ROM_FOUL_SPRITES_RESTORE_FRAME 203
+#define ALLSTAR_ROM_FOUL_COMPLETE_FRAME 203
+
 /* $077D compares these player reference coordinates to the loose ball. */
 #define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f
 #define ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS 8.0f
@@ -150,6 +159,23 @@ typedef enum {
     ALLSTAR_ROM_CONTACT_BLOCKING
 } AllStarRomContactEvent;
 
+typedef enum {
+    ALLSTAR_ROM_FOUL_EVENT_NONE = 0,
+    ALLSTAR_ROM_FOUL_EVENT_RESET_POSSESSION = (1 << 0),
+    ALLSTAR_ROM_FOUL_EVENT_COMPLETE = (1 << 1)
+} AllStarRomFoulPresentationEvent;
+
+typedef struct {
+    bool active;
+    bool message_visible;
+    bool sprites_visible;
+    uint16_t elapsed_frames;
+    float step_accumulator;
+    AllStarRomContactEvent violation;
+    int offender;
+    uint8_t bg_palette;
+} AllStarRomFoulPresentation;
+
 typedef struct {
     uint8_t action;
     uint8_t display_frame;
@@ -235,6 +261,9 @@ bool allstar_one_on_one_rom_select_movement_action_782e(
     bool *horizontal_flip);
 uint8_t allstar_one_on_one_rom_shot_variant(float player_center_x,
                                             float player_ground_y);
+/* Bank 1 $7138 faces a shot gather toward center X=$54. */
+bool allstar_one_on_one_rom_shot_horizontal_flip_7138(
+    float player_center_x);
 /* Bank 1 $07B4/$7EC4/$2F40/$7C58 launch selectors. */
 uint8_t allstar_one_on_one_rom_shot_distance_class(float player_center_x,
                                                    float player_ground_y);
@@ -309,6 +338,13 @@ AllStarRomContactEvent allstar_one_on_one_rom_contact_tick_2c50(
     float p2_center_x,
     float p2_ground_y,
     int *offender);
+void allstar_one_on_one_foul_presentation_begin_05a3(
+    AllStarRomFoulPresentation *presentation,
+    AllStarRomContactEvent violation,
+    int offender);
+uint32_t allstar_one_on_one_foul_presentation_tick_0c49(
+    AllStarRomFoulPresentation *presentation,
+    float dt);
 int allstar_one_on_one_rom_recovery_dispatch(
     AllStarOneOnOneRecoveryState *state,
     bool possession_active,

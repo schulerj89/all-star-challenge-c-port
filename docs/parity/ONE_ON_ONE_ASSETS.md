@@ -1,12 +1,12 @@
 # One-on-One asset and OAM parity
 
-## Asset-pack v9 layout
+## Asset-pack v10 layout
 
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-9 pack. Version 9 also appends the focused
-One-on-One `$05/$09/$0D/$0C/$0F/$0E` audio programs; the graphics payload itself
+small composition maps in a version-10 pack. Version 10 also appends the focused
+One-on-One `$04/$05/$09/$0D/$0C/$0F/$0E` audio programs; the graphics payload itself
 is unchanged.
 
 | Asset | ROM source | Decoded result |
@@ -28,6 +28,13 @@ bytes copy directly; `marker,count,value` repeats the value; `marker,0` ends.
 The builder rejects a wrong terminator offset, output length, or tile index.
 
 ## Player composition
+
+Selected players do not index 27 distinct gameplay body sheets. `$2DD2` copies
+their 25-byte roster records to `$C23B/$C254`; `$21FA` reads byte zero and
+selects P1 OBJ palette `$E4` for `$90` or `$D9` otherwise, and P2 `$E0` for
+`$90` or `$D0` otherwise. Mesen verifies selected entries `$91/$90` producing
+OBP0 `$D9` and OBP1 `$E0`. Portraits use separate data and are not gameplay
+animation sheets.
 
 `$2933` assigns P1's nine OAM tiles, `$293D` assigns P2's, and both continue
 through `$2945/$2A2B`. Actions `$00..$07`, `$08..$0F`, and `$10..$17` select

@@ -15,6 +15,7 @@ typedef struct {
     AllStarOneOnOneShotAttempt shot_attempt;
     AllStarOneOnOneRecoveryState recovery;
     AllStarOneOnOneScorePresentation score_presentation;
+    AllStarRomFoulPresentation foul_presentation;
     uint32_t pending_score_events;
     float p1_shot_animation_clock;
     float p2_shot_animation_clock;
@@ -41,6 +42,8 @@ typedef struct {
     float animation_step_accumulator;
     float anim_timer;
     uint32_t rim_audio_events;
+    uint32_t steal_transfer_events;
+    uint32_t foul_events;
 } SceneOneOnOneData;
 
 static bool one_on_one_action_uses_dribble_ball_6f2a(uint8_t action) {
@@ -203,15 +206,6 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     allstar_physics_init_ball(&data->ball);
 }
 
-static uint8_t one_on_one_direction_toward(const AllStarPlayerState *player,
-                                           const AllStarPlayerState *target) {
-    float dx = target->x - player->x;
-    float dy = target->y - player->y;
-    if (dx == 0.0f && dy == 0.0f) return 0;
-    if (fabsf(dx) >= fabsf(dy)) return dx >= 0.0f ? 0x01 : 0x02;
-    return dy >= 0.0f ? 0x08 : 0x04;
-}
-
 static uint8_t one_on_one_direction_from_delta(float dx, float dy) {
     uint8_t direction = 0;
     if (dx > 0.001f) direction |= ALLSTAR_BTN_RIGHT;
@@ -304,6 +298,11 @@ static bool one_on_one_try_steal(SceneOneOnOneData *data,
     uint8_t defender_direction;
     uint8_t ballhandler_direction;
     uint8_t steal_action;
+    AllStarRomAnimationState *handler_animation;
+    AllStarRomHeldBallPresentation held_ball;
+    bool handler_flip;
+    float live_ball_x;
+    float live_ball_y;
 
     if (*latch != 0 || defending_player->has_ball ||
         !ballhandler->has_ball) {
@@ -320,28 +319,43 @@ static bool one_on_one_try_steal(SceneOneOnOneData *data,
         allstar_one_on_one_rom_animation_set_action_6a8c(
             animation, steal_action);
     }
+    handler_animation = defender == 1
+        ? &data->p2_animation : &data->p1_animation;
+    handler_flip = defender == 1
+        ? data->p2_horizontal_flip : data->p1_horizontal_flip;
     ballhandler_action = ballhandler->is_shooting
         ? (defender == 1 ? data->p2_shot_action : data->p1_shot_action)
-        : 0;
+        : handler_animation->action;
     if (ballhandler->is_shooting && ballhandler_action == 0) {
         ballhandler_action = ALLSTAR_ROM_SHOT_ACTION_A;
     }
-    defender_direction = one_on_one_direction_toward(
-        defending_player, ballhandler);
-    ballhandler_direction = one_on_one_direction_toward(
-        ballhandler, defending_player);
+    defender_direction = defender == 1
+        ? data->p1_previous_direction : data->p2_previous_direction;
+    ballhandler_direction = defender == 1
+        ? data->p2_previous_direction : data->p1_previous_direction;
+    allstar_renderer_rom_dribble_ball_6f2a(
+        (int32_t)ballhandler->x, (int32_t)ballhandler->y,
+        handler_animation->action, handler_animation->record_index,
+        handler_flip, &held_ball);
+    live_ball_x = held_ball.visible
+        ? (float)held_ball.ball_x : data->ball.x;
+    live_ball_y = held_ball.visible
+        ? (float)held_ball.ball_y : data->ball.y;
     if (!allstar_one_on_one_rom_steal_contact_2b14(
             true, ballhandler_action,
             defending_player->x, defending_player->y,
-            ballhandler->x,
-            ballhandler->y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+            live_ball_x, live_ball_y,
             defender_direction, ballhandler_direction)) {
         return false;
     }
-    one_on_one_take_live_possession(data, game, defender, false);
+    /* $2B88 rejects the transfer while the shared $C12D recovery cooldown
+       is nonzero and otherwise leaves both animation records untouched. */
+    if (data->recovery.cooldown_frames != 0) return false;
+    one_on_one_take_live_possession(data, game, defender, true);
     allstar_one_on_one_rom_animation_set_action_6a8c(
         defender == 1 ? &data->p1_animation : &data->p2_animation,
         steal_action);
+    data->steal_transfer_events++;
     return true;
 }
 
@@ -598,6 +612,21 @@ static bool one_on_one_update_score_presentation(SceneOneOnOneData *data,
     return true;
 }
 
+static bool one_on_one_update_foul_presentation(SceneOneOnOneData *data,
+                                                 AllStarGame *game,
+                                                 float dt) {
+    uint32_t events;
+    if (!data->foul_presentation.active) return false;
+    events = allstar_one_on_one_foul_presentation_tick_0c49(
+        &data->foul_presentation, dt);
+    if (events & ALLSTAR_ROM_FOUL_EVENT_RESET_POSSESSION) {
+        /* $20F7 restarts with the player opposite the offender. */
+        one_on_one_reset_possession(
+            data, game, data->foul_presentation.offender != 1);
+    }
+    return (events & ALLSTAR_ROM_FOUL_EVENT_COMPLETE) == 0;
+}
+
 static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     const AllStarPlayerStats *cpu_stats;
@@ -634,6 +663,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     data->anim_timer += dt;
 
     if (one_on_one_update_score_presentation(data, game, dt)) return;
+    if (one_on_one_update_foul_presentation(data, game, dt)) return;
 
     events = allstar_one_on_one_match_tick(&game->one_on_one, dt);
     if (one_on_one_handle_lifecycle_events(data, game, events)) return;
@@ -704,6 +734,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
                 ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
             data->p1_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+            data->p1_horizontal_flip =
+                allstar_one_on_one_rom_shot_horizontal_flip_7138(
+                    data->p1.x);
             allstar_one_on_one_rom_animation_set_action_6a8c(
                 &data->p1_animation, data->p1_shot_action);
             allstar_one_on_one_rom_shot_animation_frame(
@@ -755,6 +788,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
         data->p2_shot_animation_clock =
             ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        data->p2_horizontal_flip =
+            allstar_one_on_one_rom_shot_horizontal_flip_7138(data->p2.x);
         allstar_one_on_one_rom_animation_set_action_6a8c(
             &data->p2_animation, data->p2_shot_action);
     }
@@ -854,9 +889,11 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         AllStarRomContactEvent contact_event =
             one_on_one_tick_rom_animations(data, game, dt, &offender);
         if (contact_event != ALLSTAR_ROM_CONTACT_NONE && offender != 0) {
-            /* $20F7 awards the restart to the player opposite the offender:
-               a charge changes owner; a block preserves the current owner. */
-            one_on_one_reset_possession(data, game, offender != 1);
+            allstar_one_on_one_foul_presentation_begin_05a3(
+                &data->foul_presentation, contact_event, offender);
+            data->foul_events++;
+            /* $05A3 selects sound command $04 before $0C49's wait/fades. */
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
         }
     }
 }
@@ -956,11 +993,25 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
 
     /* $2821 changes LCDC from $87 to $85 at fade stage two. $2814's
        reverse-table completion restores the OBJ control flag for inbound. */
-    sprites_visible = !data->score_presentation.active ||
-        data->score_presentation.elapsed_frames < 192;
+    sprites_visible = (!data->score_presentation.active ||
+        data->score_presentation.elapsed_frames < 192) &&
+        (!data->foul_presentation.active ||
+         data->foul_presentation.sprites_visible);
     if (data->score_presentation.active) {
         allstar_renderer_apply_dmg_bgp(
             renderer, data->score_presentation.bg_palette);
+    }
+    if (data->foul_presentation.active) {
+        allstar_renderer_apply_dmg_bgp(
+            renderer, data->foul_presentation.bg_palette);
+    }
+    if (data->foul_presentation.active &&
+        data->foul_presentation.message_visible) {
+        const char *message = data->foul_presentation.violation ==
+            ALLSTAR_ROM_CONTACT_CHARGING ? "CHARGING" : "BLOCKING";
+        allstar_renderer_draw_rect_fill(renderer, 36, 64, 88, 24, 0);
+        allstar_renderer_draw_rect_outline(renderer, 36, 64, 88, 24, 3);
+        allstar_renderer_draw_text(renderer, message, 48, 72, 3);
     }
     if (!sprites_visible) return;
 
@@ -1078,12 +1129,19 @@ bool allstar_scene_one_on_one_get_debug_state(
     state->cpu_target_x = data->ai.rom_target_x;
     state->cpu_target_y = data->ai.rom_target_y;
     state->rim_audio_events = data->rim_audio_events;
+    state->steal_transfer_events = data->steal_transfer_events;
+    state->foul_events = data->foul_events;
+    state->foul_elapsed_frames = data->foul_presentation.elapsed_frames;
+    state->foul_violation = (uint8_t)data->foul_presentation.violation;
     state->p1_has_ball = data->p1.has_ball;
     state->p2_has_ball = data->p2.has_ball;
     state->ball_in_flight = data->ball.in_flight;
     state->ball_recoverable = data->ball.recoverable;
     state->p1_defense_jump_active = data->p1_defense_jump_active;
     state->p2_defense_jump_active = data->p2_defense_jump_active;
+    state->score_presentation_active = data->score_presentation.active;
+    state->foul_presentation_active = data->foul_presentation.active;
+    state->foul_message_visible = data->foul_presentation.message_visible;
     return true;
 }
 
@@ -1113,5 +1171,52 @@ bool allstar_scene_one_on_one_set_test_ball_rom(
     data->ball.x = (float)x / 256.0f;
     data->ball.y = (float)y / 256.0f;
     data->ball.z = (float)(int16_t)z / 256.0f;
+    return true;
+}
+
+bool allstar_scene_one_on_one_set_test_player_state(
+        AllStarScene *scene, int player, uint8_t action, uint8_t record,
+        uint8_t previous_direction, bool horizontal_flip) {
+    SceneOneOnOneData *data;
+    AllStarRomAnimationState *animation;
+    if (!scene || scene->id != ALLSTAR_SCENE_ONE_ON_ONE ||
+        !scene->user_data || (player != 1 && player != 2)) return false;
+    data = (SceneOneOnOneData*)scene->user_data;
+    animation = player == 1 ? &data->p1_animation : &data->p2_animation;
+    allstar_one_on_one_rom_animation_set_action_6a8c(animation, action);
+    animation->record_index = record;
+    if (player == 1) {
+        data->p1_previous_direction = previous_direction;
+        data->p1_horizontal_flip = horizontal_flip;
+    } else {
+        data->p2_previous_direction = previous_direction;
+        data->p2_horizontal_flip = horizontal_flip;
+    }
+    return true;
+}
+
+bool allstar_scene_one_on_one_try_test_steal(
+        AllStarScene *scene, AllStarGame *game, int defender) {
+    if (!scene || !game || scene->id != ALLSTAR_SCENE_ONE_ON_ONE ||
+        !scene->user_data || (defender != 1 && defender != 2)) return false;
+    return one_on_one_try_steal(
+        (SceneOneOnOneData*)scene->user_data, game, defender);
+}
+
+bool allstar_scene_one_on_one_begin_test_foul(
+        AllStarScene *scene, AllStarGame *game,
+        uint8_t violation, int offender) {
+    SceneOneOnOneData *data;
+    if (!scene || !game || scene->id != ALLSTAR_SCENE_ONE_ON_ONE ||
+        !scene->user_data ||
+        (violation != ALLSTAR_ROM_CONTACT_CHARGING &&
+         violation != ALLSTAR_ROM_CONTACT_BLOCKING) ||
+        (offender != 1 && offender != 2)) return false;
+    data = (SceneOneOnOneData*)scene->user_data;
+    allstar_one_on_one_foul_presentation_begin_05a3(
+        &data->foul_presentation, (AllStarRomContactEvent)violation,
+        offender);
+    data->foul_events++;
+    allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
     return true;
 }

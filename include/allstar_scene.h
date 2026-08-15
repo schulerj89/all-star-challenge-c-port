@@ -61,12 +61,19 @@ typedef struct {
     uint8_t cpu_target_x;
     uint8_t cpu_target_y;
     uint32_t rim_audio_events;
+    uint32_t steal_transfer_events;
+    uint32_t foul_events;
+    uint16_t foul_elapsed_frames;
+    uint8_t foul_violation;
     bool p1_has_ball;
     bool p2_has_ball;
     bool ball_in_flight;
     bool ball_recoverable;
     bool p1_defense_jump_active;
     bool p2_defense_jump_active;
+    bool score_presentation_active;
+    bool foul_presentation_active;
+    bool foul_message_visible;
 } AllStarOneOnOneDebugState;
 
 /* Deterministic scene integration probes used by the CLI regression suite. */
@@ -77,5 +84,13 @@ bool allstar_scene_one_on_one_get_debug_state(
 bool allstar_scene_one_on_one_set_test_ball_rom(
     AllStarScene *scene, uint16_t x, uint16_t y, uint16_t z,
     int16_t vx, int16_t vy, int16_t vz, int shooter);
+bool allstar_scene_one_on_one_set_test_player_state(
+    AllStarScene *scene, int player, uint8_t action, uint8_t record,
+    uint8_t previous_direction, bool horizontal_flip);
+bool allstar_scene_one_on_one_try_test_steal(
+    AllStarScene *scene, struct AllStarGame *game, int defender);
+bool allstar_scene_one_on_one_begin_test_foul(
+    AllStarScene *scene, struct AllStarGame *game,
+    uint8_t violation, int offender);
 
 #endif /* ALLSTAR_SCENE_H */

@@ -26,7 +26,11 @@ the cartridge.
 | `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
 | `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
-| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$09/$0C/$0D/$0E/$0F` select programs `$0C/$0B/$02/$11/$12/$07`; the driver loads instruments, notes, durations, pitch modulation, and square/noise APU registers. | Asset-pack v9 decodes all six focused programs, including command-$09's 24-frame noise cue, dribble retriggers, and the 48-frame accepted-player chime that carries into match start. |
+| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$04/$05/$09/$0C/$0D/$0E/$0F` select programs `$0A/$0C/$0B/$02/$11/$12/$07`; the driver loads instruments, notes, durations, pitch modulation, and square/noise APU registers. | Asset-pack v10 decodes all seven focused programs, including the dual-square foul cue, rim noise, dribble retriggers, and accepted-player chime. |
+| `$2DD2->$21FA->$2933/$293D->$2945->$2A2B` | Selected roster records are copied to `$C23B/$C254`; byte zero selects exact per-slot OBJ palettes. Player frames then come from three shared action-family tile stores—there is no per-roster gameplay body-sheet table. | The renderer maps `$90/$91` to P1 `$E4/$D9` and P2 `$E0/$D0` while composing the shared extracted animation frames. |
+| `$711F/$714D->$7138` | Add eight to raw player X and compare with `$54`; set `+$02` bit 4 on the left, clear it on the right, forcing the shot toward the hoop. | Both human and CPU gathers call `allstar_one_on_one_rom_shot_horizontal_flip_7138` before loading `$0A/$12`. |
+| `$2B14->$0A78->$077D->$2B88` | A steal uses the live `$C0A3/$C0A7` ball point, both stored `+$10` directions, and shared `$C12D` cooldown. Success changes owner/`$FFD1` in place; it never calls the score fade. | The scene uses `$6F2A` presentation coordinates, previous direction bytes, recovery cooldown, and preserves positions/animation records across transfer. |
+| `$2C50->$2CCA->$0AC5->$05A3->$0C49->$20F7` | A 25-update contact latch qualifies CHARGING/BLOCKING, draws `$065A/$066B`, sends command `$04`, waits/fades, and restarts opposite the offender. Live offsets are BGP/LCDC `+136/+147/+158`, restart `+160`, reverse `+177/+188/+199`, resume `+203`. | The native foul state presents the message, decoded program `$0A`, exact palettes/visibility, and possession restart without treating a block or charge as a score. |
 | `$1E0E->$7BE8->$1E5B/$1E77->$27C7` | Made ball holds gravity 35 frames, bounces at `+76/+121/+158`, and begins fade at `+180`. | Score presentation advances the shared 8.8 integrator with the exact gravity delay and hard-first-bounce state. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
@@ -85,7 +89,7 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation reads exact player `+$05/+$06` (visual Y is ground minus 40) and uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-9 asset pack. The old
+The extracted bytes exist only in a user-built version-10 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 
@@ -94,9 +98,9 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v9.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v9.pack
-.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v9.pack build\command_05.wav build\command_0D.wav build\command_0C.wav build\command_0F.wav build\command_0E.wav build\command_09.wav
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\allstar.assetpack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\allstar.assetpack
+.\build\allstar_port.exe --export-rom-sfx build\allstar.assetpack build\command_05.wav build\command_0D.wav build\command_0C.wav build\command_0F.wav build\command_0E.wav build\command_09.wav build\command_04.wav
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 

@@ -328,9 +328,9 @@ static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
 /* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
    $2FB0, program pointers at $3849, instrument records at $3888, duration
    table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
-   This intentionally decodes the six focused square/noise programs used by
-   score, rim contact, dribble-ground contact, movement, roster navigation,
-   and roster accept. */
+   This intentionally decodes the seven focused square/noise programs used by
+   fouls, score, rim contact, dribble-ground contact, movement, roster
+   navigation, and roster accept. */
 static bool decode_rom_square_stream(const AllStarRom *rom,
                                      size_t stream,
                                      int channel,
@@ -453,7 +453,7 @@ static bool decode_rom_noise_stream(const AllStarRom *rom,
 static bool extract_one_on_one_audio(AllStarAssetPack *pack,
                                      const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -476,7 +476,7 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         } else if (!decode_rom_square_stream(
                        rom, stream, command == 0x0c ? 2 : 1,
                        program, &next_stream)) return false;
-        if (command == 0x05) {
+        if (command == 0x05 || command == 0x04) {
             program->stream_pointer_2 = (uint16_t)next_stream;
             if (!decode_rom_square_stream(
                     rom, next_stream, 2, program, &next_stream)) return false;
@@ -544,7 +544,20 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[5].frames[0].noise_polynomial != 0x5a ||
         (pack->rom_sfx_programs[5].frames[0].flags &
             (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4)) !=
-            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4))
+            (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4) ||
+        pack->rom_sfx_programs[6].command != 0x04 ||
+        pack->rom_sfx_programs[6].program_id != 0x0a ||
+        pack->rom_sfx_programs[6].priority_frames != 0x1e ||
+        pack->rom_sfx_programs[6].stream_pointer_1 != 0x3ed4 ||
+        pack->rom_sfx_programs[6].stream_pointer_2 != 0x3ee0 ||
+        pack->rom_sfx_programs[6].frame_count != 30 ||
+        pack->rom_sfx_programs[6].square1_sweep != 0x08 ||
+        pack->rom_sfx_programs[6].square1_duty_length != 0x08 ||
+        pack->rom_sfx_programs[6].square1_envelope != 0xa2 ||
+        pack->rom_sfx_programs[6].square2_duty_length != 0x48 ||
+        pack->rom_sfx_programs[6].square2_envelope != 0xa2 ||
+        pack->rom_sfx_programs[6].frames[0].square1_frequency != 0x07c1 ||
+        pack->rom_sfx_programs[6].frames[0].square2_frequency != 0x07be)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -559,6 +572,7 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
     const AllStarRomSfxProgram *rim;
+    const AllStarRomSfxProgram *foul;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
@@ -567,6 +581,7 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     navigation = &pack->rom_sfx_programs[3];
     confirm = &pack->rom_sfx_programs[4];
     rim = &pack->rom_sfx_programs[5];
+    foul = &pack->rom_sfx_programs[6];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -617,7 +632,19 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         (rim->frames[0].flags &
             (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4)) ==
             (ALLSTAR_ROM_SFX_CHANNEL_4 | ALLSTAR_ROM_SFX_TRIGGER_4) &&
-        movement->source_checksum == rim->source_checksum;
+        movement->source_checksum == rim->source_checksum &&
+        foul->command == 0x04 && foul->program_id == 0x0a &&
+        foul->priority_frames == 0x1e && foul->frame_count == 30 &&
+        foul->stream_pointer_1 == 0x3ed4 &&
+        foul->stream_pointer_2 == 0x3ee0 &&
+        foul->square1_sweep == 0x08 &&
+        foul->square1_duty_length == 0x08 &&
+        foul->square1_envelope == 0xa2 &&
+        foul->square2_duty_length == 0x48 &&
+        foul->square2_envelope == 0xa2 &&
+        foul->frames[0].square1_frequency == 0x07c1 &&
+        foul->frames[0].square2_frequency == 0x07be &&
+        movement->source_checksum == foul->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {

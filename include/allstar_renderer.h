@@ -83,6 +83,10 @@ bool allstar_renderer_rom_player_tiles_2945(
     const AllStarAssetPack *pack, uint8_t action, uint8_t display_frame,
     bool horizontal_flip,
     uint16_t output_tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT]);
+/* Fixed $21FA maps the selected roster record's first byte to an OBJ
+   palette; gameplay body tiles themselves are shared by action/frame. */
+uint8_t allstar_renderer_rom_player_palette_21fa(
+    bool is_p1, uint8_t roster_skin_byte);
 void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32_t hoop_y);
 void allstar_renderer_draw_court(AllStarRenderer *renderer);
 void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,

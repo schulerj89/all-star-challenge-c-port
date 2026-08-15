@@ -16,7 +16,7 @@
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
         "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "10a5",
         "10ad", "10fa", "1638", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
-        "20d0", "20f7", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
+        "20d0", "20f7", "21fa", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
         "28e1", "2933", "293d", "2945", "2a2b", "2ab5", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2d08", "2f88", "3014"
       ]
@@ -346,6 +346,12 @@
       "native_symbol": "allstar_one_on_one_rom_steal_contact_2b14",
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Action-family selection, latch ownership, $0A78 vulnerability, $077D contact, opposing direction masks, and the $2B88 transfer are ported; a deterministic Mesen trace confirms owner 2 to owner 1 transfer."
+    },
+    "rom_b00_21fa": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_player_palette_21fa",
+      "source": "src/allstar_renderer.c",
+      "note": "The full routine's four roster-byte/slot palette outcomes ($E4/$D9 and $E0/$D0) are native and deterministic-tested; Mesen observes selected records $91/$90 producing OBP0=$D9 and OBP1=$E0."
     },
     "rom_b00_2b6c": {
       "status": "verified",

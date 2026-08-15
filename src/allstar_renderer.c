@@ -289,9 +289,9 @@ void allstar_renderer_draw_court(AllStarRenderer *renderer) {
     allstar_renderer_draw_rect_outline(renderer, 56, 48, 48, 36, 2);
 }
 
-static void allstar_renderer_draw_asset_tile_skin(
+static void allstar_renderer_draw_asset_tile_palette(
     AllStarRenderer *renderer, const AllStarTile *tile,
-    int x, int y, bool flip_x, uint8_t skin_tone) {
+    int x, int y, bool flip_x, uint8_t dmg_palette) {
     int ty;
     int tx;
     if (!renderer || !tile) return;
@@ -300,7 +300,7 @@ static void allstar_renderer_draw_asset_tile_skin(
             int source_x = flip_x ? 7 - tx : tx;
             uint8_t shade = tile->pixels[ty * 8 + source_x];
             if (shade == 0) continue;
-            if (skin_tone == 0x90 && shade == 1) shade = 2;
+            shade = (uint8_t)((dmg_palette >> (shade * 2)) & 3u);
             allstar_renderer_set_pixel(renderer, x + tx, y + ty, shade);
         }
     }
@@ -338,6 +338,16 @@ void allstar_renderer_rom_ball_presentation_6945(
     presentation->shadow_tier = tier;
     presentation->ball_pair_index = adjusted;
     presentation->shadow_pair_index = (uint8_t)(8 + tier * 8 + adjusted);
+}
+
+/* $21FA reads the first byte of the selected 25-byte roster record copied
+   to $C23B/$C254. There is no per-roster body-sheet table: $90 selects the
+   dark-player palette and every other value selects the light-player
+   palette, separately for OBP0 and OBP1. */
+uint8_t allstar_renderer_rom_player_palette_21fa(
+        bool is_p1, uint8_t roster_skin_byte) {
+    if (is_p1) return roster_skin_byte == 0x90 ? 0xe4 : 0xd9;
+    return roster_skin_byte == 0x90 ? 0xe0 : 0xd0;
 }
 
 /* Fixed $1ECC uses the $1F2B pointer table to replace six BG cells beginning
@@ -521,10 +531,10 @@ static void allstar_renderer_draw_oam_pair(
         if (id < 0x24 || (id & 1) != 0) continue;
         source_index = (size_t)((id - 0x24) >> 1);
         if (source_index >= pack->header.ball_source_tile_count) continue;
-        allstar_renderer_draw_asset_tile_skin(
+        allstar_renderer_draw_asset_tile_palette(
             renderer, &pack->ball_source_tiles[source_index],
             (int)oam_x - 8 + column * 8, (int)oam_y - 16,
-            false, 0);
+            false, 0xe4);
     }
 }
 
@@ -617,20 +627,22 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
         int column;
         int top_x = x - 16;
         int top_y = y - 56 - visual_lift;
+        uint8_t obj_palette = allstar_renderer_rom_player_palette_21fa(
+            is_p1, skin_tone);
         if (!allstar_renderer_rom_player_tiles_2945(
                 pack, rom_action, rom_display_frame,
                 horizontal_flip, tiles)) return;
         for (sprite_row = 0; sprite_row < 3; sprite_row++) {
             for (column = 0; column < 3; column++) {
                 size_t output = (size_t)sprite_row * 6 + column * 2;
-                allstar_renderer_draw_asset_tile_skin(
+                allstar_renderer_draw_asset_tile_palette(
                     renderer, &pack->player_source_tiles[tiles[output]],
                     top_x + column * 8, top_y + sprite_row * 16,
-                    horizontal_flip, skin_tone);
-                allstar_renderer_draw_asset_tile_skin(
+                    horizontal_flip, obj_palette);
+                allstar_renderer_draw_asset_tile_palette(
                     renderer, &pack->player_source_tiles[tiles[output + 1]],
                     top_x + column * 8, top_y + sprite_row * 16 + 8,
-                    horizontal_flip, skin_tone);
+                    horizontal_flip, obj_palette);
             }
         }
     } else {

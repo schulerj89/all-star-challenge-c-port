@@ -553,6 +553,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *navigation;
     const AllStarRomSfxProgram *confirm;
     const AllStarRomSfxProgram *rim;
+    const AllStarRomSfxProgram *foul;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) == 0 ||
@@ -564,6 +565,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     navigation = &pack->rom_sfx_programs[3];
     confirm = &pack->rom_sfx_programs[4];
     rim = &pack->rom_sfx_programs[5];
+    foul = &pack->rom_sfx_programs[6];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -587,12 +589,22 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         rim->noise_length != 0xeb || rim->noise_envelope != 0xf2 ||
         rim->noise_control != 0xbf ||
         rim->frames[0].noise_polynomial != 0x5a ||
+        foul->command != 0x04 || foul->program_id != 0x0a ||
+        foul->priority_frames != 0x1e || foul->frame_count != 30 ||
+        foul->stream_pointer_1 != 0x3ed4 ||
+        foul->stream_pointer_2 != 0x3ee0 ||
+        foul->square1_sweep != 0x08 ||
+        foul->square1_duty_length != 0x08 ||
+        foul->square1_envelope != 0xa2 ||
+        foul->square2_duty_length != 0x48 ||
+        foul->square2_envelope != 0xa2 ||
         movement->source_checksum == 0 ||
         movement->source_checksum != score->source_checksum ||
         movement->source_checksum != dribble->source_checksum ||
         movement->source_checksum != navigation->source_checksum ||
         movement->source_checksum != confirm->source_checksum ||
-        movement->source_checksum != rim->source_checksum) return false;
+        movement->source_checksum != rim->source_checksum ||
+        movement->source_checksum != foul->source_checksum) return false;
 #ifdef _WIN32
     {
         PcmSound movement_pcm = {0};
@@ -601,18 +613,21 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         PcmSound navigation_pcm = {0};
         PcmSound confirm_pcm = {0};
         PcmSound rim_pcm = {0};
+        PcmSound foul_pcm = {0};
         if (!generate_rom_program(&movement_pcm, movement) ||
             !generate_rom_program(&score_pcm, score) ||
             !generate_rom_program(&dribble_pcm, dribble) ||
             !generate_rom_program(&navigation_pcm, navigation) ||
             !generate_rom_program(&confirm_pcm, confirm) ||
-            !generate_rom_program(&rim_pcm, rim)) {
+            !generate_rom_program(&rim_pcm, rim) ||
+            !generate_rom_program(&foul_pcm, foul)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
             free_pcm_sound(&navigation_pcm);
             free_pcm_sound(&confirm_pcm);
             free_pcm_sound(&rim_pcm);
+            free_pcm_sound(&foul_pcm);
             return false;
         }
         EnterCriticalSection(&g_audio_lock);
@@ -622,12 +637,14 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_MOVE]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_MENU_SELECT]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_RIM_CLANK]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_WHISTLE]);
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
         g_sfx[ALLSTAR_SFX_MENU_MOVE] = navigation_pcm;
         g_sfx[ALLSTAR_SFX_MENU_SELECT] = confirm_pcm;
         g_sfx[ALLSTAR_SFX_RIM_CLANK] = rim_pcm;
+        g_sfx[ALLSTAR_SFX_WHISTLE] = foul_pcm;
         LeaveCriticalSection(&g_audio_lock);
     }
 #endif

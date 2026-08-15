@@ -14,6 +14,8 @@ typedef struct {
     AllStarAIController ai;
     AllStarOneOnOneShotAttempt shot_attempt;
     AllStarOneOnOneRecoveryState recovery;
+    AllStarOneOnOneScorePresentation score_presentation;
+    uint32_t pending_score_events;
     float p1_shot_animation_clock;
     float p2_shot_animation_clock;
     uint8_t p1_shot_action;
@@ -472,6 +474,62 @@ static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
     return false;
 }
 
+static bool one_on_one_update_score_presentation(SceneOneOnOneData *data,
+                                                  AllStarGame *game,
+                                                  float dt) {
+    uint16_t previous_frame;
+    uint32_t score_events;
+    uint32_t frame;
+    if (!data->score_presentation.active) return false;
+
+    previous_frame = data->score_presentation.elapsed_frames;
+    score_events = allstar_one_on_one_score_presentation_tick_0c13(
+        &data->score_presentation, dt);
+
+    /* $1E0E pins the made ball to $54/$5E and applies raw VZ=$FFE8
+       without the normal $7BE8 gravity while the score effect is live. */
+    for (frame = previous_frame;
+         frame < data->score_presentation.elapsed_frames &&
+         frame < ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME;
+         frame++) {
+        data->ball.rom_step_state.z = (uint16_t)(
+            data->ball.rom_step_state.z +
+            (uint16_t)data->ball.rom_step_state.vz);
+    }
+    data->ball.z = (float)(int16_t)data->ball.rom_step_state.z / 256.0f;
+
+    if (score_events & ALLSTAR_ROM_SCORE_EVENT_COMMIT) {
+        data->pending_score_events = allstar_one_on_one_match_add_score(
+            &game->one_on_one, data->score_presentation.shooter,
+            data->score_presentation.points);
+        /* $1F23 calls $2F88 command $05 when the score effect counter ends. */
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
+    }
+
+    if ((score_events & ALLSTAR_ROM_SCORE_EVENT_FADE_OUT) &&
+        (data->pending_score_events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT)) {
+        data->score_presentation.active = false;
+        one_on_one_handle_lifecycle_events(
+            data, game, data->pending_score_events);
+        data->pending_score_events = 0;
+        return true;
+    }
+
+    if (score_events & ALLSTAR_ROM_SCORE_EVENT_RESET_POSSESSION) {
+        int shooter = data->score_presentation.shooter;
+        int next_possession = allstar_one_on_one_next_possession_after_score(
+            &game->one_on_one, shooter);
+        one_on_one_reset_possession(
+            data, game, next_possession == 1);
+    }
+
+    if (score_events & ALLSTAR_ROM_SCORE_EVENT_INBOUND) {
+        data->pending_score_events = 0;
+        return false;
+    }
+    return true;
+}
+
 static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
     SceneOneOnOneData *data = (SceneOneOnOneData*)scene->user_data;
     const AllStarPlayerStats *cpu_stats;
@@ -505,6 +563,8 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     float p2_before_x;
     float p2_before_y;
     data->anim_timer += dt;
+
+    if (one_on_one_update_score_presentation(data, game, dt)) return;
 
     events = allstar_one_on_one_match_tick(&game->one_on_one, dt);
     if (one_on_one_handle_lifecycle_events(data, game, events)) return;
@@ -651,17 +711,18 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     allstar_physics_update_ball(&data->ball, dt);
     ball_contacts = allstar_physics_apply_rom_court_contacts(&data->ball);
     if (ball_contacts & ALLSTAR_BALL_CONTACT_SCORE) {
-        int shooter = data->ball.shooter_id;
-        int points = data->ball.point_value;
-        events = allstar_one_on_one_match_add_score(&game->one_on_one, shooter, points);
-        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
-        if (events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) {
-            one_on_one_handle_lifecycle_events(data, game, events);
-        } else {
-            int next_possession = allstar_one_on_one_next_possession_after_score(
-                &game->one_on_one, shooter);
-            one_on_one_reset_possession(data, game, next_possession == 1);
-        }
+        allstar_one_on_one_score_presentation_begin_1e0e(
+            &data->score_presentation,
+            data->ball.shooter_id, data->ball.point_value);
+        data->pending_score_events = 0;
+        data->ball.rom_step_state.vx = 0;
+        data->ball.rom_step_state.vy = 0;
+        data->ball.rom_step_state.vz = -0x0018;
+        data->ball.rom_step_state.x = 0x5400;
+        data->ball.rom_step_state.y = 0x5e00;
+        data->ball.x = 84.0f;
+        data->ball.y = 94.0f;
+        data->ball.in_flight = true;
         return;
     }
 
@@ -746,8 +807,12 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     uint8_t p2_skin;
     bool p1_facing_left;
     bool p2_facing_left;
+    bool sprites_visible;
+    int32_t p1_visual_lift = 0;
+    int32_t p2_visual_lift = 0;
 
-    if (game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_RESULT) {
+    if (!data->score_presentation.active &&
+        game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_RESULT) {
         one_on_one_draw_result(game, renderer);
         return;
     }
@@ -789,12 +854,37 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     if (p2_x < 88) p2_x = 88;
     allstar_renderer_draw_text(renderer, p2_name, p2_x, 40, 3);
 
+    /* $2821 changes LCDC from $87 to $85 at fade stage two. $2814's
+       reverse-table completion restores the OBJ control flag for inbound. */
+    sprites_visible = !data->score_presentation.active ||
+        data->score_presentation.elapsed_frames < 192;
+    if (data->score_presentation.active) {
+        allstar_renderer_apply_dmg_bgp(
+            renderer, data->score_presentation.bg_palette);
+    }
+    if (!sprites_visible) return;
+
     p1_skin = s1 ? s1->skin_tone : 0x90;
     p2_skin = s2 ? s2->skin_tone : 0x91;
     /* $782E sets player +$02 bit 4 for right and clears it otherwise. */
     p1_facing_left = !data->p1_horizontal_flip;
     p2_facing_left = !data->p2_horizontal_flip;
-    allstar_renderer_draw_player_ex(renderer, (int32_t)data->p2.x, (int32_t)data->p2.y,
+    if (data->p1_shot_animation_clock > 0.0f) {
+        uint16_t elapsed = (uint16_t)lroundf(
+            (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
+             data->p1_shot_animation_clock) * 60.0f);
+        p1_visual_lift = (int32_t)
+            allstar_one_on_one_rom_shot_jump_height_6c4d(elapsed);
+    }
+    if (data->p2_shot_animation_clock > 0.0f) {
+        uint16_t elapsed = (uint16_t)lroundf(
+            (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
+             data->p2_shot_animation_clock) * 60.0f);
+        p2_visual_lift = (int32_t)
+            allstar_one_on_one_rom_shot_jump_height_6c4d(elapsed);
+    }
+    allstar_renderer_draw_player_lifted_ex(renderer,
+        (int32_t)data->p2.x, (int32_t)data->p2.y, p2_visual_lift,
         false, p2_skin, data->p2.has_ball,
         data->p2.is_shooting || data->p2.is_jumping,
         data->p2_steal_latch_frames > 0 || data->p2_defense_jump_active ||
@@ -803,7 +893,8 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
                              : data->p2_animation.action,
         data->p2.anim_frame,
         data->anim_timer, p2_facing_left);
-    allstar_renderer_draw_player_ex(renderer, (int32_t)data->p1.x, (int32_t)data->p1.y,
+    allstar_renderer_draw_player_lifted_ex(renderer,
+        (int32_t)data->p1.x, (int32_t)data->p1.y, p1_visual_lift,
         true, p1_skin, data->p1.has_ball,
         data->p1.is_shooting || data->p1.is_jumping,
         data->p1_steal_latch_frames > 0 || data->p1_defense_jump_active ||

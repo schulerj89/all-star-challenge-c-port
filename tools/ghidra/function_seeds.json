@@ -16,9 +16,9 @@
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
         "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "10a5",
         "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
-        "20d0", "20f7", "2219", "2243", "22ef", "2639", "2729", "276d",
+        "20d0", "20f7", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
         "28e1", "2933", "293d", "2945", "2a2b", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
-        "2f88", "3014"
+        "2d08", "2f88", "3014"
       ]
     },
     {
@@ -207,7 +207,7 @@
       "status": "candidate",
       "native_symbol": "allstar_one_on_one_match_init",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "Match-entry analogue; the ROM routine also owns gameplay setup and loop behavior not covered by this mapping."
+      "note": "Match-entry analogue; the $1E0E score event through $1F23/$27C7/$20F7/$27CC inbound subpath is frame-traced and native, while the routine's other setup/loop behavior remains incomplete."
     },
     "rom_b00_0b9a": {
       "status": "candidate",
@@ -273,7 +273,31 @@
       "status": "candidate",
       "native_symbol": "allstar_physics_apply_rom_court_contacts",
       "source": "src/gameplay/allstar_physics.c",
-      "note": "Native code ports the One-on-One outer-boundary, y<$5C return, exact score window, rim/backboard impulses, cooldown, and normal/$FFD4 bounce branches. Mesen and native launched trajectories now reach the $1E0E make branch; whole-routine credit remains withheld because non-One-on-One mode/effect branches are incomplete."
+      "note": "Native code ports the One-on-One outer-boundary, y<$5C return, exact score window, rim/backboard impulses, cooldown, normal/$FFD4 bounce branches, and the normal-mode $1E0E made-ball effect handoff. Mesen and native launched trajectories reach the same make; other-mode branches keep whole-routine credit withheld."
+    },
+    "rom_b00_20f7": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_reset_possession",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "The post-score owner change, shot-clock reset, ball clear, player reset, and frame-214 ordering are emulator/native tested; VRAM/OAM and unrelated initialization work prevent whole-routine credit."
+    },
+    "rom_b00_27c7": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_score_presentation_tick_0c13",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The four 1/11/11/11-frame fade stages, BGP E4/F9/FE/FF values, and shared $27CC reverse entry are asserted against the headless Mesen score-presentation trace."
+    },
+    "rom_b00_27ea": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_score_presentation_tick_0c13",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The counted palette-stage wait and indirect four-entry dispatch are represented by exact frame events and BGP output, verified across both fade directions."
+    },
+    "rom_b00_2d08": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_score_presentation_tick_0c13",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The three post-score four-frame holds are included through the frame-254 counted update and frame-258 playable inbound; other callers and input-abort behavior remain outside this focused mapping."
     },
     "rom_b00_1f4d": {
       "status": "verified",

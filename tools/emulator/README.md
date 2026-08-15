@@ -75,3 +75,11 @@ make record and asserts the complete result path: `$6A8C` player `+$03/+$18`,
 `$7F37` release height, `$7C58` class/vector/VZ, and fixed
 `$1CED->$1E0E` at `X/Y/Z=$54/$5C/$38`. Require exit code `0` and
 `TRACE PASSED: $6A8C/$7F37/$7C58/$1CED launched make`.
+
+`trace_one_on_one_score_presentation.lua` continues the same deterministic
+make through fixed-bank `$1E0E->$1F23/$2F88->$0C13->$2D08->$27C7/$27EA
+->$20F7->$27CC` and the next bank-1 `$702D` update. It asserts sound command
+`$05` and score commit at `+65` frames, the eight exact BGP writes, a 34-frame
+fade-out, the final `$FFEB=1` counted update at `+254`, and playable inbound
+at `+258` frames. Require exit code `0` and
+`TRACE PASSED: $1E0E/$2F88/$0C13/$27C7/$20F7/$27CC score presentation`.

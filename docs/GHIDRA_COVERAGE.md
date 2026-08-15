@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **25/111 (22.52%)**. All 111 entry points have stable bank-aware symbols and decompile successfully; 57 are explicitly unmapped, 29 have candidate native analogues, and 25 mappings are verified by deterministic tests and traces. The new verified group includes `$6A8C/$6BAD/$6BBA/$6BC7/$6BD4/$6E3C` animation-boundary movement, `$0AC5/$2C50/$2CCA` charging/blocking enforcement, `$75CD` CPU contact response, `$2243/$2945/$2A2B` One-on-One asset/player composition, and `$6945/$69F5` ball/shadow OAM. This is a conservative reviewed subset, not a claim that the entire ROM contains only 111 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **27/114 (23.68%)**. All 114 entry points have stable bank-aware symbols and decompile successfully; 56 are explicitly unmapped, 31 have candidate native analogues, and 27 mappings are verified by deterministic tests and traces. The newly recovered score-presentation group adds `$27C7/$27EA/$2D08` and verifies the `$27C7/$27EA` palette transition against a live cartridge trace; `$20F7/$2D08` remain conservative candidates until their whole-routine state surfaces are mapped. This is a conservative reviewed subset, not a claim that the entire ROM contains only 114 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -14,11 +14,11 @@ The strict project milestone tracker is currently **10/25 (40.00%)**, increased 
 
 The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, defensive jumps, post-contact recovery, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
 
-The focused One-on-One shot-result audit is **12/12 (100.00%)**, up from the
-newly audited **9/12 (75.00%)** baseline. The corrected path couples `$6A8C`
-record `+$03`, `$6C4D/$7F37` release height, `$7C58` arc selection, `$7BE8`
-flight, and fixed `$1CED->$1E0E`; both a live cartridge make and a native-scene
-make are asserted.
+The expanded One-on-One shooting/presentation audit is **22/22 (100.00%)**,
+up from **12/22 (54.55%)** when the former contact-only denominator was
+corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
+`$1CED->$1E0E` to `$1F23/$2F88`, `$0C13/$2D08`, `$27C7/$27EA`, `$20F7`,
+`$27CC`, and the next `$702D` inbound update.
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
@@ -42,15 +42,15 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Reviewed Ghidra functions | 111 functions | 56 in bank 0, 47 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
-| Generated Ghidra C export | 124 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 25 of 111 | 25 mappings have address-level C plus deterministic or emulator evidence; 29 candidates remain below whole-routine evidence threshold. |
+| Reviewed Ghidra functions | 114 functions | 59 in bank 0, 47 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 127 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed routine-to-C parity | 27 of 114 | 27 mappings have address-level C plus deterministic or emulator evidence; 31 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Current focused behavior checks | 11 | The earlier checks plus player movement/contact, charging/blocking, and live asset/ball-OAM traces are checked; broader frame-perfect comparison remains intentionally outside the current goal. |
+| Current focused behavior checks | 12 | The earlier checks plus the complete 258-frame score-sound/fade/playable-inbound trace are checked; broader frame-perfect comparison remains intentionally outside the current goal. |
 
 ### Reviewed Ghidra recovery
 
@@ -58,7 +58,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 
 The current conservative boundaries are:
 
-- bank 0: 56 boot, RNG, cross-bank anchor, One-on-One lifecycle, contact-rule, asset-load, player-composition, steal, and recovery routines;
+- bank 0: 59 boot, RNG, cross-bank anchor, One-on-One lifecycle, score-presentation, contact-rule, asset-load, player-composition, steal, and recovery routines;
 - bank 1: 47 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher; generated labels before that region remain excluded as likely data false positives;
 - bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
 - bank 3: no reviewed functions yet; observed uses are asset-copy sources.
@@ -175,4 +175,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **25/111 routine mappings verified**. Do not use 111 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus percentage is checked separately with `python tools/check_one_on_one_remaining_coverage.py`.
+The manifest now exists, so report its verified subset explicitly: **27/114 routine mappings verified**. Do not use 114 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus percentage is checked separately with `python tools/check_one_on_one_remaining_coverage.py`.

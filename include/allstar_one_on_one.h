@@ -16,6 +16,14 @@
 #define ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS \
     (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_FRAMES / 60.0f)
 
+/* Normal One-on-One make path traced from $1E0E through $0C13. */
+#define ALLSTAR_ROM_SCORE_COMMIT_FRAME 65
+#define ALLSTAR_ROM_SCORE_FADE_OUT_FRAME 180
+#define ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME 214
+#define ALLSTAR_ROM_SCORE_FADE_IN_FRAME 219
+#define ALLSTAR_ROM_SCORE_COUNTED_INBOUND_FRAME 254
+#define ALLSTAR_ROM_SCORE_INBOUND_FRAME 258
+
 /* $077D compares these player reference coordinates to the loose ball. */
 #define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f
 #define ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS 8.0f
@@ -80,6 +88,15 @@ typedef enum {
     ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING = (1 << 2)
 } AllStarOneOnOneShotEvent;
 
+typedef enum {
+    ALLSTAR_ROM_SCORE_EVENT_NONE = 0,
+    ALLSTAR_ROM_SCORE_EVENT_COMMIT = (1 << 0),
+    ALLSTAR_ROM_SCORE_EVENT_FADE_OUT = (1 << 1),
+    ALLSTAR_ROM_SCORE_EVENT_RESET_POSSESSION = (1 << 2),
+    ALLSTAR_ROM_SCORE_EVENT_FADE_IN = (1 << 3),
+    ALLSTAR_ROM_SCORE_EVENT_INBOUND = (1 << 4)
+} AllStarRomScorePresentationEvent;
+
 typedef struct {
     AllStarOneOnOneShotPhase phase;
     int shooter;
@@ -98,6 +115,15 @@ typedef struct {
 typedef struct {
     uint8_t cooldown_frames;
 } AllStarOneOnOneRecoveryState;
+
+typedef struct {
+    bool active;
+    uint16_t elapsed_frames;
+    float step_accumulator;
+    int shooter;
+    int points;
+    uint8_t bg_palette;
+} AllStarOneOnOneScorePresentation;
 
 typedef struct {
     bool blocked_contact;
@@ -195,6 +221,8 @@ uint8_t allstar_one_on_one_rom_shot_profile(uint8_t roster_index);
 uint8_t allstar_one_on_one_rom_shot_record_index(uint16_t elapsed_frames);
 /* $6A8C->$6C4D player lift followed by $7F37 ball-height composition. */
 uint8_t allstar_one_on_one_rom_shot_release_height(uint8_t record_index);
+float allstar_one_on_one_rom_shot_jump_height_6c4d(
+    uint16_t elapsed_frames);
 int16_t allstar_one_on_one_rom_shot_vertical_velocity(
     uint8_t roster_index, uint8_t distance_class, uint8_t pose_index);
 int allstar_one_on_one_rom_point_value(float ball_x, float ball_y);
@@ -277,7 +305,14 @@ uint32_t allstar_one_on_one_shot_input(AllStarOneOnOneShotAttempt *attempt,
 uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
                                        int player);
 uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
-                                      float dt);
+                                       float dt);
+void allstar_one_on_one_score_presentation_begin_1e0e(
+    AllStarOneOnOneScorePresentation *presentation,
+    int shooter,
+    int points);
+uint32_t allstar_one_on_one_score_presentation_tick_0c13(
+    AllStarOneOnOneScorePresentation *presentation,
+    float dt);
 int allstar_one_on_one_next_possession_after_score(
     const AllStarOneOnOneMatch *match,
     int shooter);

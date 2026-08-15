@@ -2,9 +2,9 @@
   "schema_version": 1,
   "metric": {
     "name": "one_on_one_shot_result_requirements",
-    "description": "Twelve equal, all-or-nothing requirements for the normal One-on-One gather, launch, make, and miss path.",
-    "total": 12,
-    "points_per_requirement": 8.3333333333
+    "description": "Twenty-two equal, all-or-nothing requirements for the normal One-on-One gather, launch, make/miss, score presentation, fade, and next inbound path.",
+    "total": 22,
+    "points_per_requirement": 4.5454545455
   },
   "requirements": [
     {"id":"input.gather_702d","group":"input_timing","status":"verified","evidence":["tools/emulator/trace_one_on_one_input.lua","src/gameplay/allstar_one_on_one.c"],"test":"--test-one-on-one-shooting"},
@@ -18,10 +18,22 @@
     {"id":"physics.gravity_integrator_7be8","group":"flight_result","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/allstar_cli.c"],"test":"--test-physics"},
     {"id":"result.score_cell_1ced_1e0e","group":"flight_result","status":"verified","evidence":["tools/emulator/trace_one_on_one_shot_results.lua","src/gameplay/allstar_physics.c"],"test":"--test-physics"},
     {"id":"result.miss_contact_1ced","group":"flight_result","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/allstar_cli.c"],"test":"--test-physics"},
-    {"id":"integration.native_scene_make","group":"flight_result","status":"verified","evidence":["src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"}
+    {"id":"integration.native_scene_make","group":"flight_result","status":"verified","evidence":["src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"animation.visual_lift_6c4d","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_shot_results.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"presentation.score_effect_1e0e","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"result.score_commit_1f23","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"audio.score_command_1f23_2f88","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/audio/allstar_audio.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"transition.counted_holds_2d08","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"transition.fade_out_27c7_27ea","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"transition.possession_reset_20f7","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"transition.fade_in_27cc_27ea","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"transition.inbound_resume_702d","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"integration.native_full_score_sequence","group":"presentation","status":"verified","evidence":["tools/emulator/trace_one_on_one_score_presentation.lua","src/scenes/scene_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"}
   ],
   "history": [
     {"date":"2026-08-15","verified":9,"total":12,"percent":75.0,"note":"Audit found the live animation-record selector, record-coupled release height, and reachable native-scene make missing despite isolated launch/contact tests."},
-    {"date":"2026-08-15","verified":12,"total":12,"percent":100.0,"note":"$6A8C record timing and $6C4D/$7F37 release lift now feed $7C58; Mesen and native end-to-end tests prove launched makes and misses."}
+    {"date":"2026-08-15","verified":12,"total":12,"percent":100.0,"note":"$6A8C record timing and $6C4D/$7F37 release lift now feed $7C58; Mesen and native end-to-end tests prove launched makes and misses."},
+    {"date":"2026-08-15","verified":12,"total":22,"percent":54.55,"note":"Denominator expanded after the slow-score audit: the former claim ended at hoop contact and excluded score sound, presentation holds, palette fades, possession rebuild, and inbound resumption."},
+    {"date":"2026-08-15","verified":22,"total":22,"percent":100.0,"note":"The traced $1E0E->$1F23/$2F88->$0C13->$2D08->$27C7/$27EA->$20F7->$27CC->$702D sequence now drives the native scene through the exact 254-frame counted update and 258-frame playable-inbound timeline."}
   ]
 }

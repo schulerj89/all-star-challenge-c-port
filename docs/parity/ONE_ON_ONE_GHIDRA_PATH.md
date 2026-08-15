@@ -16,6 +16,22 @@ Two earlier assumptions were corrected by following the live call graph:
 The C port preserves those absences instead of adding behavior not present in
 the cartridge.
 
+## Shooting through the next inbound
+
+| ROM path followed in Ghidra | Recovered behavior | Native C path |
+|---|---|---|
+| `$702D->$6A8C->$6C4D->$7F37` | Gather/release follows the live animation record; the signed lift raises both the shooter and held ball while the shadow remains grounded. | `allstar_one_on_one_rom_shot_record_index`, `allstar_one_on_one_rom_shot_jump_height_6c4d`, and the lifted player renderer. |
+| `$7C58->$7EA9->$7BE8->$1CED->$1E0E` | Select the distance/profile/record arc, integrate 8.8 motion, then accept only an exact score cell. | The ROM launcher and fixed physics contact dispatcher feed `allstar_one_on_one_score_presentation_begin_1e0e`. |
+| `$1E0E->$1F23->$2F88` | Run the made-basket effect clock; at `+65` frames commit the score and select sound command `$05`. | The score presentation emits `COMMIT`; the scene updates the score and plays `ALLSTAR_SFX_SWISH` on that exact event. |
+| `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
+| `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
+| `$20F7->$27CC->$27EA->$2D08->$702D` | Rebuild possession at `+214`, reverse the palette table, reach the final counted `$FFEB=1` player update at `+254`, then restore OBJ/input for playable inbound at `+258`. | The scene resets possession at the same event and releases its input lock only at `INBOUND`. |
+
+The cartridge script `trace_one_on_one_score_presentation.lua` proves every
+boundary above. The focused shooting denominator was therefore expanded from
+the former contact-only 12 items to 22 items; it moved from **12/22 (54.55%)**
+to **22/22 (100.00%)** once this complete path was converted.
+
 ## Per-frame contact and movement path
 
 | ROM path followed in Ghidra | Recovered behavior | Native C path |
@@ -74,3 +90,5 @@ Headless Mesen evidence is in:
 - `tools/emulator/trace_one_on_one_player_collision.lua`
 - `tools/emulator/trace_one_on_one_contact_rules.lua`
 - `tools/emulator/trace_one_on_one_assets.lua`
+- `tools/emulator/trace_one_on_one_shot_results.lua`
+- `tools/emulator/trace_one_on_one_score_presentation.lua`

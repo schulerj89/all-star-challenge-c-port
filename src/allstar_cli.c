@@ -739,6 +739,7 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
 int allstar_cli_test_one_on_one_shooting(void) {
     AllStarOneOnOneShotAttempt attempt;
     AllStarOneOnOneRecoveryState recovery;
+    AllStarOneOnOneScorePresentation score_presentation;
     AllStarOneOnOneMatch match;
     AllStarGame game;
     uint32_t events;
@@ -749,6 +750,9 @@ int allstar_cli_test_one_on_one_shooting(void) {
     float court_x;
     float court_y;
     int frame;
+    int score_frame;
+    int possession_frame;
+    AllStarSfxId score_sfx;
     AllStarRomRng rng;
     AllStarAssetPack animation_pack;
     AllStarRomAnimationState animation_state;
@@ -1564,6 +1568,53 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_game_shutdown(&game);
         return 1;
     }
+    if (allstar_one_on_one_rom_shot_jump_height_6c4d(0) != 0.0f ||
+        allstar_one_on_one_rom_shot_jump_height_6c4d(7) != 9.0f ||
+        allstar_one_on_one_rom_shot_jump_height_6c4d(37) != 26.0f ||
+        allstar_one_on_one_rom_shot_jump_height_6c4d(38) != 24.0f ||
+        allstar_one_on_one_rom_shot_jump_height_6c4d(62) != 0.0f) {
+        fprintf(stderr, "[Test] $6A8C/$6C4D shot visual lift was incorrect\n");
+        return 1;
+    }
+
+    allstar_one_on_one_score_presentation_begin_1e0e(
+        &score_presentation, 1, 2);
+    for (frame = 1; frame <= ALLSTAR_ROM_SCORE_INBOUND_FRAME; frame++) {
+        uint32_t score_flags =
+            allstar_one_on_one_score_presentation_tick_0c13(
+                &score_presentation, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if ((frame == ALLSTAR_ROM_SCORE_COMMIT_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_COMMIT) != 0) ||
+            (frame == ALLSTAR_ROM_SCORE_FADE_OUT_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_FADE_OUT) != 0) ||
+            (frame == ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_RESET_POSSESSION) != 0) ||
+            (frame == ALLSTAR_ROM_SCORE_FADE_IN_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_FADE_IN) != 0) ||
+            (frame == ALLSTAR_ROM_SCORE_INBOUND_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_INBOUND) != 0)) {
+            fprintf(stderr,
+                    "[Test] $1E0E/$0C13 score event occurred on the wrong frame %d\n",
+                    frame);
+            return 1;
+        }
+        if ((frame == 191 && score_presentation.bg_palette != 0xe4) ||
+            (frame == 192 && score_presentation.bg_palette != 0xf9) ||
+            (frame == 203 && score_presentation.bg_palette != 0xfe) ||
+            (frame == 214 && score_presentation.bg_palette != 0xff) ||
+            (frame == 231 && score_presentation.bg_palette != 0xfe) ||
+            (frame == 242 && score_presentation.bg_palette != 0xf9) ||
+            (frame == 253 && score_presentation.bg_palette != 0xe4)) {
+            fprintf(stderr, "[Test] $27C7/$27CC BGP stage was incorrect\n");
+            return 1;
+        }
+    }
+    if (score_presentation.active ||
+        score_presentation.elapsed_frames != ALLSTAR_ROM_SCORE_INBOUND_FRAME ||
+        score_presentation.shooter != 1 || score_presentation.points != 2) {
+        fprintf(stderr, "[Test] Score presentation did not resume at frame 258\n");
+        return 1;
+    }
 
     /* End-to-end native scene proof: for roster profile zero at the reset
        class-one location, pointer 5 couples Z=$3E with table VZ=$01D4 and
@@ -1583,21 +1634,39 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     allstar_input_update(&game.input, 0);
-    for (frame = 0; frame < 120 && game.one_on_one.p1_score == 0; frame++) {
+    score_frame = -1;
+    possession_frame = -1;
+    score_sfx = ALLSTAR_SFX_NONE;
+    for (frame = 1; frame <= 500; frame++) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (score_frame < 0 && game.one_on_one.p1_score != 0) {
+            score_frame = frame;
+            score_sfx = game.audio.last_sfx;
+        }
+        if (score_frame >= 0 && !game.one_on_one.p1_possession) {
+            possession_frame = frame;
+            break;
+        }
     }
     if (game.one_on_one.p1_score != 2 || game.one_on_one.p1_possession ||
-        allstar_one_on_one_rom_shot_record_index(25) != 5) {
+        allstar_one_on_one_rom_shot_record_index(25) != 5 ||
+        score_frame < 0 || possession_frame - score_frame !=
+            ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME -
+            ALLSTAR_ROM_SCORE_COMMIT_FRAME ||
+        score_sfx != ALLSTAR_SFX_SWISH) {
         fprintf(stderr,
-                "[Test] Timed native scene shot did not score through $7C58->$7BE8->$1CED "
-                "(score=%u possession=%d frame=%d)\n",
+                "[Test] Timed native make did not follow $1E0E->$1F23->$20F7 "
+                "(score=%u possession=%d score_frame=%d reset_frame=%d sfx=%d)\n",
                 (unsigned)game.one_on_one.p1_score,
-                game.one_on_one.p1_possession ? 1 : 0, frame);
+                game.one_on_one.p1_possession ? 1 : 0,
+                score_frame, possession_frame, (int)score_sfx);
         allstar_game_shutdown(&game);
         return 1;
     }
-    printf("  Timed scene make: release frame 25 (ROM record $%02X)\n",
-           allstar_one_on_one_rom_shot_record_index(25));
+    printf("  Timed scene make: release frame 25 (ROM record $%02X), "
+           "score cue at %d, reset at %d\n",
+           allstar_one_on_one_rom_shot_record_index(25),
+           score_frame, possession_frame);
 
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
     game.roster.players[2].shooting_3pt = 0;
@@ -1991,6 +2060,47 @@ int allstar_cli_dump_screenshots(const char *out_dir,
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     }
     snprintf(path, sizeof(path), "%s\\04c_one_on_one_defense_jump.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4e-4i. Complete traced make: profile-zero player, record-$05 release,
+       $1F23 score cue, $27C7 fade, and $27CC inbound restoration. */
+    game.selected_player_1 = 2;
+    srand(1);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 25; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04e_one_on_one_shot_lift.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 20; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04f_one_on_one_make_flight.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    for (int i = 20; i < 129; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04g_one_on_one_score_cue.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    for (int i = 129; i < 267; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04h_one_on_one_fade.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    for (int i = 267; i < 324; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04i_one_on_one_inbound.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 

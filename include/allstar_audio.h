@@ -32,6 +32,8 @@ typedef struct {
     bool enabled;
     float volume;
     AllStarBgmId current_bgm;
+    AllStarSfxId last_sfx;
+    uint32_t sfx_play_count;
 } AllStarAudioEngine;
 
 /* Ghidra: Call_000_0002 - Audio Driver Tick & Hardware Updates */

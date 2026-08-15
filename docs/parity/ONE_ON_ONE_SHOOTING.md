@@ -20,6 +20,9 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | Rim/backboard miss | Apply the recovered raw X impulses, VZ reflection/loss, and eight-frame `$C17E` contact cooldown. |
 | Ground contact | `$1E77` clears the recovery flight lock, negates raw VZ, and subtracts `$0039` (or one `$012C` hard-bounce loss when pending). |
 | Shot action animation | Use the recovered 67 frame-duration total from the action `$0A/$12` animation tables instead of the former arbitrary 15-frame timer. |
+| Player jump presentation | Apply the signed `$6C4D` lift every rendered record while leaving the floor shadow anchored, so the shooter visibly rises and falls through the full gather. |
+| Made basket | `$1E0E` begins a score presentation instead of immediately resetting play. `$1F23` commits the score and dispatches sound command `$05` 65 frames after contact. |
+| Post-score transition | Preserve the cartridge's two counted holds, four-step `$27C7/$27EA` fade-out, `$20F7` possession rebuild, reverse `$27CC/$27EA` fade-in, and final counted hold. `$702D` runs with `$FFEB=1` at frame 254; OBJ display and playable input return at frame 258. |
 | Miss travels behind the hoop (`y<$5C`) | Apply `$1CED`: return it to `y=$5E` with the recovered small positive court velocity. |
 | Ball reaches `x<$0A`, `x>=$A0`, or `y>=$97` | Apply `$1CED->$1F4D`: zero planar velocity and leave possession unresolved until recovery. |
 | Loose ball recovery | Use `$077D`'s strict `|dx|<12`, `|dy|<8` collision limits, then apply possession through the existing match state. |
@@ -51,6 +54,10 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 | Fixed `$1F4D` | Zeroes the two planar 8.8 velocity words. | `allstar_physics_apply_rom_court_contacts` zeroes native `vx` and `vy`; deterministic boundary tests cover the semantic result. |
 | Fixed `$077D` | Tests loose-ball proximity against player reference coordinates with strict Y `<8` and X `<12` limits. | `allstar_one_on_one_player_can_pick_up_ball` reproduces the strict limits and is boundary-tested. |
 | Fixed `$2AE2/$2B07/$2B88` | Decrements the pickup cooldown, applies possession/`$FFEB`/height gates, tests player 1 then player 2 for action and collision eligibility, applies `$FFE2/$FFE7/$FFF8` final locks, and reloads a 20-frame cooldown on award. | `allstar_one_on_one_rom_recovery_dispatch` preserves that order and is boundary-tested; the scene supplies the score-event, transition, first-contact flight, and exact proximity states. |
+| Fixed `$1E0E->$1F23->$2F88` | Starts the made-basket effect, commits the BCD score after 65 frames, and selects normal One-on-One score sound command `$05`. | `allstar_one_on_one_score_presentation_begin_1e0e` and the scene defer the native score update and `ALLSTAR_SFX_SWISH` cue to the same frame. User WAV assets take precedence; otherwise the mixer generates an audible DMG-like square-wave cue. |
+| Fixed `$0B80/$0B9A->$0C13->$2D08` | Returns from the match update, performs counted presentation holds, then selects the continuation or match-end branch. | `allstar_one_on_one_score_presentation_tick_0c13` owns the post-score clock, while the scene keeps gameplay input suspended until the traced inbound boundary. |
+| Fixed `$27C7/$27EA` and `$27CC` | Runs four 11-tick palette stages out and the same table in reverse: `$E4,$F9,$FE,$FF,$FF,$FE,$F9,$E4`. `$2821` also changes LCDC `$87->$85`, hiding OBJ sprites until the final reverse stage. | The score state emits the exact palette bytes; `allstar_renderer_apply_dmg_bgp` remaps the background/HUD layer and the scene hides player/ball OAM for the same interval. |
+| Fixed `$20F7->$702D` | Rebuilds possession after fade-out; the following fade-in and counted hold update the other owner while input remains gated. | The scene resets the shot wrapper/ball at frame 214, preserves the counted update at frame 254, and resumes playable inbound at frame 258. |
 
 Every successful possession award also resets the native shot-attempt wrapper
 to `IDLE`. This is native bookkeeping around the recovered dispatcher: leaving
@@ -66,6 +73,15 @@ then writes class 3, vector `VX=$0004`, `VY=$FF18`, `VZ=$01C8`; after `$7BE8`
 integration, fixed `$1CED` enters `$1E0E` at
 `X/Y/Z=$54/$5C/$38` with `$FFD7=1`.
 
+`tools/emulator/trace_one_on_one_score_presentation.lua` continues from that
+entry and proves the omitted presentation chain. In the cartridge trace,
+`$1F23/$2F88` commits the score and selects command `$05` at `+65` frames;
+`$27C7` begins fading at `+180`; `$20F7` rebuilds possession at `+214`;
+`$27CC` begins the reverse fade at `+219`; the counted `$702D` update arrives
+at `+254` with `$FFEB=1`; and playable input/LCDC OBJ return at `+258`. The
+eight observed BGP writes are exactly
+`E4,F9,FE,FF,FF,FE,F9,E4`.
+
 From a captured gameplay state the input trace
 asserts the A-A path (`$FFAE=1`, phase 0, immediate possession transfer) and the
 A-B path (`$FFAF=2`, phase 1/`$C16A=1`, then phase 2/release one update later).
@@ -74,18 +90,21 @@ the 67-frame action terminal remains traveling.
 
 ## Shot-result coverage
 
-`ONE_ON_ONE_SHOT_RESULT_COVERAGE.json` fixes this area at 12 equal
-requirements. The audited pre-fix state was **9/12 (75.00%)**: distance,
-profile, table bytes, planar vectors, gravity, contact cells, and miss response
-were present, but the live record selector, record-coupled release height, and
-an end-to-end native scene make were missing. They are now **12/12 (100.00%)**.
+`ONE_ON_ONE_SHOT_RESULT_COVERAGE.json` now fixes the complete area at 22 equal
+requirements. The earlier **12/12** claim stopped at make/miss contact. Once
+the user-visible score presentation was correctly added to the denominator,
+the audited state was **12/22 (54.55%)**. The jump lift, score-effect clock,
+65-frame score/sound commit, counted holds, both fades, possession rebuild,
+inbound resumption, and full native integration are now verified, producing
+**22/22 (100.00%)**.
 
 ## Known deviations
 
 The scoped launch/contact path is verified, but complete gameplay parity is not:
 
 - player collision penalties and unrelated `$7170` branches remain unmapped;
-- `$1CED` presentation/effect sequencing and branches belonging to other game modes remain outside this One-on-One claim.
+- the audible fallback reproduces the traced `$05` dispatch time and a DMG-like cue, but it is not a cycle-accurate port of the complete `$3014` APU sequencer;
+- `$1CED` branches belonging exclusively to other game modes remain outside this One-on-One claim.
 
 The former One-on-One implementation used an interpolated descending plane at `z=16` plus a five-pixel circle. Recovered `$1CED` proves that model was not native: the ROM compares integer 8.8 bytes in discrete score/contact cells and never reads vertical-velocity sign in the score decision. One-on-One now consumes the exact contact event; the generic plane helper remains available only for the other prototype shooting scenes.
 

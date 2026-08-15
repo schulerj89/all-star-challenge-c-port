@@ -18,10 +18,11 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial project-wide | Version 4 extracts the complete One-on-One court, player frames/tiles, ball/shadow tiles, and all 24 `$6C60` animation-control lists; other screens, roster records, and audio still need migration. |
-| Ghidra-to-C routine coverage | 25/111 verified | All 111 reviewed bank-aware functions recover and decompile cleanly; 29 mappings remain candidates and 57 are unmapped. |
+| Ghidra-to-C routine coverage | 27/114 verified | All 114 reviewed bank-aware functions recover and decompile cleanly; 31 mappings remain candidates and 56 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. |
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
+| One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The earlier 12/12 claim ended at hoop contact; the expanded audit includes jump lift, score/sound timing, fades, possession rebuild, and the next inbound. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -118,7 +119,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces cover shot input, defense transitions, exact RNG, the complete `$782E/$6A8C` directional action state, `$6B72/$6E3C` movement blocking, `$2C50/$2CCA/$0AC5` charging/blocking, and the extracted One-on-One graphics plus `$6945/$69F5` ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
+Automated Mesen traces cover shot input, the complete 258-frame made-basket sound/fade/playable-inbound sequence, defense transitions, exact RNG, the complete `$782E/$6A8C` directional action state, `$6B72/$6E3C` movement blocking, `$2C50/$2CCA/$0AC5` charging/blocking, and the extracted One-on-One graphics plus `$6945/$69F5` ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
 
 ## Reverse Engineering
 

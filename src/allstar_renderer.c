@@ -340,6 +340,32 @@ void allstar_renderer_rom_ball_presentation_6945(
     presentation->shadow_pair_index = (uint8_t)(8 + tier * 8 + adjusted);
 }
 
+/* $27C7/$27CC write E4,F9,FE,FF and the reverse to BGP. Apply this after the
+   background/HUD and before player OAM so the native layers preserve the
+   cartridge's separate BGP and OBJ behavior. */
+void allstar_renderer_apply_dmg_bgp(AllStarRenderer *renderer,
+                                    uint8_t bg_palette) {
+    AllStarColor remap[4];
+    size_t pixel_count;
+    size_t i;
+    int source;
+    if (!renderer || !renderer->pixels) return;
+    for (source = 0; source < 4; source++) {
+        uint8_t target = (uint8_t)((bg_palette >> (source * 2)) & 0x03);
+        remap[source] = renderer->current_palette.shades[target];
+    }
+    pixel_count = renderer->width * renderer->height;
+    for (i = 0; i < pixel_count; i++) {
+        AllStarColor color = renderer->pixels[i];
+        for (source = 0; source < 4; source++) {
+            if (color == renderer->current_palette.shades[source]) {
+                renderer->pixels[i] = remap[source];
+                break;
+            }
+        }
+    }
+}
+
 /* Bank 1 $7F37 attaches the held ball to the current player frame.  The two
    action tables at $7FC7/$7FCB are byte-identical in this ROM: X is +7 when
    unflipped or +10 when flipped and the height offset is -2.  Display frames
@@ -499,7 +525,11 @@ void allstar_renderer_draw_cursor(AllStarRenderer *renderer, int32_t x, int32_t 
     }
 }
 
-void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting, bool is_defending, uint8_t rom_action, uint8_t rom_display_frame, float anim_time, bool facing_left) {
+void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
+    int32_t x, int32_t y, int32_t visual_lift,
+    bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting,
+    bool is_defending, uint8_t rom_action, uint8_t rom_display_frame,
+    float anim_time, bool facing_left) {
     const AllStarAssetPack *pack;
     if (!renderer) return;
     (void)is_p1;
@@ -520,7 +550,7 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         int sprite_row;
         int column;
         int top_x = x - 16;
-        int top_y = y - 56;
+        int top_y = y - 56 - visual_lift;
         if (!allstar_renderer_rom_player_tiles_2945(
                 pack, rom_action, rom_display_frame,
                 facing_left, tiles)) return;
@@ -539,25 +569,39 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
         }
     } else {
         /* Source-free fallback silhouette. */
-        allstar_renderer_draw_rect_fill(renderer, x - 5, y - 30, 10, 22, 2);
-        allstar_renderer_draw_rect_fill(renderer, x - 4, y - 38, 8, 8,
+        allstar_renderer_draw_rect_fill(renderer, x - 5, y - 30 - visual_lift,
+                                        10, 22, 2);
+        allstar_renderer_draw_rect_fill(renderer, x - 4, y - 38 - visual_lift,
+                                        8, 8,
                                         skin_tone == 0x90 ? 2 : 1);
-        allstar_renderer_draw_line(renderer, x - 4, y - 8, x - 7, y, 3);
-        allstar_renderer_draw_line(renderer, x + 4, y - 8, x + 7, y, 3);
+        allstar_renderer_draw_line(renderer, x - 4, y - 8 - visual_lift,
+                                   x - 7, y - visual_lift, 3);
+        allstar_renderer_draw_line(renderer, x + 4, y - 8 - visual_lift,
+                                   x + 7, y - visual_lift, 3);
     }
 
     /* If dribbling ball */
-    if (has_ball && !is_shooting) {
+    if (has_ball) {
         AllStarRomHeldBallPresentation held_ball;
         allstar_renderer_rom_held_ball_7f37(
             x, y, rom_action, rom_display_frame,
             !facing_left, &held_ball);
         if (held_ball.visible) {
+            held_ball.ball_z = (uint8_t)(held_ball.ball_z + visual_lift);
             allstar_renderer_draw_ball_rom_6945(
                 renderer, held_ball.ball_x, held_ball.ball_y,
                 held_ball.ball_z, anim_time, held_ball.behind_owner);
         }
     }
+}
+
+void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x,
+    int32_t y, bool is_p1, uint8_t skin_tone, bool has_ball,
+    bool is_shooting, bool is_defending, uint8_t rom_action,
+    uint8_t rom_display_frame, float anim_time, bool facing_left) {
+    allstar_renderer_draw_player_lifted_ex(
+        renderer, x, y, 0, is_p1, skin_tone, has_ball, is_shooting,
+        is_defending, rom_action, rom_display_frame, anim_time, facing_left);
 }
 
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {

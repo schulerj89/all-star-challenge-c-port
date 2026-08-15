@@ -447,6 +447,17 @@ uint8_t allstar_one_on_one_rom_shot_release_height(uint8_t record_index) {
     return (uint8_t)(0x26 + lift[lift_index]);
 }
 
+/* $6A8C applies the signed $6C4D delta only when a new shot record loads.
+   The visual lift therefore follows the same uneven 6,6,6,6,6,6,1,...
+   cadence as the launch-table record pointer, not a continuous parabola. */
+float allstar_one_on_one_rom_shot_jump_height_6c4d(
+    uint16_t elapsed_frames) {
+    uint8_t record_index =
+        allstar_one_on_one_rom_shot_record_index(elapsed_frames);
+    return (float)(allstar_one_on_one_rom_shot_release_height(record_index) -
+                   0x26);
+}
+
 /* $7C58 indexes profile -> distance class -> the twelve-entry player-pose
    row. Class zero uses a zero high byte; classes one through four use one. */
 int16_t allstar_one_on_one_rom_shot_vertical_velocity(
@@ -967,6 +978,75 @@ uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
 
     allstar_one_on_one_shot_reset(attempt);
     return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING;
+}
+
+/* Fixed $1E0E starts the made-basket effect. The outer $0B80/$0B9A loop
+   does not reset possession immediately: $1F23 commits the score/sound at
+   frame 65, $27C7 begins at frame 180, $20F7 resets at frame 214, $27CC
+   starts at frame 219, the final $2D08 wait reaches $702D at frame 254 with
+   $FFEB=1, and normal input resumes after that four-frame hold at frame 258. */
+void allstar_one_on_one_score_presentation_begin_1e0e(
+    AllStarOneOnOneScorePresentation *presentation,
+    int shooter,
+    int points) {
+    if (!presentation) return;
+    memset(presentation, 0, sizeof(*presentation));
+    presentation->active = true;
+    presentation->shooter = shooter;
+    presentation->points = points;
+    presentation->bg_palette = 0xe4;
+}
+
+static uint8_t allstar_one_on_one_score_bgp_27c7(uint16_t frame) {
+    if (frame < 192) return 0xe4;
+    if (frame < 203) return 0xf9;
+    if (frame < 214) return 0xfe;
+    if (frame < 231) return 0xff;
+    if (frame < 242) return 0xfe;
+    if (frame < 253) return 0xf9;
+    return 0xe4;
+}
+
+uint32_t allstar_one_on_one_score_presentation_tick_0c13(
+    AllStarOneOnOneScorePresentation *presentation,
+    float dt) {
+    uint32_t events = ALLSTAR_ROM_SCORE_EVENT_NONE;
+    if (!presentation || !presentation->active || dt <= 0.0f) return events;
+
+    presentation->step_accumulator += dt;
+    while (presentation->active &&
+           presentation->step_accumulator + 0.000001f >=
+               (1.0f / 60.0f)) {
+        presentation->step_accumulator -= 1.0f / 60.0f;
+        if (presentation->step_accumulator < 0.0f)
+            presentation->step_accumulator = 0.0f;
+        presentation->elapsed_frames++;
+        presentation->bg_palette = allstar_one_on_one_score_bgp_27c7(
+            presentation->elapsed_frames);
+
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_COMMIT_FRAME) {
+            events |= ALLSTAR_ROM_SCORE_EVENT_COMMIT;
+        }
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_FADE_OUT_FRAME) {
+            events |= ALLSTAR_ROM_SCORE_EVENT_FADE_OUT;
+        }
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME) {
+            events |= ALLSTAR_ROM_SCORE_EVENT_RESET_POSSESSION;
+        }
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_FADE_IN_FRAME) {
+            events |= ALLSTAR_ROM_SCORE_EVENT_FADE_IN;
+        }
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_INBOUND_FRAME) {
+            presentation->active = false;
+            events |= ALLSTAR_ROM_SCORE_EVENT_INBOUND;
+        }
+    }
+    return events;
 }
 
 /* ROM $0C13-$0C2C conditionally reverses the possession side via $FF96. */

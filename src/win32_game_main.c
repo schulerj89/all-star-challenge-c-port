@@ -164,14 +164,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     snprintf(asset_path, sizeof(asset_path), "%s\\allstar.assetpack", exe_dir);
 
     bool game_initialized = false;
-    FILE *f_check = fopen(asset_path, "rb");
+    FILE *f_check = NULL;
+    fopen_s(&f_check, asset_path, "rb");
     if (f_check) {
         fclose(f_check);
         game_initialized = allstar_game_init(&g_game, asset_path);
     }
     if (!game_initialized) {
         snprintf(asset_path, sizeof(asset_path), "build\\allstar.assetpack");
-        f_check = fopen(asset_path, "rb");
+        fopen_s(&f_check, asset_path, "rb");
         if (f_check) {
             fclose(f_check);
             game_initialized = allstar_game_init(&g_game, asset_path);

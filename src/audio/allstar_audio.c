@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -44,10 +45,11 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
 
     char path[MAX_PATH];
     snprintf(path, sizeof(path), "assets\\audio\\%s", filename);
-    FILE *f = fopen(path, "rb");
+    FILE *f = NULL;
+    fopen_s(&f, path, "rb");
     if (!f) {
         snprintf(path, sizeof(path), "build\\assets\\audio\\%s", filename);
-        f = fopen(path, "rb");
+        fopen_s(&f, path, "rb");
     }
     if (!f) {
         char exe_dir[MAX_PATH];
@@ -55,7 +57,7 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
         char *last_slash = strrchr(exe_dir, '\\');
         if (last_slash) *last_slash = '\0';
         snprintf(path, sizeof(path), "%s\\assets\\audio\\%s", exe_dir, filename);
-        f = fopen(path, "rb");
+        fopen_s(&f, path, "rb");
     }
     if (!f) return false;
 
@@ -125,6 +127,88 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
     out->sample_count = total_frames;
     out->loaded = true;
     return true;
+}
+
+/* The cartridge's made-basket path reaches sound command $05 at $1F23.
+   Until the complete $3014 command-stream interpreter is shared by every
+   mode, keep gameplay cues audible with deterministic DMG-like square-wave
+   fallbacks. User-provided WAVs still take precedence when present. */
+static bool generate_square_sequence(PcmSound *out,
+                                     const float *frequencies,
+                                     const float *durations,
+                                     size_t segment_count,
+                                     float amplitude) {
+    uint32_t total_frames = 0;
+    uint32_t cursor = 0;
+    size_t segment;
+    if (!out || !frequencies || !durations || segment_count == 0) return false;
+    for (segment = 0; segment < segment_count; segment++) {
+        total_frames += (uint32_t)(durations[segment] * MIX_SAMPLE_RATE);
+    }
+    if (total_frames == 0) return false;
+    out->samples = (int16_t*)malloc(
+        (size_t)total_frames * MIX_CHANNELS * sizeof(int16_t));
+    if (!out->samples) return false;
+
+    for (segment = 0; segment < segment_count; segment++) {
+        uint32_t segment_frames =
+            (uint32_t)(durations[segment] * MIX_SAMPLE_RATE);
+        uint32_t frame;
+        float phase = 0.0f;
+        float phase_step = frequencies[segment] / (float)MIX_SAMPLE_RATE;
+        for (frame = 0; frame < segment_frames; frame++) {
+            float envelope = 1.0f - (float)frame / (float)segment_frames;
+            int16_t sample = (int16_t)(
+                (phase < 0.5f ? amplitude : -amplitude) * envelope);
+            out->samples[(cursor + frame) * 2] = sample;
+            out->samples[(cursor + frame) * 2 + 1] = sample;
+            phase += phase_step;
+            if (phase >= 1.0f) phase -= 1.0f;
+        }
+        cursor += segment_frames;
+    }
+    out->sample_count = total_frames;
+    out->loaded = true;
+    return true;
+}
+
+static void generate_gameplay_sfx_fallbacks(void) {
+    static const float dribble_f[] = {110.0f};
+    static const float dribble_d[] = {0.055f};
+    static const float shoot_f[] = {880.0f, 660.0f};
+    static const float shoot_d[] = {0.035f, 0.055f};
+    static const float score_f[] = {740.0f, 988.0f, 1318.0f};
+    static const float score_d[] = {0.055f, 0.055f, 0.12f};
+    static const float rim_f[] = {190.0f, 145.0f};
+    static const float rim_d[] = {0.045f, 0.09f};
+    static const float buzzer_f[] = {120.0f, 100.0f};
+    static const float buzzer_d[] = {0.18f, 0.22f};
+    static const float whistle_f[] = {1760.0f, 2093.0f};
+    static const float whistle_d[] = {0.09f, 0.14f};
+    static const float cheer_f[] = {330.0f, 392.0f, 494.0f, 659.0f};
+    static const float cheer_d[] = {0.08f, 0.08f, 0.08f, 0.18f};
+
+    if (!g_sfx[ALLSTAR_SFX_DRIBBLE].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_DRIBBLE],
+            dribble_f, dribble_d, 1, 6500.0f);
+    if (!g_sfx[ALLSTAR_SFX_SHOOT].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_SHOOT],
+            shoot_f, shoot_d, 2, 7500.0f);
+    if (!g_sfx[ALLSTAR_SFX_SWISH].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_SWISH],
+            score_f, score_d, 3, 9000.0f);
+    if (!g_sfx[ALLSTAR_SFX_RIM_CLANK].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_RIM_CLANK],
+            rim_f, rim_d, 2, 9000.0f);
+    if (!g_sfx[ALLSTAR_SFX_BUZZER].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_BUZZER],
+            buzzer_f, buzzer_d, 2, 8000.0f);
+    if (!g_sfx[ALLSTAR_SFX_WHISTLE].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_WHISTLE],
+            whistle_f, whistle_d, 2, 7500.0f);
+    if (!g_sfx[ALLSTAR_SFX_CHEER].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_CHEER],
+            cheer_f, cheer_d, 4, 7500.0f);
 }
 
 static DWORD WINAPI audio_mixer_thread(LPVOID param) {
@@ -254,6 +338,7 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
     load_pcm_wav("bgm_gameplay.wav", &g_bgm[ALLSTAR_BGM_GAMEPLAY]);
     load_pcm_wav("sfx_menu_move.wav", &g_sfx[ALLSTAR_SFX_MENU_MOVE]);
     load_pcm_wav("sfx_menu_select.wav", &g_sfx[ALLSTAR_SFX_MENU_SELECT]);
+    generate_gameplay_sfx_fallbacks();
 
     memset(g_sfx_voices, 0, sizeof(g_sfx_voices));
     g_mixer_running = true;
@@ -267,7 +352,10 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
 }
 
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
-    if (!audio || !audio->enabled) return;
+    if (!audio || !audio->enabled || sfx <= ALLSTAR_SFX_NONE ||
+        sfx >= ALLSTAR_SFX_COUNT) return;
+    audio->last_sfx = sfx;
+    audio->sfx_play_count++;
 #ifdef _WIN32
     if (!g_lock_initialized) return;
     EnterCriticalSection(&g_audio_lock);

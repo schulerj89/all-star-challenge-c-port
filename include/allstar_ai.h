@@ -25,6 +25,7 @@ typedef struct {
     uint8_t rom_skill_level;
     uint8_t rom_target_x;
     uint8_t rom_target_y;
+    bool rom_steal_pressed;
 } AllStarAIController;
 
 void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats);
@@ -42,6 +43,9 @@ bool allstar_ai_rom_should_shoot_756c(uint8_t profile,
                                      uint8_t skill_random);
 bool allstar_ai_rom_should_contest_71ee(float cpu_x, float cpu_y,
                                        bool opponent_shot_in_flight);
+bool allstar_ai_rom_should_steal_71b3(uint8_t skill_level,
+                                     uint8_t random_byte,
+                                     bool ball_contact);
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt);
 
 #endif /* ALLSTAR_AI_H */

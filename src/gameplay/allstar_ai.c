@@ -97,8 +97,21 @@ bool allstar_ai_rom_should_contest_71ee(float cpu_x, float cpu_y,
            cpu_x < 0x54 + 0x0e;
 }
 
+/* $71B3 indexes $762C by the one-based skill byte. A CPU touching the held
+   ball presses B only when the random byte is below 04/19/46. */
+bool allstar_ai_rom_should_steal_71b3(uint8_t skill_level,
+                                     uint8_t random_byte,
+                                     bool ball_contact) {
+    static const uint8_t thresholds[3] = {0x04, 0x19, 0x46};
+    if (!ball_contact) return false;
+    if (skill_level < 1 || skill_level > 3) skill_level = 1;
+    return random_byte < thresholds[skill_level - 1];
+}
+
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt) {
     if (!ai || !cpu || !human || !ball) return;
+
+    ai->rom_steal_pressed = false;
 
     ai->decision_timer -= dt;
     if (ai->decision_timer <= 0.0f) {
@@ -126,6 +139,13 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
         } else {
             /* Defensive logic */
             ai->state = ALLSTAR_AI_STATE_DEFEND_PERIMETER;
+            ai->rom_steal_pressed = allstar_ai_rom_should_steal_71b3(
+                ai->rom_skill_level, (uint8_t)(rand() & 0xff),
+                allstar_one_on_one_player_can_pick_up_ball(
+                    cpu->x,
+                    cpu->y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+                    human->x,
+                    human->y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y));
         }
     }
 

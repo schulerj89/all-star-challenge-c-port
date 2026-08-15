@@ -14,10 +14,10 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "050f",
-        "053c", "06c0", "0749", "077d", "0b35", "0b80", "0b9a", "10a5",
+        "053c", "06c0", "0749", "077d", "0a78", "0b35", "0b80", "0b9a", "10a5",
         "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
-        "28e1", "2ae2", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
+        "28e1", "2ae2", "2b14", "2b6c", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2f88", "3014"
       ]
     },
@@ -131,6 +131,12 @@
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Exact strict |x|<12 and |y|<8 loose-ball collision limits are covered by deterministic boundary tests."
     },
+    "rom_b00_0a78": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_action_eligible_0a78",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact eight-action protected set is deterministic-tested and exercised by the traced $2B14 steal path."
+    },
     "rom_b00_1ced": {
       "status": "candidate",
       "native_symbol": "allstar_physics_apply_rom_court_contacts",
@@ -149,6 +155,18 @@
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, and the 20-frame reload. Whole-routine emulator state traces remain missing."
     },
+    "rom_b00_2b14": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_steal_contact_2b14",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Action-family selection, latch ownership, $0A78 vulnerability, $077D contact, opposing direction masks, and the $2B88 transfer are ported; a deterministic Mesen trace confirms owner 2 to owner 1 transfer."
+    },
+    "rom_b00_2b6c": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_jump_recovery_2b6c",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact $077D planar and eight-pixel vertical catch band is ported with the shared $2B88 $FFF8 lock; Mesen proves live shots are rejected and identical post-contact jump recoveries are awarded."
+    },
     "rom_b01_6ca2": {
       "status": "candidate",
       "native_symbol": "three_point_init",
@@ -159,7 +177,7 @@
       "status": "candidate",
       "native_symbol": "allstar_ai_update",
       "source": "src/gameplay/allstar_ai.c",
-      "note": "Mode-0 CPU target, movement, profile shot-decision, and contest subsets are ported and boundary-tested; collision, steal, and other-mode branches prevent whole-routine credit."
+      "note": "Mode-0 CPU target, movement, profile shot-decision, $04/$19/$46 skill steal thresholds, and contest subsets are ported and boundary-tested; collision and other-mode branches prevent whole-routine credit."
     },
     "rom_b01_74bb": {
       "status": "candidate",

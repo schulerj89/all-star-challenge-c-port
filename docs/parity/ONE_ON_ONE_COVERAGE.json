@@ -6,7 +6,7 @@
     "total": 50,
     "points_per_requirement": 2.0,
     "target_percent_min": 96.0,
-    "target_percent_max": 99.0
+    "target_percent_max": 100.0
   },
   "requirements": [
     {"id":"lifecycle.mode_route","group":"lifecycle","status":"verified","evidence":["docs/parity/MODE_ROUTING.md"],"test":"--test-mode-routing"},
@@ -61,8 +61,8 @@
     {"id":"defense.cpu_shot_decision","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
     {"id":"defense.rating_accuracy","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-one-on-one-shooting","note":"The ROM uses roster profiles and launch/decision tables rather than the former generic 2PT/3PT percentage roll."},
     {"id":"defense.shot_contest","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_AI.md","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
-    {"id":"defense.steal","group":"defense_ai","status":"unmapped"},
-    {"id":"defense.block_goaltend","group":"defense_ai","status":"unmapped"}
+    {"id":"defense.steal","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md","tools/emulator/trace_one_on_one_defense.lua","src/gameplay/allstar_one_on_one.c","src/gameplay/allstar_ai.c"],"test":"--test-one-on-one-shooting"},
+    {"id":"defense.block_goaltend","group":"defense_ai","status":"verified","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md","tools/emulator/trace_one_on_one_defense.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting","note":"The recovered ROM behavior is a contest jump plus post-contact airborne recovery; shared $2B88 rejects initial-flight contact and there is no separate goaltending or live-block award branch."}
   ],
   "history": [
     {"date":"2026-08-14","verified":25,"total":50,"percent":50.0,"note":"Reconstructed e9751ca checkpoint before position-derived variants and complete pickup gating."},
@@ -75,6 +75,7 @@
     {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."},
     {"date":"2026-08-15","verified":38,"total":50,"percent":76.0,"note":"$FFEB counted-wait, $FFE2 score-event, $FFE7 transition, and $FFF8 first-ground recovery locks are mapped and gate-tested."},
     {"date":"2026-08-15","verified":43,"total":50,"percent":86.0,"note":"$07B4/$7EC4 distance classes, $2F40 profiles, all $7C58 vertical tables, 32/64-frame vectors, $1CED score/rim/backboard windows, and $1E77 raw bounce loss are implemented and boundary-tested."},
-    {"date":"2026-08-15","verified":48,"total":50,"percent":96.0,"note":"$798B/$FFD6 point regions plus $72EA/$74BB/$756C CPU targets, movement, roster-profile shot decisions, and $71EE contest gating are integrated and boundary-tested; steals and block/goaltend remain open."}
+    {"date":"2026-08-15","verified":48,"total":50,"percent":96.0,"note":"$798B/$FFD6 point regions plus $72EA/$74BB/$756C CPU targets, movement, roster-profile shot decisions, and $71EE contest gating are integrated and boundary-tested; steals and block/goaltend remain open."},
+    {"date":"2026-08-15","verified":50,"total":50,"percent":100.0,"note":"$0A78/$2B14 steals, $71B3 skill thresholds, $6C4D defensive jumps, and $2B6C/$2B88 post-contact jump recovery are integrated; Mesen confirms the ROM's $FFF8 live-shot lock and absence of a separate goaltending/live-block award."}
   ]
 }

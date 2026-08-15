@@ -21,6 +21,7 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | Miss travels behind the hoop (`y<$5C`) | Apply `$1CED`: return it to `y=$5E` with the recovered small positive court velocity. |
 | Ball reaches `x<$0A`, `x>=$A0`, or `y>=$97` | Apply `$1CED->$1F4D`: zero planar velocity and leave possession unresolved until recovery. |
 | Loose ball recovery | Use `$077D`'s strict `|dx|<12`, `|dy|<8` collision limits, then apply possession through the existing match state. |
+| Defender jumps into a live shot | `$2B6C` can reach the shared transfer gate, but `$2B88` rejects it while `$FFF8=1`; the ROM has no separate goaltending call or live-block award. After first contact clears `$FFF8`, the jump-height catch band can recover the rebound. |
 
 The pure shot state machine and possession penalty are covered by:
 
@@ -61,7 +62,7 @@ the 67-frame action terminal remains traveling.
 The scoped launch/contact path is verified, but complete gameplay parity is not:
 
 - human directional/action-to-launch-index coverage is still limited to the traced neutral index and the recovered phase paths;
-- steals, blocks, and goaltending remain unmapped;
+- player collision penalties and unrelated `$7170` branches remain unmapped;
 - `$1CED` presentation/effect sequencing and branches belonging to other game modes remain outside this One-on-One claim.
 
 The former One-on-One implementation used an interpolated descending plane at `z=16` plus a five-pixel circle. Recovered `$1CED` proves that model was not native: the ROM compares integer 8.8 bytes in discrete score/contact cells and never reads vertical-velocity sign in the score decision. One-on-One now consumes the exact contact event; the generic plane helper remains available only for the other prototype shooting scenes.

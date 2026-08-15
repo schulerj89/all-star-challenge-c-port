@@ -10,7 +10,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 |---|---|---|
 | Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
-| One-on-One | 96% scoped parity | Lifecycle, possession, input, launch/contact/bounce, 2/3-point regions, CPU targets/shot choice/contest, court limits, and recovery are covered; steals and block/goaltend remain. |
+| One-on-One | 100% of scoped manifest | All 50 fixed requirements are verified, including steals, CPU steal thresholds, defensive jumps, the `$FFF8` live-shot lock, and post-contact jump recovery. This is scoped behavioral coverage, not whole-mode frame/presentation parity. |
 | Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
 | H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
@@ -18,9 +18,9 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
-| Ghidra-to-C routine coverage | 3/94 verified | 94 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$1F4D`, and `$28E1` are narrowly verified, 25 mappings remain candidates, and 66 are unmapped. |
+| Ghidra-to-C routine coverage | 6/97 verified | 97 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$0A78`, `$1F4D`, `$28E1`, `$2B14`, and `$2B6C` are narrowly verified, 25 mappings remain candidates, and 66 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
-| Scoped One-on-One parity | 96.00% | 48 of 50 Ghidra/manual-grounded gameplay requirements; only steals and block/goaltend remain open. |
+| Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. Broader collision reactions, presentation, assets, and frame parity remain outside this focused denominator. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -94,7 +94,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$756C` CPU targets and shot decisions, `$71EE` contest limits, court limits, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, tournament flow, and input-free scene ticking. Steals, block/goaltend, visuals, and broader emulator/native state parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, `$72EA/$74BB/$756C` CPU targets and shot decisions, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6C4D/$2B6C/$2B88` defensive jumps and recovery locks, court limits, routing, settings, lifecycle, `$702D` input timing, `$7F37` origins, `$077D` recovery, traveling, tournament flow, and input-free scene ticking. Visuals and broader emulator/native frame parity remain unverified.
 
 For manual comparison with the original ROM:
 
@@ -102,7 +102,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated emulator traces, WRAM snapshots, scripted-input comparisons, and frame-difference tests remain to be implemented.
+Automated Mesen traces now cover shot input and defense state transitions. Broader WRAM snapshots and frame-difference tests remain to be implemented.
 
 ## Reverse Engineering
 

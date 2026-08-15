@@ -26,3 +26,11 @@ exit $process.ExitCode
 Exit code `0` and the final `TRACE PASSED` line are required. The assertions
 cover `$FFAE` new input, `$FFAF` held input, player action/shot phase,
 possession `$FFCF`, release latch `$C16A`, and nonzero ball vertical velocity.
+
+`trace_one_on_one_defense.lua` follows the same boot/menu route, then injects
+deterministic native contact states at the reviewed routine boundaries. It
+confirms a `$2B14` steal transfer and proves that `$2B88` rejects `$2B6C` jump
+contact while `$FFF8=1`, then accepts the same post-contact recovery after the
+flag clears. Run it by substituting that filename for the script in the command
+above; exit code `0` and `TRACE PASSED: $2B14 steal and $2B6C/$2B88 live-shot
+lock` are required.

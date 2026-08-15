@@ -4,8 +4,9 @@ Last reviewed: **2026-08-15**
 
 This checkpoint replaces the generic six-state decisions used by the native
 One-on-One scene with the recovered mode-0 selectors from bank 1. The claim is
-limited to positioning targets, shot decisions, roster-profile effects, and
-the shot-contest gate. Steals and block/goaltend outcomes remain unverified.
+limited to positioning targets, shot decisions, roster-profile effects,
+skill-based steal input, and the shot-contest gate. The resulting steal and
+defensive-jump behavior is documented in `ONE_ON_ONE_DEFENSE.md`.
 
 | ROM control flow | Recovered behavior | Native counterpart |
 |---|---|---|
@@ -15,6 +16,7 @@ the shot-contest gate. Steals and block/goaltend outcomes remain unverified.
 | `$756C`, tables `$7632/$7638` | Uses roster profile thresholds `$B0/$60/$40`, requires distance actions `4/5/6/7`, then falls back to difficulty thresholds `$1A/$0C/$06` for actions 5..7. | `allstar_ai_rom_should_shoot_756c` is called on each difficulty-cadenced CPU decision and is threshold-tested. |
 | `$2F40` plus `$7C58` tables | Maps roster indices into profiles 0/1/2. The profile changes both CPU decision probability and the exact vertical launch table. | `allstar_ai_set_rom_profile` and `allstar_one_on_one_rom_shot_vertical_velocity` preserve the roster effect; the former generic 2PT/3PT percentage roll is no longer used by One-on-One. |
 | `$71EE->$07B4` | While an opponent shot is in flight, presses the CPU contest input only inside the hoop-centered margin `$0E` rectangle: Y `<$6A`, center X `$47..$61`. | `allstar_ai_rom_should_contest_71ee` gates the contest/jump state and is tested on every strict boundary. |
+| `$71B3`, table `$762C` | When the CPU touches the opponent's held ball, presses B if the random byte is below `$04/$19/$46` for skill 1/2/3. | `allstar_ai_rom_should_steal_71b3` is threshold-tested and feeds the shared `$2B14` steal path. |
 
 The deterministic checks are part of:
 
@@ -22,7 +24,7 @@ The deterministic checks are part of:
 .\build\allstar_port.exe --test-one-on-one-shooting
 ```
 
-The broader `$7170` controller includes collision, steal, and other-mode
+The broader `$7170` controller includes collision and other-mode
 branches not claimed here. `$74BB`, `$78E9`, and `$7170` therefore remain
 candidate whole-routine mappings in the Ghidra inventory even though these
 scoped One-on-One requirements receive behavior-manifest credit.

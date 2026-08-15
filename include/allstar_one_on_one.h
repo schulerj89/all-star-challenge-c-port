@@ -21,6 +21,14 @@
 #define ALLSTAR_ROM_RECOVERY_MAX_HEIGHT 24.0f
 #define ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES 20
 
+/* $2B14 uses two animation records as its repeat latch. The steal action's
+   first record lasts one setup frame plus fifteen held frames. */
+#define ALLSTAR_ROM_STEAL_LATCH_FRAMES 16
+/* Actions $05/$0C/$14 share twelve six-frame jump records. */
+#define ALLSTAR_ROM_DEFENSE_JUMP_FRAMES 72
+#define ALLSTAR_ROM_PLAYER_BODY_HEIGHT 40.0f
+#define ALLSTAR_ROM_JUMP_CATCH_BAND 8.0f
+
 /* Native x is the player center ($+06 + 8); native y is ground field $+15. */
 #define ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X 16.0f
 #define ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X 156.0f
@@ -152,6 +160,27 @@ bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,
                                                 float ball_x,
                                                 float ball_y);
+bool allstar_one_on_one_rom_action_eligible_0a78(uint8_t action);
+uint8_t allstar_one_on_one_rom_steal_action_2b14(uint8_t action);
+bool allstar_one_on_one_rom_steal_contact_2b14(
+    bool possession_active,
+    uint8_t ballhandler_action,
+    float defender_x,
+    float defender_ground_y,
+    float ball_x,
+    float ball_y,
+    uint8_t defender_direction,
+    uint8_t ballhandler_direction);
+float allstar_one_on_one_rom_jump_height_6c4d(uint16_t elapsed_frames);
+bool allstar_one_on_one_rom_jump_recovery_2b6c(
+    bool possession_active,
+    bool first_contact_locked,
+    float player_x,
+    float player_ground_y,
+    float player_jump_height,
+    float ball_x,
+    float ball_y,
+    float ball_height);
 void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
                                                float *player_ground_y);
 int allstar_one_on_one_rom_recovery_dispatch(

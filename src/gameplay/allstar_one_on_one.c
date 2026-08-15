@@ -359,6 +359,91 @@ bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
            dy < ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS;
 }
 
+/* Fixed bank $0A78 returns Z for the eight actions that protect a player from
+   the $2B14 steal transfer and participate in shot/jump handling. */
+bool allstar_one_on_one_rom_action_eligible_0a78(uint8_t action) {
+    static const uint8_t protected_actions[] = {
+        0x03, 0x0a, 0x12, 0x05, 0x0c, 0x14, 0x0e, 0x16
+    };
+    size_t i;
+    for (i = 0; i < sizeof(protected_actions); i++) {
+        if (action == protected_actions[i]) return false;
+    }
+    return true;
+}
+
+/* $2B14 selects the steal animation from the actor's eight-action family. */
+uint8_t allstar_one_on_one_rom_steal_action_2b14(uint8_t action) {
+    if (action < 0x08) return 0x07;
+    if (action < 0x10) return 0x0f;
+    return 0x17;
+}
+
+/* $2B14: an active owner must be vulnerable, the defender must overlap the
+   held ball through $077D, and the two direction masks must oppose on either
+   axis. The caller owns the B/latch gate that reaches this routine. */
+bool allstar_one_on_one_rom_steal_contact_2b14(
+    bool possession_active,
+    uint8_t ballhandler_action,
+    float defender_x,
+    float defender_ground_y,
+    float ball_x,
+    float ball_y,
+    uint8_t defender_direction,
+    uint8_t ballhandler_direction) {
+    uint8_t combined_direction;
+    if (!possession_active ||
+        !allstar_one_on_one_rom_action_eligible_0a78(ballhandler_action) ||
+        !allstar_one_on_one_player_can_pick_up_ball(
+            defender_x,
+            defender_ground_y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+            ball_x, ball_y)) {
+        return false;
+    }
+    combined_direction = (uint8_t)(defender_direction |
+                                   ballhandler_direction);
+    return (combined_direction & 0x03) == 0x03 ||
+           (combined_direction & 0x0c) == 0x0c;
+}
+
+/* Bank 1 $6C4D supplies signed visual-Y deltas to the twelve six-frame
+   records shared by jump actions $05/$0C/$14. These are the cumulative
+   upward displacements used by $2B6C's ground-minus-visual-Y reach test. */
+float allstar_one_on_one_rom_jump_height_6c4d(uint16_t elapsed_frames) {
+    static const uint8_t cumulative_height[12] = {
+        0, 9, 16, 21, 24, 26, 26, 24, 19, 12, 4, 0
+    };
+    size_t record;
+    if (elapsed_frames >= ALLSTAR_ROM_DEFENSE_JUMP_FRAMES) return 0.0f;
+    record = elapsed_frames / 6;
+    return (float)cumulative_height[record];
+}
+
+/* $2B6C->$2B88: while no one owns the ball, $077D supplies the planar gate
+   and the ball must be strictly above reach-8 and at or below reach. $2B88
+   then rejects $FFF8, so this is an airborne post-contact rebound catch,
+   not a live block. The ROM contains no separate goaltending branch. */
+bool allstar_one_on_one_rom_jump_recovery_2b6c(
+    bool possession_active,
+    bool first_contact_locked,
+    float player_x,
+    float player_ground_y,
+    float player_jump_height,
+    float ball_x,
+    float ball_y,
+    float ball_height) {
+    float reach = ALLSTAR_ROM_PLAYER_BODY_HEIGHT + player_jump_height;
+    if (possession_active || first_contact_locked ||
+        !allstar_one_on_one_player_can_pick_up_ball(
+            player_x,
+            player_ground_y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+            ball_x, ball_y)) {
+        return false;
+    }
+    return ball_height > reach - ALLSTAR_ROM_JUMP_CATCH_BAND &&
+           ball_height <= reach;
+}
+
 /* Bank 1 $6BAD/$6BBA bounds field +$06 to 8..148 and $6BC7/$6BD4
    bounds field +$15 to 98..152. Native X stores +$06 plus eight. */
 void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,

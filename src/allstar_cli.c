@@ -748,6 +748,91 @@ int allstar_cli_test_one_on_one_shooting(void) {
         return 1;
     }
 
+    if (!allstar_ai_rom_should_steal_71b3(1, 0x03, true) ||
+        allstar_ai_rom_should_steal_71b3(1, 0x04, true) ||
+        !allstar_ai_rom_should_steal_71b3(2, 0x18, true) ||
+        allstar_ai_rom_should_steal_71b3(2, 0x19, true) ||
+        !allstar_ai_rom_should_steal_71b3(3, 0x45, true) ||
+        allstar_ai_rom_should_steal_71b3(3, 0x46, true) ||
+        allstar_ai_rom_should_steal_71b3(3, 0x00, false)) {
+        fprintf(stderr, "[Test] $71B3/$762C CPU steal thresholds were incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_rom_action_eligible_0a78(0x00) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x03) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x0a) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x12) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x05) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x0c) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x14) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x0e) ||
+        allstar_one_on_one_rom_action_eligible_0a78(0x16) ||
+        allstar_one_on_one_rom_steal_action_2b14(0x00) != 0x07 ||
+        allstar_one_on_one_rom_steal_action_2b14(0x08) != 0x0f ||
+        allstar_one_on_one_rom_steal_action_2b14(0x10) != 0x17) {
+        fprintf(stderr, "[Test] $0A78/$2B14 steal action gates were incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x00, 80.0f, 120.0f, 91.0f, 125.0f, 0x01, 0x02) ||
+        !allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x00, 80.0f, 120.0f, 91.0f, 125.0f, 0x04, 0x08) ||
+        allstar_one_on_one_rom_steal_contact_2b14(
+            false, 0x00, 80.0f, 120.0f, 91.0f, 125.0f, 0x01, 0x02) ||
+        allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x0a, 80.0f, 120.0f, 91.0f, 125.0f, 0x01, 0x02) ||
+        allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x00, 80.0f, 120.0f, 92.0f, 125.0f, 0x01, 0x02) ||
+        allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x00, 80.0f, 120.0f, 91.0f, 126.0f, 0x01, 0x02) ||
+        allstar_one_on_one_rom_steal_contact_2b14(
+            true, 0x00, 80.0f, 120.0f, 91.0f, 125.0f, 0x01, 0x01)) {
+        fprintf(stderr, "[Test] $2B14 steal collision/facing transfer was incorrect\n");
+        return 1;
+    }
+
+    if (allstar_one_on_one_rom_jump_height_6c4d(0) != 0.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(6) != 9.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(18) != 21.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(30) != 26.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(36) != 26.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(66) != 0.0f ||
+        allstar_one_on_one_rom_jump_height_6c4d(72) != 0.0f) {
+        fprintf(stderr, "[Test] $6C4D defensive jump-height records were incorrect\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 59.0f) ||
+        !allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 66.0f) ||
+        allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 58.0f) ||
+        allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 67.0f) ||
+        allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 80.0f, 130.0f, 26.0f,
+            92.0f, 135.0f, 60.0f) ||
+        allstar_one_on_one_rom_jump_recovery_2b6c(
+            true, false, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 60.0f) ||
+        allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, true, 80.0f, 130.0f, 26.0f,
+            91.0f, 135.0f, 60.0f) ||
+        !allstar_one_on_one_rom_jump_recovery_2b6c(
+            false, false, 84.0f, 94.0f, 0.0f,
+            84.0f, 92.0f, 39.0f)) {
+        fprintf(stderr,
+                "[Test] $2B6C/$2B88 jump-recovery/flight lock was incorrect\n");
+        return 1;
+    }
+
     allstar_one_on_one_shot_reset(&attempt);
 
     events = allstar_one_on_one_shot_press(&attempt, 1);
@@ -1035,7 +1120,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
     }
     allstar_game_shutdown(&game);
 
-    printf("[Test] PASSED: gather, $7F37 release, score, recovery, and traveling\n");
+    printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
     return 0;
 }
 
@@ -1353,6 +1438,37 @@ int allstar_cli_dump_screenshots(const char *out_dir) {
     snprintf(path, sizeof(path), "%s\\04_one_on_one.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 4a. One-on-One gather: one native A edge begins the held-ball jump. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04a_one_on_one_gather.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4b. One-on-One shot flight: release A, then a second A edge. */
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 6; i++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path), "%s\\04b_one_on_one_flight.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4c. One-on-One defensive jump pose while the ball remains live. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 12; i++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path), "%s\\04c_one_on_one_defense_jump.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 5. Three Point */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
@@ -1378,7 +1494,7 @@ int allstar_cli_dump_screenshots(const char *out_dir) {
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     allstar_game_shutdown(&game);
-    printf("[Screenshots] Successfully exported all 8 scene screenshots.\n");
+    printf("[Screenshots] Exported all scenes plus One-on-One gameplay frames.\n");
     return 0;
 }
 

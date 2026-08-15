@@ -1,3 +1,7 @@
+param(
+    [string]$RomPath = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -77,8 +81,28 @@ Write-Host "  CLI:  $ConsoleExePath"
 Write-Host "  Game: $GameExePath"
 
 $DefaultAssetPack = Join-Path $BuildDir "allstar.assetpack"
-if (!(Test-Path -LiteralPath $DefaultAssetPack)) {
-    Write-Host "Initializing default asset pack..."
-    & $ConsoleExePath --test-all | Out-Null
-    # Also save a default asset pack container if needed
+$LocalRomPath = Join-Path $BuildDir "nba_allstar.gb"
+$AssetRomPath = $null
+if ($RomPath -and (Test-Path -LiteralPath $RomPath)) {
+    $AssetRomPath = (Resolve-Path -LiteralPath $RomPath).Path
+} elseif ($env:ALLSTAR_ROM_PATH -and
+          (Test-Path -LiteralPath $env:ALLSTAR_ROM_PATH)) {
+    $AssetRomPath = (Resolve-Path -LiteralPath $env:ALLSTAR_ROM_PATH).Path
+} elseif (Test-Path -LiteralPath $LocalRomPath) {
+    $AssetRomPath = $LocalRomPath
+}
+
+if ($AssetRomPath) {
+    Write-Host "Building One-on-One asset pack from the local ROM..."
+    & $ConsoleExePath --build-assetpack $AssetRomPath $DefaultAssetPack
+    if ($LASTEXITCODE -ne 0) {
+        throw "Asset-pack build failed with exit code $LASTEXITCODE"
+    }
+} elseif (Test-Path -LiteralPath $DefaultAssetPack) {
+    & $ConsoleExePath --play $DefaultAssetPack | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "build\allstar.assetpack is stale or invalid. Re-run with -RomPath <game.gb>."
+    }
+} else {
+    Write-Warning "No One-on-One asset pack was built. Re-run with -RomPath <game.gb> or set ALLSTAR_ROM_PATH."
 }

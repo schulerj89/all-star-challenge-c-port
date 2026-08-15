@@ -161,15 +161,35 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
 
     /* Initialize Renderer */
     game->renderer = (AllStarRenderer*)malloc(sizeof(AllStarRenderer));
-    if (!allstar_renderer_init(game->renderer, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT)) {
+    if (!game->renderer ||
+        !allstar_renderer_init(game->renderer, ALLSTAR_GB_WIDTH,
+                               ALLSTAR_GB_HEIGHT)) {
         fprintf(stderr, "[Game] Failed to initialize renderer\n");
+        free(game->renderer);
+        game->renderer = NULL;
         return false;
     }
 
     /* Initialize Asset Pack */
     game->asset_pack = (AllStarAssetPack*)malloc(sizeof(AllStarAssetPack));
+    if (!game->asset_pack) {
+        allstar_renderer_free(game->renderer);
+        free(game->renderer);
+        game->renderer = NULL;
+        return false;
+    }
     if (asset_pack_path) {
-        allstar_asset_pack_load_file(game->asset_pack, asset_pack_path);
+        if (!allstar_asset_pack_load_file(game->asset_pack,
+                                          asset_pack_path)) {
+            fprintf(stderr, "[Game] Refusing invalid asset pack: %s\n",
+                    asset_pack_path);
+            free(game->asset_pack);
+            game->asset_pack = NULL;
+            allstar_renderer_free(game->renderer);
+            free(game->renderer);
+            game->renderer = NULL;
+            return false;
+        }
     } else {
         allstar_asset_pack_init_default(game->asset_pack);
     }

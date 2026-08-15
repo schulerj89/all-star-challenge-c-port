@@ -433,9 +433,9 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
 
     FILE *f = fopen(filepath, "rb");
     if (!f) {
-        fprintf(stderr, "[AssetPack] Could not open asset pack: %s (using defaults)\n", filepath);
+        fprintf(stderr, "[AssetPack] Could not open asset pack: %s\n", filepath);
         allstar_asset_pack_init_default(pack);
-        return true;
+        return false;
     }
 
     if (fread(&pack->header, sizeof(AllStarAssetHeader), 1, f) != 1) {

@@ -63,6 +63,16 @@ Banks 1–3 all execute in the Game Boy switchable CPU window at `$4000..$7FFF`.
 .\build.ps1
 ```
 
+To build the executable and regenerate its local One-on-One asset pack in one
+step, provide the user-owned ROM:
+
+```powershell
+.\build.ps1 -RomPath "path\to\NBA All-Star Challenge (USA, Europe).gb"
+```
+
+The build also checks `ALLSTAR_ROM_PATH` and then `build\nba_allstar.gb`. It
+never commits or embeds the ROM or generated pack.
+
 This produces:
 
 - `build/allstar_port.exe` — CLI test harness, ROM validator, and asset-pack builder.
@@ -83,6 +93,10 @@ The current build succeeds, although MSVC reports `fopen` deprecation warnings t
 ```
 
 Version 4 extracts the One-on-One court tiles/map, three player tile families, 60 frame maps, ball/shadow tiles and descriptors, and all 24 animation-control lists. It does not yet extract portraits, other-mode graphics, roster records, or audio sequences from the ROM.
+
+The Win32 game requires a valid version-4 `build\allstar.assetpack` and now
+reports a clear error instead of silently replacing missing art with the
+procedural test fallback.
 
 ### Run the game
 

@@ -163,19 +163,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     char asset_path[MAX_PATH];
     snprintf(asset_path, sizeof(asset_path), "%s\\allstar.assetpack", exe_dir);
 
+    bool game_initialized = false;
     FILE *f_check = fopen(asset_path, "rb");
     if (f_check) {
         fclose(f_check);
-        allstar_game_init(&g_game, asset_path);
-    } else {
+        game_initialized = allstar_game_init(&g_game, asset_path);
+    }
+    if (!game_initialized) {
         snprintf(asset_path, sizeof(asset_path), "build\\allstar.assetpack");
         f_check = fopen(asset_path, "rb");
         if (f_check) {
             fclose(f_check);
-            allstar_game_init(&g_game, asset_path);
-        } else {
-            allstar_game_init(&g_game, NULL);
+            game_initialized = allstar_game_init(&g_game, asset_path);
         }
+    }
+    if (!game_initialized) {
+        MessageBoxA(
+            hwnd,
+            "One-on-One asset pack v4 is missing or stale.\n\n"
+            "Run build.ps1 -RomPath \"path\\to\\game.gb\" to rebuild it.",
+            "NBA All-Star Challenge - Asset Pack Required",
+            MB_OK | MB_ICONERROR);
+        win32_free_framebuffer(&g_framebuffer);
+        DestroyWindow(hwnd);
+        return 1;
     }
 
     /* Pacing timer setup (59.7275 Hz Game Boy target) */

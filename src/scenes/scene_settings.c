@@ -8,11 +8,6 @@
 typedef struct {
     int mode;
     int cursor_row;
-    int play_to;      /* 0 = Time, 1..99 = Score */
-    int skill_level;  /* 1, 2, 3 */
-    int winners_outs; /* 0 = NO, 1 = YES */
-    int time_limit;   /* 0 = 02:00, 1 = 03:00, 2 = 05:00 */
-    int num_throws;   /* 0 = 5, 1 = 10, 2 = 15, 3 = 20 */
     float timer;
     float hold_left;
     float hold_right;
@@ -25,11 +20,6 @@ static void settings_init(AllStarScene *scene, AllStarGame *game) {
     memset(data, 0, sizeof(SceneSettingsData));
     data->mode = (int)game->selected_mode;
     data->cursor_row = 0;
-    data->play_to = 0;
-    data->skill_level = 1;
-    data->winners_outs = 0;
-    data->time_limit = 0;
-    data->num_throws = 0;
     data->timer = 0.0f;
     allstar_audio_play_bgm(&game->audio, ALLSTAR_BGM_TITLE);
 }
@@ -87,19 +77,29 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
         if (data->mode == ALLSTAR_MODE_ONE_ON_ONE || data->mode == ALLSTAR_MODE_TOURNAMENT) {
             switch (data->cursor_row) {
                 case 0: /* Play to: Time -> 99 -> 98 ... -> 01 -> Time */
-                    if (data->play_to > 1) data->play_to--;
-                    else if (data->play_to == 1) data->play_to = 0;
-                    else data->play_to = 99;
+                    if (game->settings.play_to > 1) game->settings.play_to--;
+                    else if (game->settings.play_to == 1) game->settings.play_to = 0;
+                    else game->settings.play_to = 99;
                     break;
-                case 1: data->skill_level = (data->skill_level == 1) ? 3 : (data->skill_level - 1); break;
-                case 2: data->winners_outs ^= 1; break;
-                case 3: data->time_limit = (data->time_limit == 0) ? 2 : (data->time_limit - 1); break;
+                case 1: game->settings.skill_level = game->settings.skill_level == 1
+                            ? 3 : (uint8_t)(game->settings.skill_level - 1); break;
+                case 2: game->settings.winners_outs = !game->settings.winners_outs; break;
+                case 3: game->settings.game_minutes = allstar_game_settings_cycle_time(
+                            game->settings.game_minutes, -1); break;
                 default: break;
             }
         } else if (data->mode == ALLSTAR_MODE_FREE_THROW) {
-            data->num_throws = (data->num_throws == 0) ? 3 : (data->num_throws - 1);
+            game->settings.free_throw_attempts = allstar_game_settings_cycle_throws(
+                game->settings.free_throw_attempts, -1);
         } else if (data->mode == ALLSTAR_MODE_ACCURACY) {
-            data->time_limit ^= 1;
+            if (data->cursor_row < 2) {
+                /* ROM $24C4 toggles complementary $FF9A/$FF9B together. */
+                game->settings.accuracy_computer_positions =
+                    !game->settings.accuracy_computer_positions;
+            } else {
+                game->settings.game_minutes = allstar_game_settings_cycle_time(
+                    game->settings.game_minutes, -1);
+            }
         }
     }
 
@@ -108,19 +108,29 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
         if (data->mode == ALLSTAR_MODE_ONE_ON_ONE || data->mode == ALLSTAR_MODE_TOURNAMENT) {
             switch (data->cursor_row) {
                 case 0: /* Play to: Time -> 01 -> 02 ... -> 99 -> Time */
-                    if (data->play_to == 0) data->play_to = 1;
-                    else if (data->play_to < 99) data->play_to++;
-                    else data->play_to = 0;
+                    if (game->settings.play_to == 0) game->settings.play_to = 1;
+                    else if (game->settings.play_to < 99) game->settings.play_to++;
+                    else game->settings.play_to = 0;
                     break;
-                case 1: data->skill_level = (data->skill_level % 3) + 1; break;
-                case 2: data->winners_outs ^= 1; break;
-                case 3: data->time_limit = (data->time_limit + 1) % 3; break;
+                case 1: game->settings.skill_level =
+                            (uint8_t)((game->settings.skill_level % 3) + 1); break;
+                case 2: game->settings.winners_outs = !game->settings.winners_outs; break;
+                case 3: game->settings.game_minutes = allstar_game_settings_cycle_time(
+                            game->settings.game_minutes, 1); break;
                 default: break;
             }
         } else if (data->mode == ALLSTAR_MODE_FREE_THROW) {
-            data->num_throws = (data->num_throws + 1) % 4;
+            game->settings.free_throw_attempts = allstar_game_settings_cycle_throws(
+                game->settings.free_throw_attempts, 1);
         } else if (data->mode == ALLSTAR_MODE_ACCURACY) {
-            data->time_limit ^= 1;
+            if (data->cursor_row < 2) {
+                /* New positions and computer positions are mutually exclusive. */
+                game->settings.accuracy_computer_positions =
+                    !game->settings.accuracy_computer_positions;
+            } else {
+                game->settings.game_minutes = allstar_game_settings_cycle_time(
+                    game->settings.game_minutes, 1);
+            }
         }
     }
 
@@ -131,7 +141,6 @@ static void settings_update(AllStarScene *scene, AllStarGame *game, const AllSta
 }
 
 static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
-    (void)game;
     SceneSettingsData *data = (SceneSettingsData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
@@ -147,16 +156,19 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
     /* Draw dynamic option values */
     if (data->mode == ALLSTAR_MODE_ONE_ON_ONE || data->mode == ALLSTAR_MODE_TOURNAMENT) {
         char play_to_str[16];
-        if (data->play_to == 0) {
+        if (game->settings.play_to == 0) {
             snprintf(play_to_str, sizeof(play_to_str), "Time ");
         } else {
-            snprintf(play_to_str, sizeof(play_to_str), "%02d   ", data->play_to);
+            snprintf(play_to_str, sizeof(play_to_str), "%02u   ",
+                     (unsigned)game->settings.play_to);
         }
 
         char skill_str[4];
-        snprintf(skill_str, sizeof(skill_str), "%d", data->skill_level);
-        const char *winners_str = (data->winners_outs == 0) ? "NO " : "YES";
-        const char *time_str = (data->time_limit == 0) ? "02:00" : ((data->time_limit == 1) ? "03:00" : "05:00");
+        char time_str[8];
+        snprintf(skill_str, sizeof(skill_str), "%u", (unsigned)game->settings.skill_level);
+        const char *winners_str = game->settings.winners_outs ? "YES" : "NO ";
+        snprintf(time_str, sizeof(time_str), "%02u:00",
+                 (unsigned)game->settings.game_minutes);
 
         /* Clear only the exact tile character slots (8x8 per character) to shade 0 */
         allstar_renderer_draw_rect_fill(renderer, 120, 72, 32, 8, 0);
@@ -171,13 +183,25 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
         allstar_renderer_draw_rect_fill(renderer, 120, 96, 40, 8, 0);
         allstar_renderer_draw_text(renderer, time_str, 120, 96, 3);
     } else if (data->mode == ALLSTAR_MODE_FREE_THROW) {
-        static const char *THROWS[4] = { " 5", "10", "15", "20" };
+        char throws[4];
+        snprintf(throws, sizeof(throws), "%2u",
+                 (unsigned)game->settings.free_throw_attempts);
         allstar_renderer_draw_rect_fill(renderer, 120, 80, 16, 8, 0);
-        allstar_renderer_draw_text(renderer, THROWS[data->num_throws % 4], 120, 80, 3);
+        allstar_renderer_draw_text(renderer, throws, 120, 80, 3);
     } else if (data->mode == ALLSTAR_MODE_ACCURACY) {
-        const char *time_str = (data->time_limit == 0) ? "02:00" : "01:00";
-        allstar_renderer_draw_rect_fill(renderer, 120, 80, 40, 8, 0);
-        allstar_renderer_draw_text(renderer, time_str, 120, 80, 3);
+        char time_str[8];
+        allstar_renderer_clear(renderer, 0);
+        allstar_renderer_draw_text(renderer, "ACCURACY SETTINGS", 8, 32, 3);
+        allstar_renderer_draw_text(renderer, "NEW POS.", 16, 64, 3);
+        allstar_renderer_draw_text(renderer,
+            game->settings.accuracy_computer_positions ? "NO" : "YES", 128, 64, 3);
+        allstar_renderer_draw_text(renderer, "COMPUTER POS.", 16, 72, 3);
+        allstar_renderer_draw_text(renderer,
+            game->settings.accuracy_computer_positions ? "YES" : "NO", 128, 72, 3);
+        allstar_renderer_draw_text(renderer, "TIME LIMIT", 16, 80, 3);
+        snprintf(time_str, sizeof(time_str), "%02u:00",
+                 (unsigned)game->settings.game_minutes);
+        allstar_renderer_draw_text(renderer, time_str, 112, 80, 3);
     }
 
     /* Draw Basketball cursor aligned with text rows */

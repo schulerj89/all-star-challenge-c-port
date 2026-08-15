@@ -6,6 +6,7 @@
 
 typedef struct {
     int attempts;
+    int attempt_limit;
     int makes;
     float gauge_x;
     float gauge_y;
@@ -16,9 +17,9 @@ typedef struct {
 } SceneFreeThrowData;
 
 static void free_throw_init(AllStarScene *scene, AllStarGame *game) {
-    (void)game;
     SceneFreeThrowData *data = (SceneFreeThrowData*)scene->user_data;
     data->attempts = 0;
+    data->attempt_limit = game->settings.free_throw_attempts;
     data->makes = 0;
     data->gauge_x = 50.0f;
     data->gauge_y = 50.0f;
@@ -37,7 +38,8 @@ static void free_throw_update(AllStarScene *scene, AllStarGame *game, const AllS
     data->gauge_y += data->gauge_dy * dt;
     if (data->gauge_y >= 100.0f || data->gauge_y <= 0.0f) data->gauge_dy = -data->gauge_dy;
 
-    if (!data->ball.in_flight && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
+    if (data->attempts < data->attempt_limit && !data->ball.in_flight &&
+        allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         data->attempts++;
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
 
@@ -64,7 +66,8 @@ static void free_throw_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     /* Top HUD */
     allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
     char buf[32];
-    snprintf(buf, sizeof(buf), "FREE THROW  %02d/%02d", data->makes, data->attempts);
+    snprintf(buf, sizeof(buf), "FT %02d  TRY %02d/%02d",
+             data->makes, data->attempts, data->attempt_limit);
     allstar_renderer_draw_text(renderer, buf, 10, 4, 0);
 
     /* Free Throw Key / Paint */

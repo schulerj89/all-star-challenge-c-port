@@ -43,6 +43,46 @@ const char* allstar_game_mode_name(AllStarGameMode mode) {
     return allstar_game_mode_route(mode)->name;
 }
 
+void allstar_game_settings_init(AllStarGameSettings *settings) {
+    if (!settings) return;
+    settings->play_to = 0;
+    settings->skill_level = 1;
+    settings->winners_outs = false;
+    settings->game_minutes = 2;
+    settings->free_throw_attempts = 5;
+    settings->accuracy_computer_positions = true;
+}
+
+static uint8_t allstar_cycle_setting(const uint8_t *values,
+                                     size_t count,
+                                     uint8_t current,
+                                     int direction) {
+    size_t index = 0;
+    while (index < count && values[index] != current) index++;
+    if (index == count) index = 0;
+    if (direction < 0) index = (index + count - 1) % count;
+    else index = (index + 1) % count;
+    return values[index];
+}
+
+uint8_t allstar_game_settings_cycle_time(uint8_t current, int direction) {
+    static const uint8_t ROM_TIME_VALUES[] = { 2, 5, 8, 12 };
+    return allstar_cycle_setting(ROM_TIME_VALUES,
+                                 sizeof(ROM_TIME_VALUES) / sizeof(ROM_TIME_VALUES[0]),
+                                 current, direction);
+}
+
+uint8_t allstar_game_settings_cycle_throws(uint8_t current, int direction) {
+    static const uint8_t ROM_THROW_VALUES[] = { 5, 10, 20 };
+    return allstar_cycle_setting(ROM_THROW_VALUES,
+                                 sizeof(ROM_THROW_VALUES) / sizeof(ROM_THROW_VALUES[0]),
+                                 current, direction);
+}
+
+float allstar_game_settings_time_seconds(const AllStarGameSettings *settings) {
+    return settings ? (float)settings->game_minutes * 60.0f : 120.0f;
+}
+
 void allstar_tournament_reset(AllStarTournamentState *tournament) {
     static const uint32_t DEFAULT_SEEDS[8] = { 13, 2, 1, 11, 15, 18, 25, 8 };
     if (!tournament) return;
@@ -139,8 +179,7 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     game->selected_player_1 = 0;
     game->selected_player_2 = 1;
     game->selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
-    game->one_on_one_play_to = 0;
-    game->one_on_one_time_seconds = 120.0f;
+    allstar_game_settings_init(&game->settings);
     game->one_on_one_shot_clock_seconds = 24.0f;
 
     /* Start in Intro Scene */

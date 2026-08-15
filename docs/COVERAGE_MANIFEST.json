@@ -74,7 +74,9 @@
       "id": "behavior.settings",
       "group": "gameplay",
       "description": "All configurable settings persist and affect gameplay.",
-      "status": "scaffolded"
+      "status": "verified",
+      "evidence": ["docs/parity/SETTINGS.md", "include/allstar_game.h", "src/allstar_game.c", "src/scenes/scene_settings.c"],
+      "verification_command": ".\\build\\allstar_port.exe --test-settings"
     },
     {
       "id": "behavior.one_on_one_lifecycle",
@@ -88,7 +90,7 @@
       "id": "behavior.one_on_one_rules",
       "group": "gameplay",
       "description": "One-on-One scoring, possession, clock, winners-outs, collision, steal, block, and rebound rules match the ROM.",
-      "status": "scaffolded"
+      "status": "partial"
     },
     {
       "id": "behavior.free_throw",
@@ -203,6 +205,13 @@
       "total": 25,
       "percent": 32.0,
       "note": "Verified five-mode routing and the ROM-backed One-on-One lifecycle, including overtime, result exit, and tournament winner return."
+    },
+    {
+      "date": "2026-08-14",
+      "verified": 9,
+      "total": 25,
+      "percent": 36.0,
+      "note": "Verified session-persistent ROM settings, exact value cycles, and downstream gameplay consumption; added partial One-on-One possession and winners-outs rules."
     }
   ]
 }

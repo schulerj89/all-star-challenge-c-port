@@ -11,7 +11,6 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SEEDS = ROOT / "tools" / "ghidra" / "function_seeds.json"
 DEFAULT_INVENTORY = ROOT / "build" / "ghidra_function_inventory.json"
-EXPECTED_BANK_COUNTS = {0: 29, 1: 46, 2: 8}
 ALLOWED_MAPPING_STATUSES = {"unmapped", "candidate", "scaffolded", "partial", "verified"}
 
 
@@ -40,6 +39,7 @@ def main() -> int:
     spec = json.loads(args.seeds.read_text(encoding="utf-8"))
     inventory = json.loads(args.inventory.read_text(encoding="utf-8"))
     expected = expected_functions(spec)
+    expected_counts = Counter(bank for bank, _address in expected.values())
     actual_items = inventory.get("functions", [])
     actual = {item.get("name"): item for item in actual_items}
     errors: list[str] = []
@@ -55,8 +55,8 @@ def main() -> int:
             errors.append(f"unexpected seed results: {', '.join(extra)}")
 
     counts = Counter(item.get("bank") for item in actual_items)
-    if dict(sorted(counts.items())) != EXPECTED_BANK_COUNTS:
-        errors.append(f"bank counts are {dict(counts)}, expected {EXPECTED_BANK_COUNTS}")
+    if counts != expected_counts:
+        errors.append(f"bank counts are {dict(counts)}, expected {dict(expected_counts)}")
 
     for name, (expected_bank, expected_address) in expected.items():
         item = actual.get(name)
@@ -105,7 +105,7 @@ def main() -> int:
     )
     print("Ghidra function recovery PASSED")
     print(f"  Reviewed functions: {len(actual_items)}")
-    for bank in sorted(EXPECTED_BANK_COUNTS):
+    for bank in sorted(expected_counts):
         print(f"  Bank {bank}: {counts[bank]} recovered and decompiled")
     print(
         "  Native mapping status: "

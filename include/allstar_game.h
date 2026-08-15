@@ -20,6 +20,15 @@ typedef enum {
 } AllStarGameMode;
 
 typedef struct {
+    uint8_t play_to;
+    uint8_t skill_level;
+    bool winners_outs;
+    uint8_t game_minutes;
+    uint8_t free_throw_attempts;
+    bool accuracy_computer_positions;
+} AllStarGameSettings;
+
+typedef struct {
     uint32_t seeds[8];
     uint32_t semifinalists[4];
     uint32_t finalists[2];
@@ -43,10 +52,9 @@ typedef struct AllStarGame {
     uint32_t selected_player_1;
     uint32_t selected_player_2;
     AllStarGameMode selected_mode;
+    AllStarGameSettings settings;
     AllStarOneOnOneMatch one_on_one;
     AllStarTournamentState tournament;
-    int one_on_one_play_to;
-    float one_on_one_time_seconds;
     float one_on_one_shot_clock_seconds;
     int last_match_winner;
     float frame_time;
@@ -60,6 +68,10 @@ AllStarGameMode allstar_game_mode_from_menu_index(uint32_t menu_index);
 AllStarSceneId allstar_game_mode_scene(AllStarGameMode mode);
 bool allstar_game_mode_requires_opponent(AllStarGameMode mode);
 const char* allstar_game_mode_name(AllStarGameMode mode);
+void allstar_game_settings_init(AllStarGameSettings *settings);
+uint8_t allstar_game_settings_cycle_time(uint8_t current, int direction);
+uint8_t allstar_game_settings_cycle_throws(uint8_t current, int direction);
+float allstar_game_settings_time_seconds(const AllStarGameSettings *settings);
 void allstar_tournament_reset(AllStarTournamentState *tournament);
 bool allstar_tournament_get_current_match(const AllStarTournamentState *tournament,
                                           uint32_t *player_1,

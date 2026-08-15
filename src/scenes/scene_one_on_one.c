@@ -18,7 +18,8 @@ typedef struct {
 static void one_on_one_reset_possession(SceneOneOnOneData *data,
                                         AllStarGame *game,
                                         bool p1_possession) {
-    game->one_on_one.p1_possession = p1_possession;
+    allstar_one_on_one_match_take_possession(
+        &game->one_on_one, p1_possession ? 1 : 2, true);
     data->p1.x = 80.0f;
     data->p2.x = 80.0f;
     data->p1.y = p1_possession ? 130.0f : 105.0f;
@@ -28,7 +29,6 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     data->p1.is_shooting = false;
     data->p2.is_shooting = false;
     allstar_physics_init_ball(&data->ball);
-    allstar_one_on_one_match_reset_shot_clock(&game->one_on_one);
 }
 
 static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
@@ -44,11 +44,17 @@ static bool one_on_one_handle_lifecycle_events(SceneOneOnOneData *data,
         allstar_physics_init_ball(&data->ball);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_BUZZER);
     }
+    if (events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME_NOTICE) {
+        data->p1.has_ball = false;
+        data->p2.has_ball = false;
+        allstar_physics_init_ball(&data->ball);
+    }
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME) {
         const AllStarPlayerStats *cpu_stats = allstar_roster_get_player(
             &game->roster, game->selected_player_2);
         one_on_one_reset_possession(data, game, true);
         allstar_ai_init(&data->ai, cpu_stats);
+        allstar_ai_set_skill(&data->ai, game->settings.skill_level);
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
     }
     if (events & ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE) {
@@ -73,14 +79,16 @@ static void one_on_one_init(AllStarScene *scene, AllStarGame *game) {
 
     memset(data, 0, sizeof(*data));
     allstar_one_on_one_match_init(&game->one_on_one,
-                                  game->one_on_one_time_seconds,
+                                  allstar_game_settings_time_seconds(&game->settings),
                                   game->one_on_one_shot_clock_seconds,
-                                  game->one_on_one_play_to);
+                                  game->settings.play_to,
+                                  game->settings.winners_outs);
     allstar_physics_init_ball(&data->ball);
     one_on_one_reset_possession(data, game, true);
 
     cpu_stats = allstar_roster_get_player(&game->roster, game->selected_player_2);
     allstar_ai_init(&data->ai, cpu_stats);
+    allstar_ai_set_skill(&data->ai, game->settings.skill_level);
 
     allstar_audio_stop_bgm(&game->audio);
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
@@ -96,10 +104,16 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     if (one_on_one_handle_lifecycle_events(data, game, events)) return;
 
     if (game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_RESULT) {
-        if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) ||
-            allstar_input_is_pressed(input, ALLSTAR_BTN_B) ||
-            allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
+        if (allstar_one_on_one_result_can_dismiss(input->buttons_pressed)) {
             events = allstar_one_on_one_match_dismiss_result(&game->one_on_one);
+            one_on_one_handle_lifecycle_events(data, game, events);
+        }
+        return;
+    }
+
+    if (game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_OVERTIME) {
+        if (allstar_one_on_one_overtime_can_dismiss(input->buttons_pressed)) {
+            events = allstar_one_on_one_match_dismiss_overtime(&game->one_on_one);
             one_on_one_handle_lifecycle_events(data, game, events);
         }
         return;
@@ -173,16 +187,20 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         float d2 = sqrtf((data->p2.x - data->ball.x) * (data->p2.x - data->ball.x) +
                          (data->p2.y - data->ball.y) * (data->p2.y - data->ball.y));
         if (d1 < 12.0f) {
+            bool reset_shot_clock = !game->one_on_one.p1_possession;
             data->p1.has_ball = true;
             data->p1.is_shooting = false;
             data->p2.is_shooting = false;
-            game->one_on_one.p1_possession = true;
+            allstar_one_on_one_match_take_possession(
+                &game->one_on_one, 1, reset_shot_clock);
             allstar_physics_init_ball(&data->ball);
         } else if (d2 < 12.0f) {
+            bool reset_shot_clock = game->one_on_one.p1_possession;
             data->p2.has_ball = true;
             data->p1.is_shooting = false;
             data->p2.is_shooting = false;
-            game->one_on_one.p1_possession = false;
+            allstar_one_on_one_match_take_possession(
+                &game->one_on_one, 2, reset_shot_clock);
             allstar_physics_init_ball(&data->ball);
         }
     }
@@ -196,7 +214,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         if (events & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) {
             one_on_one_handle_lifecycle_events(data, game, events);
         } else {
-            one_on_one_reset_possession(data, game, shooter != 1);
+            int next_possession = allstar_one_on_one_next_possession_after_score(
+                &game->one_on_one, shooter);
+            one_on_one_reset_possession(data, game, next_possession == 1);
         }
     }
 }
@@ -211,16 +231,18 @@ static void one_on_one_draw_result(AllStarGame *game, AllStarRenderer *renderer)
     allstar_renderer_draw_text(renderer,
         game->one_on_one.winner == 0 ? "TIE" : "FINAL", 56, 24, 3);
     allstar_renderer_draw_text(renderer, p1_name, 24, 48, 3);
-    snprintf(score, sizeof(score), "%03d", game->one_on_one.p1_score);
+    snprintf(score, sizeof(score), "%03u", (unsigned)game->one_on_one.p1_score);
     allstar_renderer_draw_text(renderer, score, 112, 48, 3);
     allstar_renderer_draw_text(renderer, p2_name, 24, 72, 3);
-    snprintf(score, sizeof(score), "%03d", game->one_on_one.p2_score);
+    snprintf(score, sizeof(score), "%03u", (unsigned)game->one_on_one.p2_score);
     allstar_renderer_draw_text(renderer, score, 112, 72, 3);
-    if (game->one_on_one.winner == 0) {
-        allstar_renderer_draw_text(renderer, "OVERTIME", 48, 104, 3);
-    } else {
-        allstar_renderer_draw_text(renderer, "A/B TO SKIP", 32, 112, 3);
-    }
+    allstar_renderer_draw_text(renderer, "A/B TO SKIP", 32, 112, 3);
+}
+
+static void one_on_one_draw_overtime(AllStarRenderer *renderer) {
+    allstar_renderer_clear(renderer, 0);
+    allstar_renderer_draw_text(renderer, "OVERTIME", 48, 56, 3);
+    allstar_renderer_draw_text(renderer, "A TO SKIP", 40, 88, 3);
 }
 
 static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
@@ -248,6 +270,10 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
         one_on_one_draw_result(game, renderer);
         return;
     }
+    if (game->one_on_one.phase == ALLSTAR_ONE_ON_ONE_OVERTIME) {
+        one_on_one_draw_overtime(renderer);
+        return;
+    }
 
     allstar_renderer_clear(renderer, 0);
     allstar_renderer_draw_court(renderer);
@@ -256,7 +282,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
 
     snprintf(shot_buf, sizeof(shot_buf), "00:%02d", (int)game->one_on_one.shot_clock);
     allstar_renderer_draw_text(renderer, shot_buf, 8, 8, 3);
-    snprintf(s1_buf, sizeof(s1_buf), "%03d", game->one_on_one.p1_score);
+    snprintf(s1_buf, sizeof(s1_buf), "%03u", (unsigned)game->one_on_one.p1_score);
     allstar_renderer_draw_text(renderer, s1_buf, 16, 24, 3);
 
     p1_name = s1 ? s1->name : "PLAYER 1";
@@ -271,7 +297,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
              (int)game->one_on_one.game_clock / 60,
              (int)game->one_on_one.game_clock % 60);
     allstar_renderer_draw_text(renderer, clk_buf, 112, 8, 3);
-    snprintf(s2_buf, sizeof(s2_buf), "%03d", game->one_on_one.p2_score);
+    snprintf(s2_buf, sizeof(s2_buf), "%03u", (unsigned)game->one_on_one.p2_score);
     allstar_renderer_draw_text(renderer, s2_buf, 120, 24, 3);
 
     p2_name = s2 ? s2->name : "PLAYER 2";

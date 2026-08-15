@@ -14,10 +14,11 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "050f",
-        "053c", "06c0", "0749", "0b35", "1f7a", "1fe1", "1ffa",
+        "053c", "06c0", "0749", "0b35", "0b80", "0b9a", "10a5",
+        "10ad", "10fa", "1638", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "2219", "22ef", "2639", "2729", "276d",
-        "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79", "2f88",
-        "3014"
+        "28e1", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
+        "2f88", "3014"
       ]
     },
     {
@@ -69,6 +70,72 @@
       "native_symbol": "allstar_audio_update",
       "source": "src/audio/allstar_audio.c",
       "note": "Subsystem analogue only; the ROM command sequencer is not ported."
+    },
+    "rom_b00_0b80": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_match_init",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Match-entry analogue; the ROM routine also owns gameplay setup and loop behavior not covered by this mapping."
+    },
+    "rom_b00_0b9a": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_match_tick",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Overtime/live-play re-entry analogue; full gameplay-loop parity is not established."
+    },
+    "rom_b00_10a5": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_handle_lifecycle_events",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Mode-0 postgame controller analogue; Ghidra warns that this shared-entry function manipulates the stack."
+    },
+    "rom_b00_10ad": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_handle_lifecycle_events",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Shared lifecycle entry analogue; overlapping control flow prevents a stronger one-to-one claim."
+    },
+    "rom_b00_10fa": {
+      "status": "candidate",
+      "native_symbol": "one_on_one_draw_result",
+      "source": "src/scenes/scene_one_on_one.c",
+      "note": "Final-score presentation analogue with the recovered 960-frame A/B wait implemented separately in native lifecycle code."
+    },
+    "rom_b00_1638": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_match_dismiss_overtime",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Native overtime-notice wait matches the recovered 240-frame/A-only behavior, but no emulator/native trace comparison exists yet."
+    },
+    "rom_b00_1ffa": {
+      "status": "candidate",
+      "native_symbol": "allstar_ai_set_skill",
+      "source": "src/gameplay/allstar_ai.c",
+      "note": "Native skill selection uses the recovered 1/2/3 to 8/4/1-frame decision-delay table; full AI parity is not established."
+    },
+    "rom_b00_20d0": {
+      "status": "candidate",
+      "native_symbol": "allstar_game_settings_init",
+      "source": "src/allstar_game.c",
+      "note": "Native session defaults reproduce the reviewed HRAM settings initialized by the ROM routine."
+    },
+    "rom_b00_22ef": {
+      "status": "candidate",
+      "native_symbol": "settings_update",
+      "source": "src/scenes/scene_settings.c",
+      "note": "Mode-specific settings editor analogue with recovered value cycles and complementary Accuracy position flags."
+    },
+    "rom_b01_6ca2": {
+      "status": "candidate",
+      "native_symbol": "three_point_init",
+      "source": "src/scenes/scene_three_point.c",
+      "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
+    },
+    "rom_b00_28e1": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_compare_scores",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact unsigned 16-bit P1/P2/tie comparison is covered by deterministic boundary tests; see docs/parity/ONE_ON_ONE_LIFECYCLE.md."
     }
   }
 }

@@ -8,8 +8,22 @@ void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats) {
     memset(ai, 0, sizeof(AllStarAIController));
     ai->state = ALLSTAR_AI_STATE_IDLE;
     ai->decision_timer = 0.0f;
+    ai->decision_interval = 8.0f / 60.0f;
     ai->aggression = stats ? ((float)stats->defense / 100.0f) : 0.8f;
     ai->reaction_speed = stats ? ((float)stats->speed / 100.0f) : 0.85f;
+}
+
+/* ROM $1FFA maps skill levels 1/2/3 to update delays of 8/4/1 frames. */
+void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level) {
+    static const float ROM_SKILL_DELAYS[3] = {
+        8.0f / 60.0f, 4.0f / 60.0f, 1.0f / 60.0f
+    };
+    if (!ai) return;
+    if (skill_level < 1 || skill_level > 3) skill_level = 1;
+    ai->decision_interval = ROM_SKILL_DELAYS[skill_level - 1];
+    if (ai->decision_timer > ai->decision_interval) {
+        ai->decision_timer = ai->decision_interval;
+    }
 }
 
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt) {
@@ -17,7 +31,7 @@ void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const A
 
     ai->decision_timer -= dt;
     if (ai->decision_timer <= 0.0f) {
-        ai->decision_timer = 0.20f; /* Recalculate tactics 5 times per second */
+        ai->decision_timer = ai->decision_interval;
 
         if (cpu->has_ball) {
             /* Offensive logic */

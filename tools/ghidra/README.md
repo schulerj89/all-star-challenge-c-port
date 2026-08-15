@@ -2,7 +2,7 @@
 
 This directory contains the bank-aware headless Ghidra recovery/export scripts and an optional HTTP/MCP bridge helper for reverse engineering the Game Boy ROM.
 
-The current setup maps and verifies all four banks correctly and validates 83 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
+The current setup maps and verifies all four banks correctly and validates 90 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
 
 ## Verified Cartridge Layout
 
@@ -46,8 +46,8 @@ It also writes and validates:
 ### Current result and limitations
 
 - `setup_banked_rom.py` constructs and byte-verifies overlays for physical banks 1–3.
-- `recover_banked_functions.py` creates and decompiles 83 checked-in seeds: bank 0 = 29, bank 1 = 46, bank 2 = 8.
-- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (96 functions in the current run).
+- `recover_banked_functions.py` creates and decompiles 90 checked-in seeds: bank 0 = 36, bank 1 = 46, bank 2 = 8.
+- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (103 functions in the current run).
 - Stable names preserve physical bank identity, for example `rom_b02_4000`.
 - Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout.
 - Bank 3 has no reviewed function seeds; observed references currently use it as an asset-copy source.
@@ -75,7 +75,11 @@ The headless setup maps bank 0 and creates byte-verified overlays for physical b
 | Bank 0 `$0150` | Main initialization | High |
 | Bank 0 `$2639` | Joypad register polling | High |
 | Bank 0 `$2729` | VBlank handler | High |
+| Bank 0 `$1FFA` | Skill level to `8/4/1`-frame update delay | High |
+| Bank 0 `$20D0` | Settings defaults | High |
+| Bank 0 `$22EF` | Mode-specific settings editor | High |
 | Bank 0 approximately `$3014..$36DB` | Multi-channel audio command/sequencing region | High for audio ownership; individual routines still need names |
+| Bank 1 `$6CA2` | Accuracy computer/new-position selection | High for selector; full mode remains incomplete |
 | Bank 1 approximately `$69F5..$7FFF` | Player/gameplay/rendering state region | Medium; routine-level meanings remain under audit |
 
 Generated labels such as `Call_001_447c` are not automatically trustworthy. Confirm that an address is code before assigning a semantic name.

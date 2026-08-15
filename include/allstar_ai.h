@@ -17,11 +17,13 @@ typedef enum {
 typedef struct {
     AllStarAIState state;
     float decision_timer;
+    float decision_interval;
     float aggression;
     float reaction_speed;
 } AllStarAIController;
 
 void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats);
+void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level);
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu, const AllStarPlayerState *human, const AllStarBall *ball, float dt);
 
 #endif /* ALLSTAR_AI_H */

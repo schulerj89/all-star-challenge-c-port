@@ -3,16 +3,26 @@
 #include "allstar_physics.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #define RACK_COUNT 5
 #define BALLS_PER_RACK 5
 
-static const AllStarVec2 RACK_POSITIONS[RACK_COUNT] = {
+/* ROM $6CA2 chooses computer-generated positions when $FF9A is set. */
+static const AllStarVec2 COMPUTER_POSITIONS[RACK_COUNT] = {
     {30.0f, 60.0f},  /* Left corner */
     {45.0f, 90.0f},  /* Left wing */
     {80.0f, 105.0f}, /* Top of the key */
     {115.0f, 90.0f}, /* Right wing */
     {130.0f, 60.0f}  /* Right corner */
+};
+
+static const AllStarVec2 NEW_POSITION_TEMPLATE[RACK_COUNT] = {
+    {24.0f, 82.0f},
+    {52.0f, 112.0f},
+    {80.0f, 88.0f},
+    {108.0f, 112.0f},
+    {136.0f, 82.0f}
 };
 
 typedef struct {
@@ -23,19 +33,24 @@ typedef struct {
     float meter_val;
     float meter_dir;
     bool meter_active;
+    bool computer_positions;
+    AllStarVec2 positions[RACK_COUNT];
     AllStarBall active_ball;
 } SceneThreePointData;
 
 static void three_point_init(AllStarScene *scene, AllStarGame *game) {
-    (void)game;
     SceneThreePointData *data = (SceneThreePointData*)scene->user_data;
     data->current_rack = 0;
     data->ball_in_rack = 0;
     data->score = 0;
-    data->time_remaining = 60.0f;
+    data->time_remaining = allstar_game_settings_time_seconds(&game->settings);
     data->meter_val = 0.0f;
     data->meter_dir = 1.0f;
     data->meter_active = true;
+    data->computer_positions = game->settings.accuracy_computer_positions;
+    memcpy(data->positions,
+           data->computer_positions ? COMPUTER_POSITIONS : NEW_POSITION_TEMPLATE,
+           sizeof(data->positions));
     allstar_physics_init_ball(&data->active_ball);
 }
 
@@ -61,7 +76,7 @@ static void three_point_update(AllStarScene *scene, AllStarGame *game, const All
         }
 
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-            AllStarVec2 rack = RACK_POSITIONS[data->current_rack];
+            AllStarVec2 rack = data->positions[data->current_rack];
             int pts = (data->ball_in_rack == 4) ? 2 : 1; /* Money ball = 2 pts */
 
             allstar_physics_shoot_ball(&data->active_ball, rack.x, rack.y, 80.0f, 24.0f, 50.0f, 1, pts);
@@ -95,7 +110,7 @@ static void three_point_draw(AllStarScene *scene, AllStarGame *game, AllStarRend
     /* Top HUD Bar */
     allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
     char buf[32];
-    snprintf(buf, sizeof(buf), "3-PT  PTS:%02d  TIME:%02d", data->score, (int)data->time_remaining);
+    snprintf(buf, sizeof(buf), "ACC   PTS:%02d  TIME:%02d", data->score, (int)data->time_remaining);
     allstar_renderer_draw_text(renderer, buf, 6, 4, 0);
 
     /* Court Key & 3-Point Arc */
@@ -119,7 +134,7 @@ static void three_point_draw(AllStarScene *scene, AllStarGame *game, AllStarRend
 
     /* 5 Ball Racks */
     for (int r = 0; r < RACK_COUNT; r++) {
-        AllStarVec2 pos = RACK_POSITIONS[r];
+        AllStarVec2 pos = data->positions[r];
         int rx = (int)pos.x;
         int ry = (int)pos.y;
 
@@ -136,7 +151,7 @@ static void three_point_draw(AllStarScene *scene, AllStarGame *game, AllStarRend
 
     /* Active Shooter */
     if (data->current_rack < RACK_COUNT) {
-        AllStarVec2 cur_pos = RACK_POSITIONS[data->current_rack];
+        AllStarVec2 cur_pos = data->positions[data->current_rack];
         allstar_renderer_draw_player(renderer, (int)cur_pos.x + 8, (int)cur_pos.y + 4, true, data->meter_active, false, 0.0f);
     }
 

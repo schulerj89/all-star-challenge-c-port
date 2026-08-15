@@ -3,6 +3,7 @@
 #include "allstar_asset_pack.h"
 #include "allstar_roster.h"
 #include "allstar_physics.h"
+#include "allstar_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,6 +63,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
     printf("  --test-mode-routing                Verify all ROM menu IDs route correctly\n");
+    printf("  --test-settings                    Verify ROM settings values and persistence\n");
     printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -235,7 +237,25 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
 
     printf("[Test] Running One-on-One Lifecycle Parity Tests...\n");
 
-    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0);
+    if (allstar_one_on_one_compare_scores(0, 0) != 0 ||
+        allstar_one_on_one_compare_scores(0x0100, 0x00ff) != 1 ||
+        allstar_one_on_one_compare_scores(0x00ff, 0x0100) != 2 ||
+        allstar_one_on_one_compare_scores(0xffff, 0xffff) != 0) {
+        fprintf(stderr, "[Test] ROM $28E1 unsigned 16-bit score comparison diverged\n");
+        return 1;
+    }
+
+    if (!allstar_one_on_one_result_can_dismiss(ALLSTAR_BTN_A) ||
+        !allstar_one_on_one_result_can_dismiss(ALLSTAR_BTN_B) ||
+        allstar_one_on_one_result_can_dismiss(ALLSTAR_BTN_START) ||
+        !allstar_one_on_one_overtime_can_dismiss(ALLSTAR_BTN_A) ||
+        allstar_one_on_one_overtime_can_dismiss(ALLSTAR_BTN_B) ||
+        allstar_one_on_one_overtime_can_dismiss(ALLSTAR_BTN_START)) {
+        fprintf(stderr, "[Test] Result/overtime dismissal masks diverged from $10FA/$1638\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0, false);
     events = allstar_one_on_one_match_tick(&match, 24.0f);
     if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_SHOT_CLOCK) ||
         match.p1_possession || match.shot_clock != 24.0f) {
@@ -243,7 +263,7 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
         return 1;
     }
 
-    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0);
+    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0, false);
     allstar_one_on_one_match_add_score(&match, 1, 2);
     allstar_one_on_one_match_add_score(&match, 2, 2);
     events = allstar_one_on_one_match_tick(&match, 1.0f);
@@ -253,10 +273,18 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
         return 1;
     }
     events = allstar_one_on_one_match_dismiss_result(&match);
+    if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME_NOTICE) ||
+        match.phase != ALLSTAR_ONE_ON_ONE_OVERTIME || match.period != 1 ||
+        match.p1_score != 2 || match.p2_score != 2) {
+        fprintf(stderr, "[Test] Tied result did not enter the four-second overtime notice\n");
+        return 1;
+    }
+    events = allstar_one_on_one_match_tick(&match,
+                                            ALLSTAR_ONE_ON_ONE_OVERTIME_SECONDS);
     if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_OVERTIME) ||
         match.phase != ALLSTAR_ONE_ON_ONE_PLAYING || match.period != 2 ||
         match.p1_score != 2 || match.p2_score != 2) {
-        fprintf(stderr, "[Test] Tied result did not preserve score into overtime\n");
+        fprintf(stderr, "[Test] Overtime notice did not preserve scores into period 2\n");
         return 1;
     }
     allstar_one_on_one_match_add_score(&match, 1, 2);
@@ -272,20 +300,50 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
         return 1;
     }
 
-    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0);
+    allstar_one_on_one_match_init(&match, 1.0f, 24.0f, 0, false);
     allstar_one_on_one_match_add_score(&match, 2, 2);
     allstar_one_on_one_match_tick(&match, 1.0f);
-    events = allstar_one_on_one_match_tick(&match, ALLSTAR_ONE_ON_ONE_RESULT_SECONDS);
+    events = allstar_one_on_one_match_tick(&match, 15.0f);
+    if (events != ALLSTAR_ONE_ON_ONE_EVENT_NONE ||
+        match.phase != ALLSTAR_ONE_ON_ONE_RESULT) {
+        fprintf(stderr, "[Test] Result hold ended before 960 frames\n");
+        return 1;
+    }
+    events = allstar_one_on_one_match_tick(&match, 1.0f);
     if (!(events & ALLSTAR_ONE_ON_ONE_EVENT_COMPLETE) || match.winner != 2) {
         fprintf(stderr, "[Test] Result hold did not auto-complete after 960 frames\n");
         return 1;
     }
 
-    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 3);
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 3, false);
     if (allstar_one_on_one_match_add_score(&match, 1, 2) != ALLSTAR_ONE_ON_ONE_EVENT_NONE ||
         !(allstar_one_on_one_match_add_score(&match, 1, 1) & ALLSTAR_ONE_ON_ONE_EVENT_RESULT) ||
         match.end_reason != ALLSTAR_ONE_ON_ONE_END_SCORE || match.winner != 1) {
         fprintf(stderr, "[Test] Configured play-to ending did not trigger at the target score\n");
+        return 1;
+    }
+
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0, false);
+    if (allstar_one_on_one_next_possession_after_score(&match, 1) != 2 ||
+        allstar_one_on_one_next_possession_after_score(&match, 2) != 1) {
+        fprintf(stderr, "[Test] Losers-outs possession did not pass the ball after a score\n");
+        return 1;
+    }
+    allstar_one_on_one_match_init(&match, 120.0f, 24.0f, 0, true);
+    if (allstar_one_on_one_next_possession_after_score(&match, 1) != 1 ||
+        allstar_one_on_one_next_possession_after_score(&match, 2) != 2) {
+        fprintf(stderr, "[Test] Winners-outs possession did not retain the ball after a score\n");
+        return 1;
+    }
+    match.shot_clock = 7.0f;
+    allstar_one_on_one_match_take_possession(&match, 2, false);
+    if (match.p1_possession || match.shot_clock != 7.0f) {
+        fprintf(stderr, "[Test] Same-play possession update incorrectly reset the shot clock\n");
+        return 1;
+    }
+    allstar_one_on_one_match_take_possession(&match, 1, true);
+    if (!match.p1_possession || match.shot_clock != 24.0f) {
+        fprintf(stderr, "[Test] New possession did not reset the shot clock\n");
         return 1;
     }
 
@@ -334,7 +392,130 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
     }
 
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: clock, score, overtime, result, exit, and tournament return\n");
+    printf("[Test] PASSED: clock, score, possession, overtime, result, exit, and tournament return\n");
+    return 0;
+}
+
+int allstar_cli_test_settings(void) {
+    AllStarGameSettings settings;
+    AllStarGame game;
+    AllStarAIController ai;
+    AllStarColor reference_frame[ALLSTAR_GB_WIDTH * ALLSTAR_GB_HEIGHT];
+
+    printf("[Test] Running Settings Persistence Tests...\n");
+    allstar_game_settings_init(&settings);
+    if (settings.play_to != 0 || settings.skill_level != 1 ||
+        settings.winners_outs || settings.game_minutes != 2 ||
+        settings.free_throw_attempts != 5 ||
+        !settings.accuracy_computer_positions) {
+        fprintf(stderr, "[Test] Settings defaults diverged from ROM $20D0\n");
+        return 1;
+    }
+    if (allstar_game_settings_cycle_time(2, 1) != 5 ||
+        allstar_game_settings_cycle_time(5, 1) != 8 ||
+        allstar_game_settings_cycle_time(8, 1) != 12 ||
+        allstar_game_settings_cycle_time(12, 1) != 2 ||
+        allstar_game_settings_cycle_time(2, -1) != 12 ||
+        allstar_game_settings_cycle_throws(5, 1) != 10 ||
+        allstar_game_settings_cycle_throws(10, 1) != 20 ||
+        allstar_game_settings_cycle_throws(20, 1) != 5) {
+        fprintf(stderr, "[Test] Settings cycles diverged from ROM $22EF\n");
+        return 1;
+    }
+
+    allstar_ai_init(&ai, NULL);
+    allstar_ai_set_skill(&ai, 1);
+    if (ai.decision_interval != 8.0f / 60.0f) return 1;
+    allstar_ai_set_skill(&ai, 2);
+    if (ai.decision_interval != 4.0f / 60.0f) return 1;
+    allstar_ai_set_skill(&ai, 3);
+    if (ai.decision_interval != 1.0f / 60.0f) {
+        fprintf(stderr, "[Test] Skill delays diverged from ROM $1FFA\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing game for settings persistence\n");
+        return 1;
+    }
+    game.selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    game.input.buttons_pressed = ALLSTAR_BTN_RIGHT;
+    allstar_game_tick(&game, 0.0f);
+    game.input.buttons_pressed = 0;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_MENU);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    if (game.settings.play_to != 1) {
+        fprintf(stderr, "[Test] Settings were discarded after leaving and revisiting the scene\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.selected_mode = ALLSTAR_MODE_FREE_THROW;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    game.input.buttons_pressed = ALLSTAR_BTN_RIGHT;
+    allstar_game_tick(&game, 0.0f);
+    game.input.buttons_pressed = 0;
+    if (game.settings.free_throw_attempts != 10) {
+        fprintf(stderr, "[Test] Free Throw attempt setting did not use the ROM cycle\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.selected_mode = ALLSTAR_MODE_ACCURACY;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    game.input.buttons_pressed = ALLSTAR_BTN_RIGHT;
+    allstar_game_tick(&game, 0.0f);
+    game.input.buttons_pressed = 0;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_MENU);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    if (game.settings.accuracy_computer_positions) {
+        fprintf(stderr, "[Test] Complementary Accuracy position setting did not persist\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.settings.accuracy_computer_positions = true;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
+    allstar_game_tick(&game, 0.0f);
+    memcpy(reference_frame, game.renderer->pixels, sizeof(reference_frame));
+    game.settings.accuracy_computer_positions = false;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
+    allstar_game_tick(&game, 0.0f);
+    if (memcmp(reference_frame, game.renderer->pixels, sizeof(reference_frame)) == 0) {
+        fprintf(stderr, "[Test] Accuracy position source did not affect the native scene\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.settings.free_throw_attempts = 5;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
+    allstar_game_tick(&game, 0.0f);
+    memcpy(reference_frame, game.renderer->pixels, sizeof(reference_frame));
+    game.settings.free_throw_attempts = 10;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
+    allstar_game_tick(&game, 0.0f);
+    if (memcmp(reference_frame, game.renderer->pixels, sizeof(reference_frame)) == 0) {
+        fprintf(stderr, "[Test] Free Throw attempt limit did not affect the native scene\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    game.settings.play_to = 21;
+    game.settings.skill_level = 3;
+    game.settings.winners_outs = true;
+    game.settings.game_minutes = 5;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    if (game.one_on_one.play_to != 21 || !game.one_on_one.winners_outs ||
+        game.one_on_one.period_seconds != 300.0f ||
+        game.one_on_one.game_clock != 300.0f) {
+        fprintf(stderr, "[Test] Persistent settings were not consumed by One-on-One\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: ROM defaults, cycles, scene persistence, and gameplay consumption\n");
     return 0;
 }
 
@@ -470,6 +651,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_roster();
     failed += allstar_cli_test_physics();
     failed += allstar_cli_test_mode_routing();
+    failed += allstar_cli_test_settings();
     failed += allstar_cli_test_one_on_one_lifecycle();
     failed += allstar_cli_test_headless_frames();
 
@@ -519,6 +701,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_physics();
     } else if (strcmp(cmd, "--test-mode-routing") == 0) {
         return allstar_cli_test_mode_routing();
+    } else if (strcmp(cmd, "--test-settings") == 0) {
+        return allstar_cli_test_settings();
     } else if (strcmp(cmd, "--test-one-on-one-lifecycle") == 0) {
         return allstar_cli_test_one_on_one_lifecycle();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

@@ -143,6 +143,8 @@ bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
                                                 float player_reference_y,
                                                 float ball_x,
                                                 float ball_y);
+void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
+                                               float *player_ground_y);
 int allstar_one_on_one_rom_recovery_dispatch(
     AllStarOneOnOneRecoveryState *state,
     bool possession_active,

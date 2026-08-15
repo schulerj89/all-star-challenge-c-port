@@ -55,7 +55,7 @@
     {"id":"physics.rim_backboard_contacts_1ced","group":"physics","status":"partial","note":"Only outer and back-court branches are ported."},
     {"id":"physics.ground_bounce_1ced","group":"physics","status":"partial","note":"Native restitution/drag remain provisional."},
 
-    {"id":"defense.player_court_bounds","group":"defense_ai","status":"partial","note":"Coordinates are normalized, but complete movement/collision paths are not traced."},
+    {"id":"defense.player_court_bounds","group":"defense_ai","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
     {"id":"defense.skill_cadence_1ffa","group":"defense_ai","status":"verified","evidence":["docs/parity/SETTINGS.md"],"test":"--test-settings"},
     {"id":"defense.cpu_positioning","group":"defense_ai","status":"partial","note":"Generic native six-state controller is not ROM-equivalent."},
     {"id":"defense.cpu_shot_decision","group":"defense_ai","status":"partial","note":"CPU reaches native shooting but ROM decision state is not ported."},
@@ -69,6 +69,7 @@
     {"date":"2026-08-14","verified":30,"total":50,"percent":60.0,"note":"Position-derived shot variant, normalized coordinates, first-contact/height recovery, player priority, and 20-frame cooldown."},
     {"date":"2026-08-14","verified":31,"total":50,"percent":62.0,"note":"$7BE8 now executes exact 8.8 gravity, low-height planar friction, and integration order."},
     {"date":"2026-08-14","verified":32,"total":50,"percent":64.0,"note":"$6A8C action $0A/$12 record durations, display frames, and phase overrides are represented in native player state."},
-    {"date":"2026-08-14","verified":33,"total":50,"percent":66.0,"note":"$7F37 release height now uses player +$05/+$15 coordinates and the signed phase/variant table offset."}
+    {"date":"2026-08-14","verified":33,"total":50,"percent":66.0,"note":"$7F37 release height now uses player +$05/+$15 coordinates and the signed phase/variant table offset."},
+    {"date":"2026-08-14","verified":34,"total":50,"percent":68.0,"note":"$6BAD/$6BBA/$6BC7/$6BD4 player court bounds are normalized, centralized, and boundary-tested."}
   ]
 }

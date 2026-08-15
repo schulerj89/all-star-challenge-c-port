@@ -259,6 +259,21 @@ bool allstar_one_on_one_player_can_pick_up_ball(float player_reference_x,
            dy < ALLSTAR_ONE_ON_ONE_PICKUP_Y_RADIUS;
 }
 
+/* Bank 1 $6BAD/$6BBA bounds field +$06 to 8..148 and $6BC7/$6BD4
+   bounds field +$15 to 98..152. Native X stores +$06 plus eight. */
+void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
+                                               float *player_ground_y) {
+    if (!player_center_x || !player_ground_y) return;
+    if (*player_center_x < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X)
+        *player_center_x = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X;
+    if (*player_center_x > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X)
+        *player_center_x = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X;
+    if (*player_ground_y < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y)
+        *player_ground_y = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y;
+    if (*player_ground_y > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y)
+        *player_ground_y = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y;
+}
+
 /* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early
    exits, player 1 is tested before player 2, and an award reloads $C12D
    with 20 frames. The three lock inputs correspond to $FFE2/$FFE7/$FFF8. */

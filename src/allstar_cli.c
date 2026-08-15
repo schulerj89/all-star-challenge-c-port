@@ -562,6 +562,8 @@ int allstar_cli_test_one_on_one_shooting(void) {
     uint32_t events;
     AllStarOneOnOneReleaseOffset release;
     uint8_t animation_frame;
+    float court_x;
+    float court_y;
     int frame;
 
     printf("[Test] Running One-on-One Shooting Tests...\n");
@@ -698,6 +700,28 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_one_on_one_player_can_pick_up_ball(
             80.0f, 100.0f, 91.0f, 108.0f)) {
         fprintf(stderr, "[Test] $077D loose-ball collision limits were incorrect\n");
+        return 1;
+    }
+
+    court_x = 0.0f;
+    court_y = 0.0f;
+    allstar_one_on_one_rom_clamp_player_court(&court_x, &court_y);
+    if (court_x != 16.0f || court_y != 98.0f) {
+        fprintf(stderr, "[Test] ROM player minimum court bounds were incorrect\n");
+        return 1;
+    }
+    court_x = 200.0f;
+    court_y = 200.0f;
+    allstar_one_on_one_rom_clamp_player_court(&court_x, &court_y);
+    if (court_x != 156.0f || court_y != 152.0f) {
+        fprintf(stderr, "[Test] ROM player maximum court bounds were incorrect\n");
+        return 1;
+    }
+    court_x = 80.0f;
+    court_y = 120.0f;
+    allstar_one_on_one_rom_clamp_player_court(&court_x, &court_y);
+    if (court_x != 80.0f || court_y != 120.0f) {
+        fprintf(stderr, "[Test] In-bounds ROM player coordinate was disturbed\n");
         return 1;
     }
 

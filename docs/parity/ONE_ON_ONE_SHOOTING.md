@@ -62,4 +62,6 @@ The former fix treated native `y<76` and other reachability limits as an immedia
 
 Native player X is a center coordinate corresponding to ROM field `+$06 + 8`; native Y corresponds to ground field `+$15`. Release X therefore subtracts that center bias after `$7F37`, while recovery compares the ball to native X and native Y minus two exactly as `$077D` does.
 
+Player movement uses the same normalized coordinates. `$6BAD/$6BBA` constrain ROM field `+$06` to `8..148`, producing native center X `16..156`; `$6BC7/$6BD4` constrain field `+$15` to `98..152`. The scene routes movement through the boundary-tested `allstar_one_on_one_rom_clamp_player_court` helper.
+
 For the remaining deviations, `behavior.one_on_one_rules`, `behavior.physics`, `behavior.ai`, and `behavior.animation` remain partial, and this work adds no strict milestone credit.

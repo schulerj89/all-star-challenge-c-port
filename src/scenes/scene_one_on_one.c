@@ -271,14 +271,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         }
     }
 
-    if (data->p1.x < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X)
-        data->p1.x = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_X;
-    if (data->p1.x > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X)
-        data->p1.x = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_X;
-    if (data->p1.y < ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y)
-        data->p1.y = ALLSTAR_ONE_ON_ONE_PLAYER_MIN_Y;
-    if (data->p1.y > ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y)
-        data->p1.y = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y;
+    allstar_one_on_one_rom_clamp_player_court(&data->p1.x, &data->p1.y);
 
     if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
         uint32_t shot_events = allstar_one_on_one_shot_press(

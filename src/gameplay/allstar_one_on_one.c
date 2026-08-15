@@ -1007,6 +1007,22 @@ static uint8_t allstar_one_on_one_score_bgp_27c7(uint16_t frame) {
     return 0xe4;
 }
 
+/* $1F33 seeds C129=4/C168=20.  $1ECC first writes the middle net at +20,
+   then reloads C168=15 and walks middle/deep/middle/rest.  After +65 the
+   rest tiles remain in the court map until the court is reloaded. */
+AllStarRomNetFrame allstar_one_on_one_score_net_frame_1ecc(
+    uint16_t elapsed_frames) {
+    if (elapsed_frames < ALLSTAR_ROM_SCORE_NET_FIRST_FRAME)
+        return ALLSTAR_ROM_NET_UNCHANGED;
+    if (elapsed_frames < ALLSTAR_ROM_SCORE_NET_DEEP_FRAME)
+        return ALLSTAR_ROM_NET_BEND;
+    if (elapsed_frames < ALLSTAR_ROM_SCORE_NET_RETURN_FRAME)
+        return ALLSTAR_ROM_NET_DEEP;
+    if (elapsed_frames < ALLSTAR_ROM_SCORE_COMMIT_FRAME)
+        return ALLSTAR_ROM_NET_BEND;
+    return ALLSTAR_ROM_NET_REST;
+}
+
 uint32_t allstar_one_on_one_score_presentation_tick_0c13(
     AllStarOneOnOneScorePresentation *presentation,
     float dt) {
@@ -1023,6 +1039,11 @@ uint32_t allstar_one_on_one_score_presentation_tick_0c13(
         presentation->elapsed_frames++;
         presentation->bg_palette = allstar_one_on_one_score_bgp_27c7(
             presentation->elapsed_frames);
+
+        if (presentation->elapsed_frames ==
+                ALLSTAR_ROM_SCORE_NET_FIRST_FRAME) {
+            events |= ALLSTAR_ROM_SCORE_EVENT_NET_SOUND;
+        }
 
         if (presentation->elapsed_frames ==
                 ALLSTAR_ROM_SCORE_COMMIT_FRAME) {

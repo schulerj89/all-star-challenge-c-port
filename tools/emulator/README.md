@@ -63,11 +63,11 @@ offender, and latch clearing for the protected shot-gather action `$0A`.
 Require exit code `0` and `TRACE PASSED: $2C50/$2CCA/$0AC5 charging, blocking,
 and protected action`.
 
-`trace_one_on_one_assets.lua` captures the decompressed player, court, and
-ball graphics from the original ROM and checks exact lengths and hashes. It
-also verifies live `$7F37` held-ball X/Y/Z against the owning player frame,
-then exercises `$6945->$69F5` across all three shadow-height bands. Require
-exit code `0` and `TRACE PASSED: One-on-One assets, $7F37 held ball, and
+`trace_one_on_one_assets.lua` captures the decompressed player, net, court,
+and ball graphics from the original ROM and checks exact lengths and hashes.
+It verifies final live `$6F2A` held-ball X/Y/Z against owner action, direction,
+and record, then exercises `$6945->$69F5` across all three shadow-height bands.
+Require exit code `0` and `TRACE PASSED: One-on-One assets, $6F2A held ball, and
 $6945/$69F5 OAM`.
 
 `trace_one_on_one_shot_results.lua` releases on the cartridge's recovered
@@ -83,3 +83,10 @@ make through fixed-bank `$1E0E->$1F23/$2F88->$0C13->$2D08->$27C7/$27EA
 fade-out, the final `$FFEB=1` counted update at `+254`, and playable inbound
 at `+258` frames. Require exit code `0` and
 `TRACE PASSED: $1E0E/$2F88/$0C13/$27C7/$20F7/$27CC score presentation`.
+
+`trace_one_on_one_presentation_audio.lua` follows roster selection into a
+deterministic made basket. It asserts navigation command `$0E`, accepted-player
+command `$0F`, movement command `$0D`, record-six dribble command `$0C`, final
+`$6F2A` ball placement, all four `$1ECC` net frames, command `$08` at `+20`,
+and command `$05` at `+65`. Require exit code `0` and
+`TRACE PASSED: roster audio, $6F2A dribble placement, and $1ECC score net`.

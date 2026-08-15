@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "one_on_one_presentation_audio_requirements",
+    "description": "Twenty equal, all-or-nothing requirements for One-on-One score-net presentation, event-level audio commands, live held-ball placement, and roster-selection cues. Exact Game Boy APU waveform synthesis is explicitly outside this event-path denominator.",
+    "total": 20,
+    "points_per_requirement": 5.0
+  },
+  "requirements": [
+    {"id":"assets.net_stream_793f","group":"score_net","status":"verified","rom":"fixed $1FFA/$2021 and $2219; bank 3 $793F->$9600","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","tools/emulator/trace_one_on_one_assets.lua","src/allstar_asset_pack.c"]},
+    {"id":"assets.court_loader_04b1","group":"score_net","status":"verified","rom":"fixed $0B9A->$04B1/$050F; bank 3 $7A23/$7E48","evidence":["docs/parity/ONE_ON_ONE_ASSETS.md","tools/emulator/trace_one_on_one_assets.lua","src/allstar_asset_pack.c"]},
+    {"id":"presentation.net_init_1f33","group":"score_net","status":"verified","rom":"fixed $1F33: $C129=4, $C168=$14","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
+    {"id":"presentation.net_bend_20","group":"score_net","status":"verified","rom":"fixed $1ECC at +20","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c"]},
+    {"id":"presentation.net_deep_35","group":"score_net","status":"verified","rom":"fixed $1ECC at +35","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c"]},
+    {"id":"presentation.net_return_50","group":"score_net","status":"verified","rom":"fixed $1ECC at +50","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c"]},
+    {"id":"presentation.net_rest_65","group":"score_net","status":"verified","rom":"fixed $1ECC at +65","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/gameplay/allstar_one_on_one.c","src/allstar_renderer.c"]},
+    {"id":"audio.net_command_08","group":"score_audio","status":"verified","rom":"fixed $1F26->$2F88 command $08 at +20","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/audio/allstar_audio.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"audio.score_command_05","group":"score_audio","status":"verified","rom":"fixed $1F23/$1F06->$2F88 command $05 at +65","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/audio/allstar_audio.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"presentation.native_rate","group":"score_audio","status":"verified","rom":"exact 258-state score path presented at explicit native 3x rate","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","include/allstar_one_on_one.h","src/allstar_cli.c"]},
+    {"id":"ball.shot_offsets_7f37","group":"held_ball","status":"verified","rom":"bank 1 $7F37/$7FC7","evidence":["tools/emulator/trace_one_on_one_shot_results.lua","src/allstar_renderer.c","src/allstar_cli.c"]},
+    {"id":"ball.dribble_action_offsets_6f2a","group":"held_ball","status":"verified","rom":"bank 1 $6F2A actions $01/$04/$08/$0B/$10/$13","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","tools/emulator/trace_one_on_one_assets.lua","src/allstar_renderer.c"]},
+    {"id":"ball.dribble_direction_bit","group":"held_ball","status":"verified","rom":"bank 1 $6F2A player +$02 bit 4","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/allstar_renderer.c","src/allstar_cli.c"]},
+    {"id":"ball.dribble_height_6fea","group":"held_ball","status":"verified","rom":"bank 1 $6FEA twelve-byte height table","evidence":["tools/emulator/trace_one_on_one_assets.lua","src/allstar_renderer.c","src/allstar_cli.c"]},
+    {"id":"ball.renderer_final_override","group":"held_ball","status":"verified","rom":"bank 1 $7F37 then final $6F2A placement","evidence":["docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md","src/allstar_renderer.c","src/scenes/scene_one_on_one.c"]},
+    {"id":"audio.movement_command_0d","group":"movement_roster_audio","status":"verified","rom":"bank 1 $78DD->$78E0 command $0D","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/scenes/scene_one_on_one.c","src/audio/allstar_audio.c"]},
+    {"id":"audio.dribble_command_0c","group":"movement_roster_audio","status":"verified","rom":"bank 1 $6F2A->$6FE5 command $0C at record +$03=6","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/scenes/scene_one_on_one.c","src/audio/allstar_audio.c"]},
+    {"id":"audio.same_voice_restart","group":"movement_roster_audio","status":"verified","rom":"repeated command semantics for cadence cues","evidence":["src/audio/allstar_audio.c","src/allstar_cli.c"]},
+    {"id":"audio.roster_navigation_0e","group":"movement_roster_audio","status":"verified","rom":"bank 2 $4113->$2AB5/$2F88 command $0E","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/scenes/scene_roster_select.c"]},
+    {"id":"audio.roster_confirm_0f","group":"movement_roster_audio","status":"verified","rom":"bank 2 $40F4->$411D->$2AB5/$2F88 command $0F","evidence":["tools/emulator/trace_one_on_one_presentation_audio.lua","src/scenes/scene_roster_select.c","src/audio/allstar_audio.c"]}
+  ],
+  "history": [
+    {"date":"2026-08-15","verified":6,"total":20,"percent":30.0,"note":"Pre-audit state retained the score clock/fades and generic cue plumbing, but had no extracted net stream/animation, no final $6F2A dribble placement, and incorrect or missing command-specific movement/roster cues."},
+    {"date":"2026-08-15","verified":20,"total":20,"percent":100.0,"note":"Ghidra and Mesen established the exact score-net frames, commands $05/$08/$0C/$0D/$0E/$0F, final held-ball path, and separate One-on-One asset streams; all are integrated and deterministically checked."}
+  ]
+}

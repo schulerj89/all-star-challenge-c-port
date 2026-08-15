@@ -52,7 +52,9 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
         }
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_MOVE);
+            /* Bank 2 $411D calls fixed $2AB5, which selects command $0F
+               for every accepted character confirmation. */
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
             game->selected_player_1 = (uint32_t)data->p1_cursor;
             data->p2_cursor = 0; /* Reset back to first index player */
             data->timer = 0.0f;

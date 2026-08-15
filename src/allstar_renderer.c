@@ -340,6 +340,37 @@ void allstar_renderer_rom_ball_presentation_6945(
     presentation->shadow_pair_index = (uint8_t)(8 + tier * 8 + adjusted);
 }
 
+/* Fixed $1ECC uses the $1F2B pointer table to replace six BG cells beginning
+   at $9849 (columns 9/10, rows 2..4). The signed BG IDs $60..$70 resolve
+   to the separate 17-tile bank-3 $793F stream loaded at VRAM $9600. */
+void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
+                                          uint8_t net_frame) {
+    static const uint8_t net_tiles[3][6] = {
+        {0x61, 0x62, 0x67, 0x68, 0x69, 0x6a},
+        {0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70},
+        {0x61, 0x62, 0x63, 0x64, 0x65, 0x66}
+    };
+    const AllStarAssetPack *pack;
+    const uint8_t *tiles;
+    int row;
+    int column;
+    allstar_renderer_draw_court(renderer);
+    if (!renderer || net_frame == 0 || net_frame > 3) return;
+    pack = renderer->asset_pack;
+    if (!pack || (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) == 0 ||
+        pack->header.net_tile_count != ALLSTAR_NET_TILE_COUNT) return;
+    tiles = net_tiles[net_frame - 1];
+    for (row = 0; row < 3; row++) {
+        for (column = 0; column < 2; column++) {
+            allstar_renderer_draw_tile(
+                renderer, &pack->net_tiles[
+                    tiles[row * 2 + column] - 0x60],
+                (9 + column) * 8, (2 + row) * 8, false, false);
+        }
+    }
+}
+
 /* $27C7/$27CC write E4,F9,FE,FF and the reverse to BGP. Apply this after the
    background/HUD and before player OAM so the native layers preserve the
    cartridge's separate BGP and OBJ behavior. */
@@ -366,17 +397,16 @@ void allstar_renderer_apply_dmg_bgp(AllStarRenderer *renderer,
     }
 }
 
-/* Bank 1 $7F37 attaches the held ball to the current player frame.  The two
-   action tables at $7FC7/$7FCB are byte-identical in this ROM: X is +7 when
-   unflipped or +10 when flipped and the height offset is -2.  Display frames
-   $00/$0C already contain the ball and therefore clear $C0A3 instead. */
+/* Bank 1 $7F37 attaches the ball during the shot/gather path.  $7FC7 is the
+   action-$0A table {+7,-2}/{+10,-2}; $7FCB is the other-action table
+   {+7,+10}/{-2,+8}. Display frames $00/$0C contain the ball in player art. */
 void allstar_renderer_rom_held_ball_7f37(
     int32_t player_center_x, int32_t player_ground_y,
     uint8_t action, uint8_t display_frame, bool horizontal_flip,
     AllStarRomHeldBallPresentation *presentation) {
     static const int8_t held_offsets[2][2][2] = {
         {{7, -2}, {10, -2}},
-        {{7, -2}, {10, -2}}
+        {{7, 10}, {-2, 8}}
     };
     uint8_t player_x;
     uint8_t ground_y;
@@ -405,6 +435,40 @@ void allstar_renderer_rom_held_ball_7f37(
     presentation->behind_owner =
         (presentation->ball_y < (uint8_t)(visual_y + 40)) ==
         ((player_x & 4) != 0);
+}
+
+/* Bank 1 $6F2A runs after $7F37 on every gameplay update and is therefore
+   the final held/dribbling-ball placement for actions $01/$04/$08/$0B/$10/
+   $13. Native x is player +$06+8; ground y is +$15; the stable OAM-y field
+   +$05 is ground-18 outside a jump. The $6FEA table supplies the bounce Z. */
+void allstar_renderer_rom_dribble_ball_6f2a(
+    int32_t player_center_x, int32_t player_ground_y,
+    uint8_t action, uint8_t record_index, bool direction_bit4,
+    AllStarRomHeldBallPresentation *presentation) {
+    static const uint8_t bounce_z[12] =
+        {0x0c,0x0c,0x0c,0x08,0x04,0x00,0x04,0x08,0x0b,0x01,0x01,0x01};
+    uint8_t player_x;
+    uint8_t visual_y;
+    int x_offset;
+    int y_offset;
+    if (!presentation) return;
+    memset(presentation, 0, sizeof(*presentation));
+    player_x = (uint8_t)(player_center_x - 8);
+    visual_y = (uint8_t)(player_ground_y - 18);
+    switch (action) {
+        case 0x01: x_offset = 3;  y_offset = 0x28; break;
+        case 0x04: x_offset = 6;  y_offset = 0x2c; break;
+        case 0x08: x_offset = 13; y_offset = 0x28; break;
+        case 0x0b: x_offset = 11; y_offset = 0x25; break;
+        case 0x10: x_offset = direction_bit4 ? 13 : 0; y_offset = 0x28; break;
+        case 0x13: x_offset = direction_bit4 ? 14 : 2; y_offset = 0x26; break;
+        default: return;
+    }
+    presentation->visible = true;
+    presentation->ball_x = (uint8_t)(player_x + x_offset);
+    presentation->ball_y = (uint8_t)(visual_y + y_offset);
+    presentation->ball_z = bounce_z[record_index < 12 ? record_index : 11];
+    presentation->behind_owner = false;
 }
 
 /* Fixed $2933/$293D->$2945->$2A2B selects one of three action families and
@@ -529,7 +593,7 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     int32_t x, int32_t y, int32_t visual_lift,
     bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting,
     bool is_defending, uint8_t rom_action, uint8_t rom_display_frame,
-    float anim_time, bool facing_left) {
+    uint8_t rom_record_index, float anim_time, bool facing_left) {
     const AllStarAssetPack *pack;
     if (!renderer) return;
     (void)is_p1;
@@ -583,9 +647,15 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     /* If dribbling ball */
     if (has_ball) {
         AllStarRomHeldBallPresentation held_ball;
-        allstar_renderer_rom_held_ball_7f37(
-            x, y, rom_action, rom_display_frame,
-            !facing_left, &held_ball);
+        if (rom_action == 0x0a || rom_action == 0x12) {
+            allstar_renderer_rom_held_ball_7f37(
+                x, y, rom_action, rom_display_frame,
+                !facing_left, &held_ball);
+        } else {
+            allstar_renderer_rom_dribble_ball_6f2a(
+                x, y, rom_action, rom_record_index,
+                !facing_left, &held_ball);
+        }
         if (held_ball.visible) {
             held_ball.ball_z = (uint8_t)(held_ball.ball_z + visual_lift);
             allstar_renderer_draw_ball_rom_6945(
@@ -601,7 +671,8 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x,
     uint8_t rom_display_frame, float anim_time, bool facing_left) {
     allstar_renderer_draw_player_lifted_ex(
         renderer, x, y, 0, is_p1, skin_tone, has_ball, is_shooting,
-        is_defending, rom_action, rom_display_frame, anim_time, facing_left);
+        is_defending, rom_action, rom_display_frame, 0,
+        anim_time, facing_left);
 }
 
 void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t y, bool is_p1, bool has_ball, bool is_shooting, float anim_time) {

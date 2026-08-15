@@ -67,7 +67,7 @@ void allstar_renderer_draw_player_lifted_ex(AllStarRenderer *renderer,
     int32_t x, int32_t ground_y, int32_t visual_lift,
     bool is_p1, uint8_t skin_tone, bool has_ball, bool is_shooting,
     bool is_defending, uint8_t rom_action, uint8_t rom_display_frame,
-    float anim_time, bool facing_left);
+    uint8_t rom_record_index, float anim_time, bool facing_left);
 void allstar_renderer_rom_ball_presentation_6945(
     uint8_t ball_x, uint8_t ball_y, uint8_t ball_z,
     bool behind_owner, AllStarRomBallPresentation *presentation);
@@ -75,12 +75,18 @@ void allstar_renderer_rom_held_ball_7f37(
     int32_t player_center_x, int32_t player_ground_y,
     uint8_t action, uint8_t display_frame, bool horizontal_flip,
     AllStarRomHeldBallPresentation *presentation);
+void allstar_renderer_rom_dribble_ball_6f2a(
+    int32_t player_center_x, int32_t player_ground_y,
+    uint8_t action, uint8_t record_index, bool direction_bit4,
+    AllStarRomHeldBallPresentation *presentation);
 bool allstar_renderer_rom_player_tiles_2945(
     const AllStarAssetPack *pack, uint8_t action, uint8_t display_frame,
     bool horizontal_flip,
     uint16_t output_tiles[ALLSTAR_PLAYER_FRAME_TILE_COUNT]);
 void allstar_renderer_draw_hoop(AllStarRenderer *renderer, int32_t hoop_x, int32_t hoop_y);
 void allstar_renderer_draw_court(AllStarRenderer *renderer);
+void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
+                                          uint8_t net_frame);
 /* Fixed $27C7/$27CC BGP sequence remaps the completed DMG frame. */
 void allstar_renderer_apply_dmg_bgp(AllStarRenderer *renderer,
                                     uint8_t bg_palette);

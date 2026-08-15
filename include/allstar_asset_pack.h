@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 4
+#define ALLSTAR_ASSET_VERSION 5
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -17,6 +17,7 @@
 #define ALLSTAR_BALL_SOURCE_TILE_COUNT 42
 #define ALLSTAR_BALL_OAM_PAIR_COUNT 32
 #define ALLSTAR_COURT_TILE_COUNT 86
+#define ALLSTAR_NET_TILE_COUNT 17
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
 
 /* Bank 1 $6A8C consumes the lists selected by the pointer table at $6C60.
@@ -75,6 +76,7 @@ typedef struct {
     uint32_t ball_source_tile_count;
     uint32_t ball_oam_pair_count;
     uint32_t court_tile_count;
+    uint32_t net_tile_count;
     uint32_t feature_flags;
     uint32_t checksum;
 } AllStarAssetHeader;
@@ -92,6 +94,7 @@ typedef struct {
     AllStarTile ball_source_tiles[ALLSTAR_BALL_SOURCE_TILE_COUNT];
     AllStarRomOamPair ball_oam_pairs[ALLSTAR_BALL_OAM_PAIR_COUNT];
     AllStarTile court_tiles[ALLSTAR_COURT_TILE_COUNT];
+    AllStarTile net_tiles[ALLSTAR_NET_TILE_COUNT];
     bool is_loaded;
 } AllStarAssetPack;
 

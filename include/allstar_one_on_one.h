@@ -18,14 +18,17 @@
 
 /* Normal One-on-One make path traced from $1E0E through $0C13. */
 #define ALLSTAR_ROM_SCORE_COMMIT_FRAME 65
+#define ALLSTAR_ROM_SCORE_NET_FIRST_FRAME 20
+#define ALLSTAR_ROM_SCORE_NET_DEEP_FRAME 35
+#define ALLSTAR_ROM_SCORE_NET_RETURN_FRAME 50
 #define ALLSTAR_ROM_SCORE_FADE_OUT_FRAME 180
 #define ALLSTAR_ROM_SCORE_POSSESSION_RESET_FRAME 214
 #define ALLSTAR_ROM_SCORE_FADE_IN_FRAME 219
 #define ALLSTAR_ROM_SCORE_COUNTED_INBOUND_FRAME 254
 #define ALLSTAR_ROM_SCORE_INBOUND_FRAME 258
 /* Intentional native pacing override: retain every ROM presentation state,
-   but consume two score-presentation frames per rendered gameplay frame. */
-#define ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE 2.0f
+   but consume three score-presentation frames per rendered gameplay frame. */
+#define ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE 3.0f
 
 /* $077D compares these player reference coordinates to the loose ball. */
 #define ALLSTAR_ONE_ON_ONE_PICKUP_X_RADIUS 12.0f
@@ -97,7 +100,8 @@ typedef enum {
     ALLSTAR_ROM_SCORE_EVENT_FADE_OUT = (1 << 1),
     ALLSTAR_ROM_SCORE_EVENT_RESET_POSSESSION = (1 << 2),
     ALLSTAR_ROM_SCORE_EVENT_FADE_IN = (1 << 3),
-    ALLSTAR_ROM_SCORE_EVENT_INBOUND = (1 << 4)
+    ALLSTAR_ROM_SCORE_EVENT_INBOUND = (1 << 4),
+    ALLSTAR_ROM_SCORE_EVENT_NET_SOUND = (1 << 5)
 } AllStarRomScorePresentationEvent;
 
 typedef struct {
@@ -147,6 +151,14 @@ typedef struct {
     bool finished;
     bool new_frame;
 } AllStarRomAnimationState;
+
+/* $1ECC tile-pointer choice after the score-effect countdown. */
+typedef enum {
+    ALLSTAR_ROM_NET_UNCHANGED = 0,
+    ALLSTAR_ROM_NET_BEND,
+    ALLSTAR_ROM_NET_DEEP,
+    ALLSTAR_ROM_NET_REST
+} AllStarRomNetFrame;
 
 typedef struct {
     uint16_t p1_score;
@@ -316,6 +328,8 @@ void allstar_one_on_one_score_presentation_begin_1e0e(
 uint32_t allstar_one_on_one_score_presentation_tick_0c13(
     AllStarOneOnOneScorePresentation *presentation,
     float dt);
+AllStarRomNetFrame allstar_one_on_one_score_net_frame_1ecc(
+    uint16_t elapsed_frames);
 int allstar_one_on_one_next_possession_after_score(
     const AllStarOneOnOneMatch *match,
     int shooter);

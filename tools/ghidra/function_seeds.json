@@ -15,9 +15,9 @@
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
         "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "10a5",
-        "10ad", "10fa", "1638", "1ced", "1f4d", "1f7a", "1fe1", "1ffa",
+        "10ad", "10fa", "1638", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
-        "28e1", "2933", "293d", "2945", "2a2b", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
+        "28e1", "2933", "293d", "2945", "2a2b", "2ab5", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2d08", "2f88", "3014"
       ]
     },
@@ -28,7 +28,7 @@
       "addresses": [
         "6945", "69f5", "6a8c", "6bad", "6bba", "6bc7", "6bd4", "6c59",
         "6c90", "6c9b", "6ca2", "6cab", "6d57", "6e1b", "6e3c",
-        "6ec0", "6eea", "6ff3", "7015", "702d", "714d", "7170",
+        "6ec0", "6eea", "6f2a", "6ff3", "7015", "702d", "714d", "7170",
         "74bb", "75cd", "761b", "7712", "7721", "772d",
         "780a", "782e", "78e9", "7914", "791d", "794b", "79ee",
         "7a71", "7a90", "7aea", "7afd", "7b7a", "7ba8", "7bc0",
@@ -147,13 +147,37 @@
       "status": "verified",
       "native_symbol": "allstar_renderer_rom_ball_presentation_6945",
       "source": "src/allstar_renderer.c",
-      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v4."
+      "note": "Two adjacent tile entries for the ball and shadow use the exact descriptor tables extracted dynamically into asset-pack v5."
+    },
+    "rom_b01_6f2a": {
+      "status": "verified",
+      "native_symbol": "allstar_renderer_rom_dribble_ball_6f2a",
+      "source": "src/allstar_renderer.c",
+      "note": "All six eligible action branches, direction-bit offsets, the twelve-byte $6FEA height table, and record-six command-$0C cadence are Mesen-traced, deterministic-tested, and renderer-integrated."
+    },
+    "rom_b00_1f33": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_score_presentation_begin_1e0e",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The $C129=4/$C168=$14 initialization and $1ECC 20/15/15/15-frame middle/deep/middle/rest net sequence are live-traced and native-tested."
+    },
+    "rom_b00_2ab5": {
+      "status": "verified",
+      "native_symbol": "roster_select_update",
+      "source": "src/scenes/scene_roster_select.c",
+      "note": "Every accepted bank-2 $411D roster confirmation calls this fixed-bank command-$0F selector; both player confirmations now use the native multi-step selection cue."
     },
     "rom_b00_2243": {
+      "status": "unmapped",
+      "native_symbol": null,
+      "source": null,
+      "note": "This loader belongs to a different mode; it is intentionally not credited to the One-on-One asset port."
+    },
+    "rom_b00_2219": {
       "status": "verified",
       "native_symbol": "extract_one_on_one_art",
       "source": "src/allstar_asset_pack.c",
-      "note": "One-on-One player, ball/shadow, and court sources are decoded from the exact bank-1/bank-3 ranges during user-ROM asset-pack construction."
+      "note": "The exact bank-3 $793F compressed stream is decoded to the 17 net/HUD tiles corresponding to signed BG IDs $60..$70, matching live VRAM $9600."
     },
     "rom_b00_2945": {
       "status": "verified",
@@ -342,10 +366,10 @@
       "note": "Exact four-pixel target dead zones and direction bits are boundary-tested; surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
     },
     "rom_b01_782e": {
-      "status": "candidate",
+      "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_select_movement_action_782e",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "The full record-boundary gates, +$14/+07/+10 direction priority, held/no-ball action table, and +$02 bit-4 side effect are native, integrated, and trace-tested. Whole-routine credit remains withheld because the $2F88 action-change sound command is not yet sequenced equivalently."
+      "note": "The full record-boundary gates, +$14/+07/+10 direction priority, held/no-ball action table, +$02 bit-4 side effect, and $78DD->$78E0 command-$0D action-change cue are native, integrated, and trace-tested."
     },
     "rom_b01_78e9": {
       "status": "candidate",
@@ -393,7 +417,7 @@
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
-      "note": "Exact action/facing/phase/variant offsets and +$05/+$15 height composition are ported. The normal path now couples $6C4D lift to live $6A8C +$03 timing; Mesen proves Z=$40 at the captured make release. Other-mode whole-routine behavior remains outside this mapping."
+      "note": "Exact distinct $7FC7/$7FCB action/facing tables, phase/variant offsets, and +$05/+$15 height composition are ported. Mesen proves the shot release and the later $6F2A override on live dribbling; other-mode whole-routine behavior remains outside this mapping."
     },
     "rom_b00_28e1": {
       "status": "verified",

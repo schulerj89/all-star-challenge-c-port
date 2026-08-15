@@ -172,13 +172,39 @@ static bool generate_square_sequence(PcmSound *out,
     return true;
 }
 
+static bool generate_noise_burst(PcmSound *out, float duration,
+                                 float amplitude) {
+    uint32_t total_frames;
+    uint32_t frame;
+    uint16_t lfsr = 0x7fff;
+    if (!out || duration <= 0.0f) return false;
+    total_frames = (uint32_t)(duration * MIX_SAMPLE_RATE);
+    out->samples = (int16_t*)malloc(
+        (size_t)total_frames * MIX_CHANNELS * sizeof(int16_t));
+    if (!out->samples) return false;
+    for (frame = 0; frame < total_frames; frame++) {
+        float envelope = 1.0f - (float)frame / (float)total_frames;
+        uint16_t feedback = (uint16_t)((lfsr ^ (lfsr >> 1)) & 1);
+        int16_t sample;
+        lfsr = (uint16_t)((lfsr >> 1) | (feedback << 14));
+        sample = (int16_t)((lfsr & 1 ? amplitude : -amplitude) * envelope);
+        out->samples[frame * 2] = sample;
+        out->samples[frame * 2 + 1] = sample;
+    }
+    out->sample_count = total_frames;
+    out->loaded = true;
+    return true;
+}
+
 static void generate_gameplay_sfx_fallbacks(void) {
     static const float dribble_f[] = {110.0f};
     static const float dribble_d[] = {0.055f};
     static const float shoot_f[] = {880.0f, 660.0f};
     static const float shoot_d[] = {0.035f, 0.055f};
-    static const float score_f[] = {740.0f, 988.0f, 1318.0f};
-    static const float score_d[] = {0.055f, 0.055f, 0.12f};
+    static const float score_chime_f[] = {740.0f, 988.0f, 1318.0f};
+    static const float score_chime_d[] = {0.055f, 0.055f, 0.12f};
+    static const float shoe_f[] = {1760.0f, 1245.0f};
+    static const float shoe_d[] = {0.025f, 0.045f};
     static const float rim_f[] = {190.0f, 145.0f};
     static const float rim_d[] = {0.045f, 0.09f};
     static const float buzzer_f[] = {120.0f, 100.0f};
@@ -195,8 +221,7 @@ static void generate_gameplay_sfx_fallbacks(void) {
         generate_square_sequence(&g_sfx[ALLSTAR_SFX_SHOOT],
             shoot_f, shoot_d, 2, 7500.0f);
     if (!g_sfx[ALLSTAR_SFX_SWISH].loaded)
-        generate_square_sequence(&g_sfx[ALLSTAR_SFX_SWISH],
-            score_f, score_d, 3, 9000.0f);
+        generate_noise_burst(&g_sfx[ALLSTAR_SFX_SWISH], 0.12f, 6500.0f);
     if (!g_sfx[ALLSTAR_SFX_RIM_CLANK].loaded)
         generate_square_sequence(&g_sfx[ALLSTAR_SFX_RIM_CLANK],
             rim_f, rim_d, 2, 9000.0f);
@@ -209,6 +234,12 @@ static void generate_gameplay_sfx_fallbacks(void) {
     if (!g_sfx[ALLSTAR_SFX_CHEER].loaded)
         generate_square_sequence(&g_sfx[ALLSTAR_SFX_CHEER],
             cheer_f, cheer_d, 4, 7500.0f);
+    if (!g_sfx[ALLSTAR_SFX_SHOE_SQUEAK].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_SHOE_SQUEAK],
+            shoe_f, shoe_d, 2, 5200.0f);
+    if (!g_sfx[ALLSTAR_SFX_SCORE_CHIME].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_SCORE_CHIME],
+            score_chime_f, score_chime_d, 3, 9000.0f);
 }
 
 static DWORD WINAPI audio_mixer_thread(LPVOID param) {
@@ -338,6 +369,8 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
     load_pcm_wav("bgm_gameplay.wav", &g_bgm[ALLSTAR_BGM_GAMEPLAY]);
     load_pcm_wav("sfx_menu_move.wav", &g_sfx[ALLSTAR_SFX_MENU_MOVE]);
     load_pcm_wav("sfx_menu_select.wav", &g_sfx[ALLSTAR_SFX_MENU_SELECT]);
+    load_pcm_wav("sfx_shoe_squeak.wav", &g_sfx[ALLSTAR_SFX_SHOE_SQUEAK]);
+    load_pcm_wav("sfx_score_chime.wav", &g_sfx[ALLSTAR_SFX_SCORE_CHIME]);
     generate_gameplay_sfx_fallbacks();
 
     memset(g_sfx_voices, 0, sizeof(g_sfx_voices));
@@ -359,9 +392,17 @@ void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
 #ifdef _WIN32
     if (!g_lock_initialized) return;
     EnterCriticalSection(&g_audio_lock);
-    /* Find free or oldest voice */
+    /* The DMG command driver owns one voice per effect. Re-selecting command
+       $0C on each record-6 update restarts that voice instead of stacking six
+       simultaneous copies in the native PCM mixer. */
     int slot = -1;
     for (int i = 0; i < MAX_SFX_VOICES; i++) {
+        if (g_sfx_voices[i].active && g_sfx_voices[i].sfx_id == sfx) {
+            slot = i;
+            break;
+        }
+    }
+    for (int i = 0; slot == -1 && i < MAX_SFX_VOICES; i++) {
         if (!g_sfx_voices[i].active) {
             slot = i;
             break;
@@ -376,14 +417,14 @@ void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
 #endif
 }
 
-/* Ghidra: Call_000_000c - Sound channel hardware tone generator */
+/* Native fallback utility; no verified ROM-routine mapping. */
 void allstar_audio_generate_tone(int channel, float frequency_hz, float duration_sec) {
     (void)channel;
     (void)frequency_hz;
     (void)duration_sec;
 }
 
-/* Ghidra: Call_000_0078 - BGM start dispatcher */
+/* Native PCM BGM control; reset/vector address $0078 is not this routine. */
 void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
     if (!audio || !audio->enabled) return;
     if (audio->current_bgm == bgm) return;
@@ -394,7 +435,7 @@ void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
 #endif
 }
 
-/* Ghidra: Call_000_007b - BGM stop routine */
+/* Native PCM BGM control; serial address $007B is not this routine. */
 void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
     if (!audio) return;
     audio->current_bgm = ALLSTAR_BGM_NONE;
@@ -403,7 +444,7 @@ void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
 #endif
 }
 
-/* Ghidra: Call_000_0002 - Sound driver interrupt tick */
+/* Native PCM update hook; $0002 is reset-padding, not an audio routine. */
 void allstar_audio_update(AllStarAudioEngine *audio, float dt) {
     if (!audio || !audio->enabled) return;
     (void)dt;

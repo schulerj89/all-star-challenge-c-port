@@ -16,13 +16,14 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
-| Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
-| ROM asset pack | Partial project-wide | Version 4 extracts the complete One-on-One court, player frames/tiles, ball/shadow tiles, and all 24 `$6C60` animation-control lists; other screens, roster records, and audio still need migration. |
-| Ghidra-to-C routine coverage | 27/114 verified | All 114 reviewed bank-aware functions recover and decompile cleanly; 31 mappings remain candidates and 56 are unmapped. |
+| Audio | Partial | Win32 PCM mixer works; One-on-One commands `$05/$08/$0C/$0D/$0E/$0F` now dispatch at traced events, but the complete ROM music/APU sequencer is not ported. |
+| ROM asset pack | Partial project-wide | Version 5 extracts the One-on-One court, separate animated net stream, player frames/tiles, ball/shadow tiles, and all 24 `$6C60` animation-control lists; other screens, roster records, and audio still need migration. |
+| Ghidra-to-C routine coverage | 31/117 verified | All 117 reviewed bank-aware functions recover and decompile cleanly; 30 mappings remain candidates and 56 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. |
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
-| One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-frame state sequence is complete; the native presentation intentionally plays it at 2× speed for a roughly 2.15-second score-to-inbound transition. |
+| One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-state sequence is complete; the native presentation intentionally plays it at 3× speed for a roughly 1.43-second score-to-inbound transition. |
+| One-on-One presentation/audio events | 100.00% | 20 of 20 focused requirements: animated net, score/net cues, shoe squeak, dribble cadence/placement, and roster navigation/confirm commands. Exact APU waveform synthesis is outside this denominator. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -37,6 +38,7 @@ The focused One-on-One parity denominator is reported separately:
 ```powershell
 python tools\check_one_on_one_coverage.py
 python tools\check_one_on_one_remaining_coverage.py
+python tools\check_one_on_one_presentation_audio_coverage.py
 ```
 
 For future commit decisions, compare the working tree with the currently committed manifest:
@@ -93,9 +95,9 @@ The current build succeeds, although MSVC reports `fopen` deprecation warnings t
 .\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
-Version 4 extracts the One-on-One court tiles/map, three player tile families, 60 frame maps, ball/shadow tiles and descriptors, and all 24 animation-control lists. It does not yet extract portraits, other-mode graphics, roster records, or audio sequences from the ROM.
+Version 5 extracts the One-on-One court tiles/map, the separate 17-tile score-net stream, three player tile families, 60 frame maps, ball/shadow tiles and descriptors, and all 24 animation-control lists. It does not yet extract portraits, other-mode graphics, roster records, or audio sequences from the ROM.
 
-The Win32 game requires a valid version-4 `build\allstar.assetpack` and now
+The Win32 game requires a valid version-5 `build\allstar.assetpack` and now
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 
@@ -119,7 +121,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces cover shot input, the complete 258-frame made-basket sound/fade/playable-inbound sequence, defense transitions, exact RNG, the complete `$782E/$6A8C` directional action state, `$6B72/$6E3C` movement blocking, `$2C50/$2CCA/$0AC5` charging/blocking, and the extracted One-on-One graphics plus `$6945/$69F5` ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
+Automated Mesen traces cover shot input, the complete 258-state made-basket sound/fade/playable-inbound sequence, all four `$1ECC` net frames, One-on-One commands `$05/$08/$0C/$0D/$0E/$0F`, final `$6F2A` held-ball placement, defense transitions, exact RNG, the complete `$782E/$6A8C` directional action state, `$6B72/$6E3C` movement blocking, `$2C50/$2CCA/$0AC5` charging/blocking, and the extracted One-on-One graphics plus `$6945/$69F5` ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
 
 ## Reverse Engineering
 

@@ -217,14 +217,15 @@ static void decode_tile_bytes(const uint8_t *bytes, size_t tile_count,
     }
 }
 
-/* Ghidra path $024A->$2243->$04B1/$050F and per-frame
-   $100F->$2933/$293D->$2945/$2A2B plus bank-1 $6945/$69F5.  Bank-3 CPU
+/* Ghidra path $0B9A->$1FFA/$2219 and $04B1/$050F plus per-frame
+   $100F->$2933/$293D->$2945/$2A2B and bank-1 $6945/$69F5.  Bank-3 CPU
    addresses are translated to file offsets by adding $8000. */
 static bool extract_one_on_one_art(AllStarAssetPack *pack,
                                    const AllStarRom *rom) {
     uint8_t player_bytes[ALLSTAR_PLAYER_SOURCE_TILE_COUNT * 16];
     uint8_t ball_bytes[ALLSTAR_BALL_SOURCE_TILE_COUNT * 16];
     uint8_t court_bytes[ALLSTAR_COURT_TILE_COUNT * 16];
+    uint8_t net_bytes[ALLSTAR_NET_TILE_COUNT * 16];
     uint8_t court_map[640];
     static const size_t frame_starts[3] = {0x4000, 0x4120, 0x42ac};
     static const size_t frame_counts[3] = {16, 22, 22};
@@ -241,6 +242,12 @@ static bool extract_one_on_one_art(AllStarAssetPack *pack,
             rom, 0x582b, 0x62a5, player_bytes + 358 * 16, 205 * 16) ||
         !decode_rom_rle_050f(
             rom, 0x62a6, 0x640e, ball_bytes, sizeof(ball_bytes)) ||
+        /* One-on-One $1FFA->$2021 and $2219 select bank 3 $793F->$9600
+           for the 17 net/HUD tiles whose signed BG IDs are $60..$70.
+           $0B9A then calls $04B1 with A=1, selecting $7A23->$9000 and
+           $7E48->$9800 for the 86-tile court and 640-byte map. */
+        !decode_rom_rle_050f(
+            rom, 0xf93f, 0xfa22, net_bytes, sizeof(net_bytes)) ||
         !decode_rom_rle_050f(
             rom, 0xfa23, 0xfe47, court_bytes, sizeof(court_bytes)) ||
         !decode_rom_rle_050f(
@@ -254,6 +261,8 @@ static bool extract_one_on_one_art(AllStarAssetPack *pack,
                       pack->ball_source_tiles);
     decode_tile_bytes(court_bytes, ALLSTAR_COURT_TILE_COUNT,
                       pack->court_tiles);
+    decode_tile_bytes(net_bytes, ALLSTAR_NET_TILE_COUNT,
+                      pack->net_tiles);
 
     for (family = 0; family < 3; family++) {
         for (frame = 0; frame < frame_counts[family]; frame++) {
@@ -297,6 +306,7 @@ static bool extract_one_on_one_art(AllStarAssetPack *pack,
     pack->header.ball_source_tile_count = ALLSTAR_BALL_SOURCE_TILE_COUNT;
     pack->header.ball_oam_pair_count = ALLSTAR_BALL_OAM_PAIR_COUNT;
     pack->header.court_tile_count = ALLSTAR_COURT_TILE_COUNT;
+    pack->header.net_tile_count = ALLSTAR_NET_TILE_COUNT;
     pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART;
     return true;
 }
@@ -416,7 +426,10 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
                pack->header.ball_oam_pair_count ||
         fwrite(pack->court_tiles, sizeof(AllStarTile),
                pack->header.court_tile_count, f) !=
-               pack->header.court_tile_count) {
+               pack->header.court_tile_count ||
+        fwrite(pack->net_tiles, sizeof(AllStarTile),
+               pack->header.net_tile_count, f) !=
+               pack->header.net_tile_count) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -473,14 +486,16 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
           pack->header.ball_source_tile_count !=
               ALLSTAR_BALL_SOURCE_TILE_COUNT ||
           pack->header.ball_oam_pair_count != ALLSTAR_BALL_OAM_PAIR_COUNT ||
-          pack->header.court_tile_count != ALLSTAR_COURT_TILE_COUNT)) ||
+          pack->header.court_tile_count != ALLSTAR_COURT_TILE_COUNT ||
+          pack->header.net_tile_count != ALLSTAR_NET_TILE_COUNT)) ||
         ((pack->header.feature_flags &
              ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) == 0 &&
          (pack->header.player_source_tile_count != 0 ||
           pack->header.player_frame_count != 0 ||
           pack->header.ball_source_tile_count != 0 ||
           pack->header.ball_oam_pair_count != 0 ||
-          pack->header.court_tile_count != 0))) {
+          pack->header.court_tile_count != 0 ||
+          pack->header.net_tile_count != 0))) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One asset counts\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);
@@ -512,7 +527,10 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
             pack->header.ball_oam_pair_count ||
         fread(pack->court_tiles, sizeof(AllStarTile),
               pack->header.court_tile_count, f) !=
-            pack->header.court_tile_count) {
+              pack->header.court_tile_count ||
+        fread(pack->net_tiles, sizeof(AllStarTile),
+              pack->header.net_tile_count, f) !=
+              pack->header.net_tile_count) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);

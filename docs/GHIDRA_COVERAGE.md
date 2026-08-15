@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **27/114 (23.68%)**. All 114 entry points have stable bank-aware symbols and decompile successfully; 56 are explicitly unmapped, 31 have candidate native analogues, and 27 mappings are verified by deterministic tests and traces. The newly recovered score-presentation group adds `$27C7/$27EA/$2D08` and verifies the `$27C7/$27EA` palette transition against a live cartridge trace; `$20F7/$2D08` remain conservative candidates until their whole-routine state surfaces are mapped. This is a conservative reviewed subset, not a claim that the entire ROM contains only 114 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **31/117 (26.50%)**. All 117 entry points have stable bank-aware symbols and decompile successfully; 56 are explicitly unmapped, 30 have candidate native analogues, and 31 mappings are verified by deterministic tests and traces. This audit adds verified whole-routine credit for `$1F33` net-effect initialization, `$2AB5` roster command dispatch, `$6F2A` final dribble placement, and `$782E` movement-action/audio selection. It also corrects the asset call graph: `$2219` receives net-loader credit, while `$2243` is returned to unmapped because it belongs to another mode. This is a conservative reviewed subset, not a claim that the entire ROM contains only 117 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -21,6 +21,12 @@ corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
 `$27CC`, and the next `$702D` inbound update.
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
+
+The focused One-on-One presentation/audio event manifest is **20/20
+(100.00%)**, up from a reconstructed pre-audit **6/20 (30.00%)**. It covers
+`$1ECC` net animation, sound commands `$05/$08/$0C/$0D/$0E/$0F`, `$6F2A`
+held-ball placement, and their live integration. The bank-0 `$3014` APU
+sequencer remains only a candidate, so this does not claim waveform parity.
 
 ## Scope
 
@@ -42,15 +48,15 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Reviewed Ghidra functions | 114 functions | 59 in bank 0, 47 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
-| Generated Ghidra C export | 127 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 27 of 114 | 27 mappings have address-level C plus deterministic or emulator evidence; 31 candidates remain below whole-routine evidence threshold. |
+| Reviewed Ghidra functions | 117 functions | 61 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 130 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed routine-to-C parity | 31 of 117 | 31 mappings have address-level C plus deterministic or emulator evidence; 30 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Current focused behavior checks | 12 | The earlier checks plus the complete 258-frame score-sound/fade/playable-inbound trace are checked; broader frame-perfect comparison remains intentionally outside the current goal. |
+| Headless Mesen trace scripts | 10 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, input, shot, defense, RNG, animation, collision, and contact-rule assertions. |
 
 ### Reviewed Ghidra recovery
 
@@ -58,8 +64,8 @@ Game rules, two-player state synchronization after transport, audio command sequ
 
 The current conservative boundaries are:
 
-- bank 0: 59 boot, RNG, cross-bank anchor, One-on-One lifecycle, score-presentation, contact-rule, asset-load, player-composition, steal, and recovery routines;
-- bank 1: 47 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher; generated labels before that region remain excluded as likely data false positives;
+- bank 0: 61 boot, RNG, cross-bank anchor, One-on-One lifecycle, score-presentation, contact-rule, asset-load, player-composition, steal, recovery, and roster-audio routines;
+- bank 1: 48 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher and `$6F2A` final dribble placement; generated labels before that region remain excluded as likely data false positives;
 - bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
 - bank 3: no reviewed functions yet; observed uses are asset-copy sources.
 
@@ -111,7 +117,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Input edge detection | Yes | No | Native utility; raw hardware polling excluded |
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
-| Roster selection | Yes | No | Partial; data remains hardcoded |
+| Roster selection | Yes | Scoped audio behavior | Navigation command `$0E` and accepted-player multi-step command `$0F` are live-traced and integrated; data and screen art remain hardcoded/partial. |
 | One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus | Lifecycle, possession, shooting, RNG, record-boundary movement, charging/blocking, CPU contact response, recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
@@ -122,10 +128,10 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
 | CPU AI | Yes | Scoped One-on-One behavior | The prior target/shot/steal/contest/RNG paths plus `$75CD` owner reroute/fourteenth-contact shot and defender ten-count saved-position hold are integrated; unrelated `$7170` states remain incomplete. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
-| Court/menu/player rendering | Yes | One-on-One scoped | Court, player, ball, and shadow tiles/composition load from asset-pack v4; other screens retain separate presentation work. |
-| ROM asset extraction | Yes | One-on-One scoped | Exact player/frame/court/ball sources, `$050F` RLE, composition maps, endpoint validation, and runtime loading are implemented. |
+| Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net, player, ball, and shadow tiles/composition load from asset-pack v5; other screens retain separate presentation work. |
+| ROM asset extraction | Yes | One-on-One scoped | Exact player/frame/net/court/ball sources, `$050F` RLE, composition maps, endpoint validation, and runtime loading are implemented. |
 | PCM output/mixing | Yes | Not applicable to original implementation | Native platform layer |
-| ROM music/SFX sequencing | No | No | Missing |
+| ROM music/SFX sequencing | Partial | Event-level One-on-One subset | Commands `$05/$08/$0C/$0D/$0E/$0F` are dispatched at exact traced events, but the complete `$3014` command/APU sequencer and waveform tables are not ported. |
 | Emulator/state/frame parity suite | No | No | Missing |
 
 No whole subsystem should currently be labeled 100% ROM-equivalent; the
@@ -175,4 +181,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **27/114 routine mappings verified**. Do not use 114 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus percentage is checked separately with `python tools/check_one_on_one_remaining_coverage.py`.
+The manifest now exists, so report its verified subset explicitly: **31/117 routine mappings verified**. Do not use 117 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus and presentation/audio percentages are checked separately with `python tools/check_one_on_one_remaining_coverage.py` and `python tools/check_one_on_one_presentation_audio_coverage.py`.

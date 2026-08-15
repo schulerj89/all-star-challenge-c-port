@@ -1,11 +1,11 @@
 # One-on-One asset and OAM parity
 
-## Asset-pack v4 layout
+## Asset-pack v5 layout
 
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-4 pack.
+small composition maps in a version-5 pack.
 
 | Asset | ROM source | Decoded result |
 |---|---|---:|
@@ -17,6 +17,7 @@ small composition maps in a version-4 pack.
 | Player tiles B | bank 1 `$4DE8..$582A`, `$050F` RLE | 211 tiles |
 | Player tiles C | bank 1 `$582B..$62A5`, `$050F` RLE | 205 tiles |
 | Ball/shadow tiles | bank 1 `$62A6..$640E`, `$1FFA/$20BA` | 42 source tiles, interleaved with blank VRAM tiles by the ROM |
+| Net/HUD tiles | bank 3 CPU `$793F..$7A22`, file `$F93F..$FA22`; `$1FFA/$2021` and `$2219` | 17 tiles at VRAM `$9600`, signed BG IDs `$60..$70` |
 | Court tiles | bank 3 CPU `$7A23..$7E47`, file `$FA23..$FE47` | 86 tiles |
 | Court map | bank 3 CPU `$7E48..$7F68`, file `$FE48..$FF68` | 640 bytes in a zero-filled 32×32 map |
 
@@ -43,10 +44,16 @@ recreating the Game Boy's temporary VRAM cache.
 the phase moves between halves by four and aligned OAM X shifts by four. Ball
 OAM Y is `ball_y-ball_z`; shadow Y is `ball_y`.
 
-For a held ball, `$7F37` supplies those inputs rather than a time-based bounce.
-The normal table uses player X `+7` or `+10` according to horizontal flip,
-ground Y minus two, and height `$26`. Display frames `$00` and `$0C` suppress
-the separate ball because the player frame already includes it.
+For shot gather and release, `$7F37` supplies those inputs. Its exact `$7FC7`
+tables are `[+7,-2],[+10,-2]` for action `$0A` and `[+7,+10],[-2,+8]`
+for the other shot family. Display frames `$00` and `$0C` suppress the
+separate ball because the player frame already includes it.
+
+During ordinary held-ball movement, `$6F2A` runs after `$7F37` and is the
+final placement. Actions `$01/$04/$08/$0B/$10/$13` have distinct X/Y offsets;
+actions `$10/$13` use player `+$02` bit 4 to select the side. Record index
+`+$03` selects height from `$6FEA`:
+`0C,0C,0C,08,04,00,04,08,0B,01,01,01`.
 
 | Height | `$6A5C` descriptor family |
 |---:|---|
@@ -60,11 +67,16 @@ signatures and phase-three OAM pairs:
 | Region/state | Live result |
 |---|---|
 | Ball VRAM `$8240`, 1,344 bytes | sum `$5B35`, weighted `$D064`, xor `$DB` |
+| Net tiles `$9600`, 272 bytes | sum `$71F7`, weighted `$8DFE`, xor `$35` |
 | Court tiles `$9000`, 1,376 bytes | sum `$A549`, weighted `$9BEE`, xor `$3F` |
 | Court map `$9800`, 640 bytes | sum `$1C9B`, weighted `$25B0`, xor `$71` |
 | Phase 3, Z `$07` | ball `$2E/$30`, shadow `$5C/$60` |
 | Phase 3, Z `$08` | ball `$2E/$30`, shadow `$5E/$60` |
 | Phase 3, Z `$1F` | ball `$2E/$30`, shadow `$48/$4A` |
+
+The loader attribution matters: One-on-One enters through `$0B9A` and selects
+the `$04B1` A=1 court pair. Fixed `$2243` belongs to another mode and receives
+no One-on-One coverage credit.
 
 ## Runtime boundary
 

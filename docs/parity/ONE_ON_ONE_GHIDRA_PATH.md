@@ -22,7 +22,9 @@ the cartridge.
 |---|---|---|
 | `$702D->$6A8C->$6C4D->$7F37` | Gather/release follows the live animation record; the signed lift raises both the shooter and held ball while the shadow remains grounded. | `allstar_one_on_one_rom_shot_record_index`, `allstar_one_on_one_rom_shot_jump_height_6c4d`, and the lifted player renderer. |
 | `$7C58->$7EA9->$7BE8->$1CED->$1E0E` | Select the distance/profile/record arc, integrate 8.8 motion, then accept only an exact score cell. | The ROM launcher and fixed physics contact dispatcher feed `allstar_one_on_one_score_presentation_begin_1e0e`. |
-| `$1E0E->$1F23->$2F88` | Run the made-basket effect clock; at `+65` frames commit the score and select sound command `$05`. | The score presentation emits `COMMIT`; the scene updates the score and plays `ALLSTAR_SFX_SWISH` on that exact event. |
+| `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
+| `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
+| `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select multi-step command `$05`. | The scene updates the score and plays the separate `ALLSTAR_SFX_SCORE_CHIME`. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
 | `$20F7->$27CC->$27EA->$2D08->$702D` | Rebuild possession at `+214`, reverse the palette table, reach the final counted `$FFEB=1` player update at `+254`, then restore OBJ/input for playable inbound at `+258`. | The scene resets possession at the same event and releases its input lock only at `INBOUND`. |
@@ -33,9 +35,9 @@ the former contact-only 12 items to 22 items; it moved from **12/22 (54.55%)**
 to **22/22 (100.00%)** once this complete path was converted.
 
 The pure C state machine retains those ROM-frame boundaries for regression
-proof. The live native scene deliberately consumes two presentation frames per
-display frame, shortening score contact through playable inbound from about
-4.3 seconds to 2.15 seconds while preserving the recovered event order.
+proof. The live native scene deliberately consumes three presentation frames
+per display frame, shortening score contact through playable inbound from
+about 4.3 seconds to 1.43 seconds while preserving the recovered event order.
 
 ## Per-frame contact and movement path
 
@@ -72,11 +74,13 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | ROM path | Native conversion |
 |---|---|
 | `$024A -> $1FFA/$20BA` | Asset-pack builder expands 42 ball/shadow source tiles from bank 1 `$62A6..$640E`. |
-| `$024A -> $2243 -> $04B1/$050F` | Builder decodes 86 court tiles from bank 3 `$7A23..$7E47` and the 640-byte, 32-stride map from `$7E48..$7F68`. |
+| `$1FFA->$2021` and `$2219` | Builder decodes the separate 17-tile net/HUD stream from bank 3 `$793F..$7A22`. |
+| `$0B9A -> $04B1(A=1) -> $050F` | Builder decodes 86 court tiles from bank 3 `$7A23..$7E47` and the 640-byte, 32-stride map from `$7E48..$7F68`. `$2243` is another mode and is not credited. |
 | `$2933/$293D -> $2945 -> $2A2B` | Builder extracts 563 player tiles and 60 frame maps; `allstar_renderer_rom_player_tiles_2945` performs normal/flipped 3-by-3 8x16 traversal. |
+| `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-4 asset pack. The old
+The extracted bytes exist only in a user-built version-5 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 
@@ -85,8 +89,8 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v4.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v4.pack
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v5.pack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v5.pack
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 
@@ -97,3 +101,4 @@ Headless Mesen evidence is in:
 - `tools/emulator/trace_one_on_one_assets.lua`
 - `tools/emulator/trace_one_on_one_shot_results.lua`
 - `tools/emulator/trace_one_on_one_score_presentation.lua`
+- `tools/emulator/trace_one_on_one_presentation_audio.lua`

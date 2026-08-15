@@ -1,6 +1,8 @@
 -- Headless Mesen assertions for the One-on-One art and ball-OAM path.
--- The ROM initializes ball/shadow graphics through $1FFA/$20BA, court art
--- through $2243->$04B1/$050F, then composes the ball through $6945/$69F5.
+-- The ROM initializes ball/shadow graphics through $1FFA/$20BA, net tiles
+-- through $1FFA/$2021 and $2219:$793F->$9600, and the court through
+-- $0B9A->$04B1:$7A23/$7E48->$9000/$9800.  It composes the ball through
+-- $6945/$69F5; $6F2A is the final live held-ball override.
 
 local totalFrames = 0
 local gameplayReached = false
@@ -46,7 +48,8 @@ local function signature(startAddress, length)
 end
 
 local function checkInitializedAssets()
-  if assetsChecked then return end
+  -- $04E2 is shared.  $C26F=1 identifies the completed One-on-One load.
+  if assetsChecked or read(0xC26F) ~= 1 then return end
   assetsChecked = true
   local sum, weighted, xorValue = signature(0x8240, 1344)
   expect(sum == 23349 and weighted == 53348 and xorValue == 219,
@@ -54,14 +57,20 @@ local function checkInitializedAssets()
   print(string.format("ASSET ball_vram len=1344 sum=%04X weighted=%04X xor=%02X",
     sum, weighted, xorValue))
 
+  sum, weighted, xorValue = signature(0x9600, 272)
+  expect(sum == 0x71F7 and weighted == 0x8DFE and xorValue == 0x35,
+    "$1FFA/$2021/$2219 net-tile expansion did not match the ROM stream")
+  print(string.format("ASSET net_tiles len=272 sum=%04X weighted=%04X xor=%02X",
+    sum, weighted, xorValue))
+
   sum, weighted, xorValue = signature(0x9000, 1376)
-  expect(sum == 42313 and weighted == 39918 and xorValue == 63,
-    "$2243/$050F court tile expansion did not match the ROM stream")
+  expect(sum == 0xA549 and weighted == 0x9BEE and xorValue == 0x3F,
+    "$04B1/$050F court tile expansion did not match the ROM stream")
   print(string.format("ASSET court_tiles len=1376 sum=%04X weighted=%04X xor=%02X",
     sum, weighted, xorValue))
 
   sum, weighted, xorValue = signature(0x9800, 640)
-  expect(sum == 7323 and weighted == 9648 and xorValue == 113,
+  expect(sum == 0x1C9B and weighted == 0x25B0 and xorValue == 0x71,
     "$04B1/$050F court tilemap expansion did not match the ROM stream")
   print(string.format("ASSET court_map len=640 sum=%04X weighted=%04X xor=%02X",
     sum, weighted, xorValue))
@@ -98,27 +107,35 @@ local function checkBallOam(checkedScenario)
     read(shadowOam + 2), read(shadowOam + 6)))
 end
 
-local function onHeldBallReturn()
+local function onHeldBallFinal()
   if not heldBallChecked then
     local owner = read(0xFFCF)
     local base = owner == 1 and 0xFF9D or (owner == 2 and 0xFFB6 or 0)
     if base ~= 0 then
-      local display = read(base + 3)
-      if read(base + 9) == 0 and display ~= 0 and display ~= 0x0C then
+      local action = read(base)
+      local record = read(base + 3)
+      local xOffsets = {[0x01]=3,[0x04]=6,[0x08]=13,[0x0B]=11}
+      local yOffsets = {[0x01]=0x28,[0x04]=0x2C,[0x08]=0x28,[0x0B]=0x25,
+                        [0x10]=0x28,[0x13]=0x26}
+      if yOffsets[action] ~= nil then
         local playerX = read(base + 6)
-        local groundY = read(base + 0x15)
         local visualY = read(base + 5)
-        local xOffset = (read(base + 2) & 0x10) ~= 0 and 10 or 7
+        local directionBit = (read(base + 2) & 0x10) ~= 0
+        local xOffset = xOffsets[action]
+        if action == 0x10 then xOffset = directionBit and 13 or 0 end
+        if action == 0x13 then xOffset = directionBit and 14 or 2 end
+        local bounce = {0x0C,0x0C,0x0C,0x08,0x04,0x00,
+                        0x04,0x08,0x0B,0x01,0x01,0x01}
         local expectedX = (playerX + xOffset) & 0xFF
-        local expectedY = (groundY - 2) & 0xFF
-        local expectedZ = ((groundY - 4) - (visualY - 2)) & 0xFF
+        local expectedY = (visualY + yOffsets[action]) & 0xFF
+        local expectedZ = bounce[math.min(record + 1, 12)]
         expect(read(0xC0A3) == expectedX and
                read(0xC0A7) == expectedY and
                read(0xC0AB) == expectedZ,
-          "$7F37 held-ball X/Y/Z did not match the player frame")
+          "$6F2A held-ball X/Y/Z did not match the player action/record")
         print(string.format(
-          "HELD $7F37 owner=%d frame=%02X flip=%d ball=%02X/%02X/%02X",
-          owner, display, (read(base + 2) & 0x10) ~= 0 and 1 or 0,
+          "HELD $6F2A owner=%d action=%02X record=%02X flip=%d ball=%02X/%02X/%02X",
+          owner, action, record, directionBit and 1 or 0,
           read(0xC0A3), read(0xC0A7), read(0xC0AB)))
         heldBallChecked = true
       end
@@ -150,10 +167,6 @@ local function onBallComposer()
   scenario = scenario + 1
 end
 
-local function onCourtLoadReturn()
-  if read(0xC26F) == 1 then checkInitializedAssets() end
-end
-
 local function onInputPolled()
   totalFrames = totalFrames + 1
   local input = {
@@ -180,7 +193,7 @@ local function onEndFrame()
   if oamDone and assetsChecked and heldBallChecked then
     stopping = true
     print(failures == 0 and
-      "TRACE PASSED: One-on-One assets, $7F37 held ball, and $6945/$69F5 OAM" or
+      "TRACE PASSED: One-on-One assets, $6F2A held ball, and $6945/$69F5 OAM" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))
     emu.stop(failures == 0 and 0 or 3)
   elseif totalFrames >= 3600 then
@@ -192,9 +205,9 @@ end
 
 emu.addMemoryCallback(onBallComposer, emu.callbackType.exec,
   0x6945, 0x6945, emu.cpuType.gameboy, emu.memType.gameboyMemory)
-emu.addMemoryCallback(onHeldBallReturn, emu.callbackType.exec,
-  0x7FC6, 0x7FC6, emu.cpuType.gameboy, emu.memType.gameboyMemory)
-emu.addMemoryCallback(onCourtLoadReturn, emu.callbackType.exec,
+emu.addMemoryCallback(onHeldBallFinal, emu.callbackType.exec,
+  0x6FE1, 0x6FE1, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(checkInitializedAssets, emu.callbackType.exec,
   0x04E2, 0x04E2, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onRosterChoose, emu.callbackType.exec,
   0x40F4, 0x40F4, emu.cpuType.gameboy, emu.memType.gameboyMemory)

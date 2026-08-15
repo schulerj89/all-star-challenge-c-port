@@ -41,6 +41,11 @@ typedef struct {
     float anim_timer;
 } SceneOneOnOneData;
 
+static bool one_on_one_action_uses_dribble_ball_6f2a(uint8_t action) {
+    return action == 0x01 || action == 0x04 || action == 0x08 ||
+           action == 0x0b || action == 0x10 || action == 0x13;
+}
+
 static AllStarRomContactEvent one_on_one_tick_rom_animations(
     SceneOneOnOneData *data,
     AllStarGame *game,
@@ -60,12 +65,16 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
             contact_offender);
         if (contact_event != ALLSTAR_ROM_CONTACT_NONE) return contact_event;
         if (!data->p1.is_shooting) {
-            allstar_one_on_one_rom_select_movement_action_782e(
+            if (allstar_one_on_one_rom_select_movement_action_782e(
                 &data->p1_animation,
                 data->p1_input_direction, 0,
                 data->p1_previous_direction, !data->p1.has_ball,
                 data->p1_steal_latch_frames > 0,
-                &data->p1_horizontal_flip);
+                &data->p1_horizontal_flip)) {
+                /* $78DD->$78E0 selects command $0D on an action change. */
+                allstar_audio_play_sfx(
+                    &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
+            }
         }
         if (!data->p1.is_shooting &&
             allstar_one_on_one_rom_animation_tick_6a8c(
@@ -81,17 +90,24 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     data->p2.x, data->p2.y,
                     &data->p1_contact.blocked_contact);
             }
-            if (moved && data->p1.has_ball) {
+            (void)moved;
+            /* $6FD2->$6FE5 checks player +$03 after $6A8C and selects
+               command $0C on every update for the six-frame record 6. */
+            if (data->p1.has_ball && data->p1_animation.record_index == 6 &&
+                one_on_one_action_uses_dribble_ball_6f2a(
+                    data->p1_animation.action))
                 allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
-            }
         }
         if (!data->p2.is_shooting) {
-            allstar_one_on_one_rom_select_movement_action_782e(
+            if (allstar_one_on_one_rom_select_movement_action_782e(
                 &data->p2_animation,
                 data->p2_input_direction, 0,
                 data->p2_previous_direction, !data->p2.has_ball,
                 data->p2_steal_latch_frames > 0,
-                &data->p2_horizontal_flip);
+                &data->p2_horizontal_flip)) {
+                allstar_audio_play_sfx(
+                    &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
+            }
         }
         if (!data->p2.is_shooting &&
             allstar_one_on_one_rom_animation_tick_6a8c(
@@ -107,9 +123,11 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     data->p1.x, data->p1.y,
                     &data->p2_contact.blocked_contact);
             }
-            if (moved && data->p2.has_ball) {
+            (void)moved;
+            if (data->p2.has_ball && data->p2_animation.record_index == 6 &&
+                one_on_one_action_uses_dribble_ball_6f2a(
+                    data->p2_animation.action))
                 allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
-            }
         }
     }
     return ALLSTAR_ROM_CONTACT_NONE;
@@ -504,6 +522,11 @@ static bool one_on_one_update_score_presentation(SceneOneOnOneData *data,
             &game->one_on_one, data->score_presentation.shooter,
             data->score_presentation.points);
         /* $1F23 calls $2F88 command $05 when the score effect counter ends. */
+        /* $1F06 selects normal score command $05. */
+        allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SCORE_CHIME);
+    }
+    if (score_events & ALLSTAR_ROM_SCORE_EVENT_NET_SOUND) {
+        /* $1F26 selects command $08 with the first net bend at +20. */
         allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
     }
 
@@ -823,7 +846,9 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
     }
 
     allstar_renderer_clear(renderer, 0);
-    allstar_renderer_draw_court(renderer);
+    allstar_renderer_draw_court_net_1ecc(
+        renderer, (uint8_t)allstar_one_on_one_score_net_frame_1ecc(
+            data->score_presentation.elapsed_frames));
     s1 = allstar_roster_get_player(&game->roster, game->selected_player_1);
     s2 = allstar_roster_get_player(&game->roster, game->selected_player_2);
 
@@ -893,6 +918,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
         data->p2.is_shooting ? data->p2_shot_action
                              : data->p2_animation.action,
         data->p2.anim_frame,
+        data->p2_animation.record_index,
         data->anim_timer, p2_facing_left);
     allstar_renderer_draw_player_lifted_ex(renderer,
         (int32_t)data->p1.x, (int32_t)data->p1.y, p1_visual_lift,
@@ -903,6 +929,7 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
         data->p1.is_shooting ? data->p1_shot_action
                              : data->p1_animation.action,
         data->p1.anim_frame,
+        data->p1_animation.record_index,
         data->anim_timer, p1_facing_left);
     if (data->ball.in_flight || (!data->p1.has_ball && !data->p2.has_ball)) {
         allstar_renderer_draw_ball_ex(renderer, (int32_t)data->ball.x, (int32_t)data->ball.y,

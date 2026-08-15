@@ -68,6 +68,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-settings                    Verify ROM settings values and persistence\n");
     printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
     printf("  --test-one-on-one-shooting         Verify staged shooting and traveling\n");
+    printf("  --test-one-on-one-presentation     Verify One-on-One movement/roster audio\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -842,15 +843,15 @@ int allstar_cli_test_one_on_one_shooting(void) {
         allstar_renderer_rom_held_ball_7f37(
             80, 130, 0x13, 0x0d, false, &held_ball);
         if (!held_ball.visible || held_ball.ball_x != 0x4f ||
-            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x1a ||
             held_ball.behind_owner) {
             fprintf(stderr, "[Test] $7F37 unflipped held-ball placement was incorrect\n");
             return 1;
         }
         allstar_renderer_rom_held_ball_7f37(
             84, 130, 0x13, 0x0d, true, &held_ball);
-        if (!held_ball.visible || held_ball.ball_x != 0x56 ||
-            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
+        if (!held_ball.visible || held_ball.ball_x != 0x4a ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x1c ||
             !held_ball.behind_owner) {
             fprintf(stderr, "[Test] $7F37 flipped/rear held-ball placement was incorrect\n");
             return 1;
@@ -859,6 +860,19 @@ int allstar_cli_test_one_on_one_shooting(void) {
             80, 130, 0x13, 0x0c, false, &held_ball);
         if (held_ball.visible) {
             fprintf(stderr, "[Test] $7F37 frame-contained ball was drawn twice\n");
+            return 1;
+        }
+        allstar_renderer_rom_dribble_ball_6f2a(
+            84, 130, 0x13, 1, true, &held_ball);
+        if (!held_ball.visible || held_ball.ball_x != 0x5a ||
+            held_ball.ball_y != 0x96 || held_ball.ball_z != 0x0c) {
+            fprintf(stderr, "[Test] $6F2A held-ball placement was incorrect\n");
+            return 1;
+        }
+        allstar_renderer_rom_dribble_ball_6f2a(
+            84, 130, 0x13, 6, true, &held_ball);
+        if (held_ball.ball_z != 0x04) {
+            fprintf(stderr, "[Test] $6FEA bounce table was incorrect\n");
             return 1;
         }
     }
@@ -1592,7 +1606,9 @@ int allstar_cli_test_one_on_one_shooting(void) {
             (frame == ALLSTAR_ROM_SCORE_FADE_IN_FRAME) !=
             ((score_flags & ALLSTAR_ROM_SCORE_EVENT_FADE_IN) != 0) ||
             (frame == ALLSTAR_ROM_SCORE_INBOUND_FRAME) !=
-            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_INBOUND) != 0)) {
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_INBOUND) != 0) ||
+            (frame == ALLSTAR_ROM_SCORE_NET_FIRST_FRAME) !=
+            ((score_flags & ALLSTAR_ROM_SCORE_EVENT_NET_SOUND) != 0)) {
             fprintf(stderr,
                     "[Test] $1E0E/$0C13 score event occurred on the wrong frame %d\n",
                     frame);
@@ -1608,6 +1624,19 @@ int allstar_cli_test_one_on_one_shooting(void) {
             fprintf(stderr, "[Test] $27C7/$27CC BGP stage was incorrect\n");
             return 1;
         }
+    }
+    if (allstar_one_on_one_score_net_frame_1ecc(19) !=
+            ALLSTAR_ROM_NET_UNCHANGED ||
+        allstar_one_on_one_score_net_frame_1ecc(20) !=
+            ALLSTAR_ROM_NET_BEND ||
+        allstar_one_on_one_score_net_frame_1ecc(35) !=
+            ALLSTAR_ROM_NET_DEEP ||
+        allstar_one_on_one_score_net_frame_1ecc(50) !=
+            ALLSTAR_ROM_NET_BEND ||
+        allstar_one_on_one_score_net_frame_1ecc(65) !=
+            ALLSTAR_ROM_NET_REST) {
+        fprintf(stderr, "[Test] $1ECC net frame sequence was incorrect\n");
+        return 1;
     }
     if (score_presentation.active ||
         score_presentation.elapsed_frames != ALLSTAR_ROM_SCORE_INBOUND_FRAME ||
@@ -1627,9 +1656,11 @@ int allstar_cli_test_one_on_one_shooting(void) {
             ALLSTAR_PHYSICS_STEP_SECONDS *
                 ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE);
     }
-    if (score_presentation.active || frame - 1 != 129) {
+    if (score_presentation.active || frame - 1 !=
+            (int)ceilf(ALLSTAR_ROM_SCORE_INBOUND_FRAME /
+                       ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE)) {
         fprintf(stderr,
-                "[Test] Native 2x score presentation did not finish in 129 frames\n");
+                "[Test] Native accelerated score presentation duration was incorrect\n");
         return 1;
     }
 
@@ -1674,7 +1705,7 @@ int allstar_cli_test_one_on_one_shooting(void) {
             (int)ceilf(
                 ALLSTAR_ROM_SCORE_COMMIT_FRAME /
                     ALLSTAR_NATIVE_SCORE_PRESENTATION_RATE) ||
-        score_sfx != ALLSTAR_SFX_SWISH) {
+        score_sfx != ALLSTAR_SFX_SCORE_CHIME) {
         fprintf(stderr,
                 "[Test] Timed native make did not follow $1E0E->$1F23->$20F7 "
                 "(score=%u possession=%d score_frame=%d reset_frame=%d sfx=%d)\n",
@@ -1997,6 +2028,79 @@ int allstar_cli_test_headless_frames(void) {
     return 0;
 }
 
+int allstar_cli_test_one_on_one_presentation(void) {
+    AllStarGame game;
+    bool dribble_heard = false;
+    int frame;
+    printf("[Test] Running One-on-One Presentation/Audio Integration Tests...\n");
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing presentation/audio game\n");
+        return 1;
+    }
+
+    game.selected_mode = ALLSTAR_MODE_ONE_ON_ONE;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (game.audio.last_sfx != ALLSTAR_SFX_SHOE_SQUEAK) {
+        fprintf(stderr, "[Test] $78DD command-$0D shoe squeak was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    for (frame = 0; frame < 72; frame++) {
+        game.audio.last_sfx = ALLSTAR_SFX_NONE;
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (game.audio.last_sfx == ALLSTAR_SFX_DRIBBLE) {
+            dribble_heard = true;
+            break;
+        }
+    }
+    if (!dribble_heard) {
+        fprintf(stderr, "[Test] $6FE5 command-$0C dribble cadence was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
+    allstar_game_tick(&game, 0.8f);
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    allstar_game_tick(&game, 0.0f);
+    if (game.audio.last_sfx != ALLSTAR_SFX_MENU_MOVE) {
+        fprintf(stderr, "[Test] bank-2 command-$0E roster cue was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    if (game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
+        fprintf(stderr, "[Test] bank-2 command-$0F roster confirm was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_game_tick(&game, 0.8f);
+    game.audio.last_sfx = ALLSTAR_SFX_NONE;
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    if (game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
+        fprintf(stderr, "[Test] second command-$0F roster confirm was not dispatched\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: $0C/$0D gameplay cues and $0E/$0F roster cues\n");
+    return 0;
+}
+
 int allstar_cli_dump_screenshots(const char *out_dir,
                                  const char *asset_pack_path) {
     printf("[Screenshots] Exporting scene screenshots to: %s\n", out_dir);
@@ -2042,7 +2146,7 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     snprintf(path, sizeof(path), "%s\\04_one_on_one.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    /* 4d. Held-ball movement exposes the separate $7F37 ball sprite. */
+    /* 4d. Held-ball movement exposes the final $6F2A dribble placement. */
     allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
     for (int i = 0; i < 8; i++) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
@@ -2125,6 +2229,31 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 4j-4l. Fixed $1ECC net frames use the extracted $793F tile stream. */
+    allstar_renderer_clear(game.renderer, 0);
+    allstar_renderer_draw_court_net_1ecc(
+        game.renderer, ALLSTAR_ROM_NET_BEND);
+    allstar_renderer_draw_text(game.renderer, "NET BEND +20", 8, 128, 3);
+    snprintf(path, sizeof(path), "%s\\04j_one_on_one_net_bend.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    allstar_renderer_clear(game.renderer, 0);
+    allstar_renderer_draw_court_net_1ecc(
+        game.renderer, ALLSTAR_ROM_NET_DEEP);
+    allstar_renderer_draw_text(game.renderer, "NET DEEP +35", 8, 128, 3);
+    snprintf(path, sizeof(path), "%s\\04k_one_on_one_net_deep.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    allstar_renderer_clear(game.renderer, 0);
+    allstar_renderer_draw_court_net_1ecc(
+        game.renderer, ALLSTAR_ROM_NET_REST);
+    allstar_renderer_draw_text(game.renderer, "NET REST +65", 8, 128, 3);
+    snprintf(path, sizeof(path), "%s\\04l_one_on_one_net_rest.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 5. Three Point */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
@@ -2162,6 +2291,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_settings();
     failed += allstar_cli_test_one_on_one_lifecycle();
     failed += allstar_cli_test_one_on_one_shooting();
+    failed += allstar_cli_test_one_on_one_presentation();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -2217,6 +2347,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_one_on_one_lifecycle();
     } else if (strcmp(cmd, "--test-one-on-one-shooting") == 0) {
         return allstar_cli_test_one_on_one_shooting();
+    } else if (strcmp(cmd, "--test-one-on-one-presentation") == 0) {
+        return allstar_cli_test_one_on_one_presentation();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

@@ -14,6 +14,8 @@ typedef enum {
     ALLSTAR_SFX_CHEER,
     ALLSTAR_SFX_MENU_MOVE,
     ALLSTAR_SFX_MENU_SELECT,
+    ALLSTAR_SFX_SHOE_SQUEAK,
+    ALLSTAR_SFX_SCORE_CHIME,
     ALLSTAR_SFX_COUNT
 } AllStarSfxId;
 
@@ -36,18 +38,19 @@ typedef struct {
     uint32_t sfx_play_count;
 } AllStarAudioEngine;
 
-/* Ghidra: Call_000_0002 - Audio Driver Tick & Hardware Updates */
+/* Native PCM platform layer. The cartridge command/APU sequencer begins in
+   the reviewed fixed-bank $3014 region and is not yet ported whole. */
 void allstar_audio_init(AllStarAudioEngine *audio);
 void allstar_audio_update(AllStarAudioEngine *audio, float dt);
 
-/* Ghidra: Call_000_000c - Sound Channel Tone Generator */
+/* Native fallback-tone utility; not a ROM-routine mapping. */
 void allstar_audio_generate_tone(int channel, float frequency_hz, float duration_sec);
 
-/* Ghidra: Call_000_0078 / Call_000_007b - BGM Start & Stop Dispatcher */
+/* Native PCM stream controls; not mappings for reset/vector addresses. */
 void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm);
 void allstar_audio_stop_bgm(AllStarAudioEngine *audio);
 
-/* Ghidra: Call_000_0aa3 / Call_000_07b4 - SFX Voice Player */
+/* Event-level SFX dispatch. One-on-One command timing is mapped separately. */
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx);
 
 #endif /* ALLSTAR_AUDIO_H */

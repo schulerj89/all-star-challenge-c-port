@@ -65,6 +65,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-mode-routing                Verify all ROM menu IDs route correctly\n");
     printf("  --test-settings                    Verify ROM settings values and persistence\n");
     printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
+    printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
     printf("  --help                             Show this help message\n");
@@ -396,6 +397,99 @@ int allstar_cli_test_one_on_one_lifecycle(void) {
     return 0;
 }
 
+int allstar_cli_test_tournament(void) {
+    AllStarTournamentState tournament;
+    AllStarGame game;
+    uint32_t player_1;
+    uint32_t player_2;
+    uint32_t quarterfinal_winners[4];
+    uint32_t semifinal_winners[2];
+    int match;
+
+    printf("[Test] Running Tournament Bracket Parity Tests...\n");
+    allstar_tournament_reset(&tournament);
+
+    for (match = 0; match < 4; match++) {
+        if (tournament.round != 0 || tournament.current_match != match ||
+            !allstar_tournament_get_current_match(&tournament, &player_1, &player_2)) {
+            fprintf(stderr, "[Test] Quarterfinal %d was not exposed in bracket order\n", match + 1);
+            return 1;
+        }
+        tournament.match_in_progress = true;
+        if (allstar_tournament_record_winner(&tournament, UINT32_MAX)) {
+            fprintf(stderr, "[Test] Tournament accepted a winner outside the active match\n");
+            return 1;
+        }
+        quarterfinal_winners[match] = (match & 1) ? player_2 : player_1;
+        if (!allstar_tournament_record_winner(&tournament, quarterfinal_winners[match]) ||
+            tournament.match_in_progress) {
+            fprintf(stderr, "[Test] Quarterfinal %d winner was not recorded\n", match + 1);
+            return 1;
+        }
+    }
+
+    if (tournament.round != 1 || tournament.current_match != 0 ||
+        memcmp(tournament.semifinalists, quarterfinal_winners,
+               sizeof(quarterfinal_winners)) != 0) {
+        fprintf(stderr, "[Test] Four quarterfinal winners did not form the semifinal round\n");
+        return 1;
+    }
+
+    for (match = 0; match < 2; match++) {
+        if (!allstar_tournament_get_current_match(&tournament, &player_1, &player_2) ||
+            player_1 != quarterfinal_winners[match * 2] ||
+            player_2 != quarterfinal_winners[match * 2 + 1]) {
+            fprintf(stderr, "[Test] Semifinal %d pairing did not use adjacent bracket winners\n", match + 1);
+            return 1;
+        }
+        semifinal_winners[match] = player_2;
+        tournament.match_in_progress = true;
+        if (!allstar_tournament_record_winner(&tournament, semifinal_winners[match])) {
+            fprintf(stderr, "[Test] Semifinal %d winner was not recorded\n", match + 1);
+            return 1;
+        }
+    }
+
+    if (tournament.round != 2 || tournament.current_match != 0 ||
+        memcmp(tournament.finalists, semifinal_winners,
+               sizeof(semifinal_winners)) != 0 ||
+        !allstar_tournament_get_current_match(&tournament, &player_1, &player_2) ||
+        player_1 != semifinal_winners[0] || player_2 != semifinal_winners[1]) {
+        fprintf(stderr, "[Test] Two semifinal winners did not form the final\n");
+        return 1;
+    }
+
+    tournament.match_in_progress = true;
+    if (!allstar_tournament_record_winner(&tournament, player_1) ||
+        !tournament.complete || tournament.champion != player_1 ||
+        tournament.match_in_progress ||
+        allstar_tournament_get_current_match(&tournament, NULL, NULL) ||
+        allstar_tournament_record_winner(&tournament, player_2)) {
+        fprintf(stderr, "[Test] Final winner did not close and lock the bracket\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Failed initializing game for champion exit flow\n");
+        return 1;
+    }
+    game.selected_mode = ALLSTAR_MODE_TOURNAMENT;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_TOURNAMENT);
+    game.tournament = tournament;
+    game.input.buttons_pressed = ALLSTAR_BTN_A;
+    allstar_game_tick(&game, 0.0f);
+    if (!game.active_scene || game.active_scene->id != ALLSTAR_SCENE_INTRO ||
+        game.tournament.active) {
+        fprintf(stderr, "[Test] Champion dismissal did not return to the title flow\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_shutdown(&game);
+
+    printf("[Test] PASSED: 4 quarterfinals, 2 semifinals, final, champion, and exit\n");
+    return 0;
+}
+
 int allstar_cli_test_settings(void) {
     AllStarGameSettings settings;
     AllStarGame game;
@@ -653,6 +747,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_mode_routing();
     failed += allstar_cli_test_settings();
     failed += allstar_cli_test_one_on_one_lifecycle();
+    failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
     if (failed == 0) {
@@ -705,6 +800,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_settings();
     } else if (strcmp(cmd, "--test-one-on-one-lifecycle") == 0) {
         return allstar_cli_test_one_on_one_lifecycle();
+    } else if (strcmp(cmd, "--test-tournament") == 0) {
+        return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

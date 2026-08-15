@@ -124,13 +124,13 @@ Input is updated by the Win32 host before this call.
 | Flow or mode | Current native coverage | Important missing behavior |
 |---|---|---|
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
-| Settings | UI only | Play-to, difficulty, winners-outs, time, and attempt count are discarded on scene change. |
+| Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Lifecycle verified | Steals, blocks, collision, contested shots, rebound rules, winners-outs, and difficulty behavior remain. |
+| One-on-One | Lifecycle verified; rules partial | Scoring, shot-clock possession, rebounds, winners-outs, and difficulty cadence exist; steals, blocks, collision penalties, and contested-shot fidelity remain. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
-| Accuracy Shootout | Missing/misidentified | Current `scene_three_point.c` is a generic five-rack contest and is not routed from the Accuracy option. |
-| Tournament | Partial | One-on-One winner return and bracket advancement work; full bracket presentation and championship parity remain unverified. |
+| Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |
+| Tournament | Gameplay flow verified | Winner propagation, four quarterfinals, two semifinals, final, champion lock, and title return are deterministic; presentation remains partial. |
 | Two-player | Missing | Second input stream and two-human rules. Serial hardware transport is outside the native-port requirement. |
 
 ## 6. Audio Status
@@ -153,7 +153,9 @@ The native port currently loads three BGM WAV files and two menu SFX WAV files. 
 | `--test-roster` | Hardcoded roster count and two selected entries | ROM-derived roster fidelity. |
 | `--test-physics` | A projectile can be initialized and advanced | ROM trajectory, rim interaction, or scoring parity. |
 | `--test-mode-routing` | All five ROM menu IDs reach the intended native scenes | Rules within those scenes. |
+| `--test-settings` | ROM defaults/value cycles persist and affect the relevant mode state | Full mode or presentation parity. |
 | `--test-one-on-one-lifecycle` | Endings, shot-clock turnover, overtime, result dismissal, exit, and tournament return | Detailed rules, physics, AI, or frame parity. |
+| `--test-tournament` | All seven bracket matches propagate valid winners through champion and exit | Roster-selection or pixel-level bracket presentation parity. |
 | `--test-headless-frames` | Seven scenes can tick and draw without crashing | Input flow, rules, results, visual parity, or completion. |
 
 ### Required parity layers

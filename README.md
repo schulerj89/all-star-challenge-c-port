@@ -14,12 +14,12 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
 | H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
-| Tournament | Partial | One-on-One winners return and advance the bracket; full tournament parity remains unverified. |
+| Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
 | Ghidra-to-C routine coverage | 1/90 verified | 90 reviewed bank-aware functions recover and decompile cleanly; the `$28E1` 16-bit winner comparator is verified, 13 mappings remain candidates, and 76 are unmapped. |
-| Verified project milestones | 36.00% | 9 of 25 strict milestones; analysis is 6/7 and gameplay parity is 3/11. |
+| Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -87,7 +87,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, a projectile smoke test, mode routing, settings persistence/consumption, the One-on-One lifecycle and possession transitions, and input-free scene ticking. Detailed contact rules, physics, AI, visuals, and emulator-state parity remain unverified.
+The tests cover roster invariants, a projectile smoke test, mode routing, settings persistence/consumption, the One-on-One lifecycle and possession transitions, the complete seven-match tournament bracket, and input-free scene ticking. Detailed contact rules, physics, AI, visuals, and automated emulator-state parity remain unverified.
 
 For manual comparison with the original ROM:
 

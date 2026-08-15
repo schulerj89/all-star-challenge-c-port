@@ -119,8 +119,14 @@ bool allstar_tournament_get_current_match(const AllStarTournamentState *tourname
 
 bool allstar_tournament_record_winner(AllStarTournamentState *tournament,
                                       uint32_t winner) {
+    uint32_t player_1;
+    uint32_t player_2;
     if (!tournament || !tournament->active || tournament->complete ||
         !tournament->match_in_progress) {
+        return false;
+    }
+    if (!allstar_tournament_get_current_match(tournament, &player_1, &player_2) ||
+        (winner != player_1 && winner != player_2)) {
         return false;
     }
 

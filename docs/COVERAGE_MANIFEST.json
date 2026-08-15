@@ -102,7 +102,9 @@
       "id": "behavior.tournament",
       "group": "gameplay",
       "description": "Tournament winner propagation, rounds, bracket state, and championship flow match the ROM.",
-      "status": "scaffolded"
+      "status": "verified",
+      "evidence": ["docs/parity/TOURNAMENT.md", "include/allstar_game.h", "src/allstar_game.c", "src/scenes/scene_tournament.c"],
+      "verification_command": ".\\build\\allstar_port.exe --test-tournament"
     },
     {
       "id": "behavior.horse",
@@ -212,6 +214,13 @@
       "total": 25,
       "percent": 36.0,
       "note": "Verified session-persistent ROM settings, exact value cycles, and downstream gameplay consumption; added partial One-on-One possession and winners-outs rules."
+    },
+    {
+      "date": "2026-08-14",
+      "verified": 10,
+      "total": 25,
+      "percent": 40.0,
+      "note": "Verified the seven-match tournament bracket, winner validation and propagation, round transitions, championship lock, and title return."
     }
   ]
 }

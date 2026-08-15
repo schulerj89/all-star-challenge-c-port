@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **34/50 (68.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
+One-on-One work also has a fixed 50-requirement scoped denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`. It is currently **35/50 (70.00%)** and can be checked with `python tools/check_one_on_one_coverage.py`. This focused metric does not add credit to the strict project manifest.
 
 ## 4. Current Native Architecture
 

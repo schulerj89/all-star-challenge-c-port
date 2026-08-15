@@ -597,7 +597,13 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_one_on_one_shot_reset(&attempt);
     allstar_one_on_one_shot_press(&attempt, 1);
     events = allstar_one_on_one_shot_tick(
-        &attempt, ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS);
+        &attempt, (ALLSTAR_ONE_ON_ONE_SHOT_GATHER_FRAMES - 1) / 60.0f);
+    if (events != ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER) {
+        fprintf(stderr, "[Test] Traveling was called before the 67-frame landing\n");
+        return 1;
+    }
+    events = allstar_one_on_one_shot_tick(&attempt, 1.0f / 60.0f);
     if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING) ||
         attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_IDLE || attempt.shooter != 0) {
         fprintf(stderr, "[Test] Landing without release did not call traveling\n");

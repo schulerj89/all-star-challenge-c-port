@@ -10,7 +10,7 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 |---|---|
 | First A press while possessing the ball | Begin the jump/gather and retain the ball. |
 | Second A press during the gather | Release the ball using the recovered `$7F37` phase-two origin. |
-| Gather expires without release | Call traveling, award the defender possession, and reset the shot clock. |
+| Gather reaches the 67-frame action terminal without release | Call traveling, award the defender possession, and reset the shot clock. |
 | CPU enters its shooting state | Use the same shot-launch path as the human player. |
 | Clean launch reaches frame 32 | Cross the hoop plane while descending, score exactly once, and apply post-score possession. |
 | Accuracy roll misses | Aim outside the five-pixel rim radius so the miss cannot be counted as a make. |
@@ -50,7 +50,7 @@ The original control description also establishes that A begins the jump, A rele
 
 This is a **partial rules improvement**, not verified shot or physics parity:
 
-- the native two-press/30-frame gather window is still a gameplay approximation; `$702D` input and `$C16A` phase timing need an emulator trace;
+- the native two-press input meaning remains provisional; `$702D` input bits and `$C16A` release-phase timing still need an emulator trace;
 - launch selection and remaining contact state are incomplete even though the `$7BE8` step itself now uses byte-sized 8.8 state;
 - the alternate `<<2` 64-frame trajectory class and `$7C58` launch tables are not yet classified;
 - accuracy ratings, contests, blocks, the remaining `$1CED` rim/backboard/bounce branches, and full rebound gates are not trace-matched;

@@ -74,6 +74,8 @@ typedef struct {
     AllStarOneOnOneShotPhase phase;
     int shooter;
     float gather_clock;
+    uint8_t rom_phase;
+    uint8_t release_latch_frames;
 } AllStarOneOnOneShotAttempt;
 
 typedef struct {
@@ -158,6 +160,10 @@ int allstar_one_on_one_rom_recovery_dispatch(
     bool p2_action_eligible,
     bool p2_collision);
 void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt);
+uint32_t allstar_one_on_one_shot_input(AllStarOneOnOneShotAttempt *attempt,
+                                       int player,
+                                       bool a_pressed,
+                                       bool b_held);
 uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
                                        int player);
 uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,

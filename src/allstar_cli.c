@@ -589,8 +589,32 @@ int allstar_cli_test_one_on_one_shooting(void) {
 
     events = allstar_one_on_one_shot_press(&attempt, 1);
     if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) ||
-        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED) {
-        fprintf(stderr, "[Test] Second A press did not release the shot\n");
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED ||
+        attempt.rom_phase != 0 || attempt.release_latch_frames != 0) {
+        fprintf(stderr, "[Test] $702D new-A did not release at phase zero\n");
+        return 1;
+    }
+
+    allstar_one_on_one_shot_reset(&attempt);
+    if (allstar_one_on_one_shot_input(&attempt, 1, false, true) !=
+            ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_IDLE) {
+        fprintf(stderr, "[Test] $702D accepted B before the A gather\n");
+        return 1;
+    }
+    allstar_one_on_one_shot_input(&attempt, 1, true, false);
+    if (allstar_one_on_one_shot_input(&attempt, 1, false, true) !=
+            ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER ||
+        attempt.rom_phase != 1 || attempt.release_latch_frames != 1) {
+        fprintf(stderr, "[Test] $702D held-B did not arm $C16A\n");
+        return 1;
+    }
+    events = allstar_one_on_one_shot_tick(&attempt, 1.0f / 60.0f);
+    if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) ||
+        attempt.phase != ALLSTAR_ONE_ON_ONE_SHOT_RELEASED ||
+        attempt.rom_phase != 2 || attempt.release_latch_frames != 0) {
+        fprintf(stderr, "[Test] $702D $C16A release did not advance to phase two\n");
         return 1;
     }
 

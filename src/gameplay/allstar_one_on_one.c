@@ -324,11 +324,21 @@ void allstar_one_on_one_shot_reset(AllStarOneOnOneShotAttempt *attempt) {
 
 uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
                                        int player) {
+    return allstar_one_on_one_shot_input(attempt, player, true, false);
+}
+
+/* ROM bank 1 $702D uses new-A at player +$11 for immediate release and
+ * held-B at +$12 for a one-frame $C16A phase-advance release. */
+uint32_t allstar_one_on_one_shot_input(AllStarOneOnOneShotAttempt *attempt,
+                                       int player,
+                                       bool a_pressed,
+                                       bool b_held) {
     if (!attempt || (player != 1 && player != 2)) {
         return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
     }
 
     if (attempt->phase == ALLSTAR_ONE_ON_ONE_SHOT_IDLE) {
+        if (!a_pressed) return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
         attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_GATHER;
         attempt->shooter = player;
         attempt->gather_clock = ALLSTAR_ONE_ON_ONE_SHOT_GATHER_SECONDS;
@@ -337,8 +347,14 @@ uint32_t allstar_one_on_one_shot_press(AllStarOneOnOneShotAttempt *attempt,
 
     if (attempt->phase == ALLSTAR_ONE_ON_ONE_SHOT_GATHER &&
         attempt->shooter == player) {
-        attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
-        return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE;
+        if (a_pressed && attempt->rom_phase == 0) {
+            attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
+            return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE;
+        }
+        if (b_held && attempt->rom_phase == 0) {
+            attempt->rom_phase = 1;
+            attempt->release_latch_frames = 1;
+        }
     }
 
     return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
@@ -349,6 +365,15 @@ uint32_t allstar_one_on_one_shot_tick(AllStarOneOnOneShotAttempt *attempt,
     if (!attempt || attempt->phase != ALLSTAR_ONE_ON_ONE_SHOT_GATHER ||
         dt <= 0.0f) {
         return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_NONE;
+    }
+
+    if (attempt->rom_phase != 0 && attempt->release_latch_frames > 0) {
+        attempt->release_latch_frames--;
+        if (attempt->release_latch_frames == 0) {
+            attempt->rom_phase++;
+            attempt->phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
+            return ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE;
+        }
     }
 
     attempt->gather_clock -= dt;

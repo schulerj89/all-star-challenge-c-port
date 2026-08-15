@@ -167,6 +167,12 @@
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Both recovered wedge tables and their strict/inclusive coordinate comparisons are ported and boundary-tested; an emulator state trace is still missing."
     },
+    "rom_b01_702d": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_shot_input",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The A-A phase-zero and A-B $C16A phase-one-to-two shot-release paths match a deterministic Mesen trace and native tests. Other action, possession, and player-state branches in the ROM routine remain incomplete."
+    },
     "rom_b01_7c58": {
       "status": "candidate",
       "native_symbol": "one_on_one_launch_shot",

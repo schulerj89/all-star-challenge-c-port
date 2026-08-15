@@ -70,6 +70,8 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         player->x, player->y);
     uint8_t shot_action = shot_variant == 1
         ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
+    uint8_t shot_phase = shooter == 1
+        ? data->shot_attempt.rom_phase : 2;
     AllStarOneOnOneReleaseOffset release_offset;
 
     if (rand() % 100 >= rating) {
@@ -81,14 +83,14 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
     player->is_shooting = true;
     player->is_jumping = false;
     if (allstar_one_on_one_rom_release_offset(
-            shot_action, 2, shot_variant,
+            shot_action, shot_phase, shot_variant,
             player->x > (shooter == 1 ? data->p2.x : data->p1.x),
             &release_offset)) {
         release_x += (float)release_offset.x_offset -
                      ALLSTAR_ROM_PLAYER_X_TO_CENTER;
         release_y += (float)release_offset.ground_y_offset;
         release_z = (float)allstar_one_on_one_rom_release_height(
-            (int)player->y - 40, (int)player->y, 2,
+            (int)player->y - 40, (int)player->y, shot_phase,
             release_offset.height_offset);
     }
     if (shooter == 1) {
@@ -128,7 +130,10 @@ static void one_on_one_update_shot_animations(SceneOneOnOneData *data,
                 (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
                  data->p1_shot_animation_clock) * 60.0f);
             allstar_one_on_one_rom_shot_animation_frame(
-                data->p1_shot_action, 0, elapsed_frames,
+                data->p1_shot_action,
+                data->shot_attempt.shooter == 1
+                    ? data->shot_attempt.rom_phase : 0,
+                elapsed_frames,
                 &data->p1.anim_frame);
         }
     }
@@ -248,6 +253,12 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     one_on_one_update_shot_animations(data, dt);
 
     events = allstar_one_on_one_shot_tick(&data->shot_attempt, dt);
+    if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
+        one_on_one_launch_shot(data, game, 1);
+        allstar_one_on_one_rom_shot_animation_frame(
+            data->p1_shot_action, data->shot_attempt.rom_phase, 0,
+            &data->p1.anim_frame);
+    }
     if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING) {
         events = allstar_one_on_one_match_call_traveling(&game->one_on_one, 1);
         if (events & ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING) {
@@ -273,9 +284,11 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
 
     allstar_one_on_one_rom_clamp_player_court(&data->p1.x, &data->p1.y);
 
-    if (data->p1.has_ball && allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-        uint32_t shot_events = allstar_one_on_one_shot_press(
-            &data->shot_attempt, 1);
+    if (data->p1.has_ball) {
+        uint32_t shot_events = allstar_one_on_one_shot_input(
+            &data->shot_attempt, 1,
+            allstar_input_is_pressed(input, ALLSTAR_BTN_A),
+            allstar_input_is_held(input, ALLSTAR_BTN_B));
         if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER) {
             uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
                 data->p1.x, data->p1.y);
@@ -286,10 +299,14 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             data->p1_shot_animation_clock =
                 ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
             allstar_one_on_one_rom_shot_animation_frame(
-                data->p1_shot_action, 1, 0, &data->p1.anim_frame);
+                data->p1_shot_action, data->shot_attempt.rom_phase, 0,
+                &data->p1.anim_frame);
         } else if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
             one_on_one_launch_shot(data, game, 1);
-            allstar_one_on_one_shot_reset(&data->shot_attempt);
+        } else if (data->shot_attempt.rom_phase == 1) {
+            allstar_one_on_one_rom_shot_animation_frame(
+                data->p1_shot_action, data->shot_attempt.rom_phase, 0,
+                &data->p1.anim_frame);
         }
     }
 

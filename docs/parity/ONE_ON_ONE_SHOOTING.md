@@ -9,7 +9,8 @@ The native One-on-One scene now uses a staged human shot instead of launching th
 | Input or event | Native result |
 |---|---|
 | First A press while possessing the ball | Begin the jump/gather and retain the ball. |
-| Second A press during the gather | Release the ball using the recovered `$7F37` phase-two origin. |
+| Second A press during the gather | `$702D` sees new-input bit 0 and releases immediately from phase 0, using the held-action `$7F37` origin. |
+| B held during the gather | `$702D` sets phase 1 and the one-frame `$C16A` latch; the next update advances to phase 2 and releases from the phase/variant `$7F37` origin. |
 | Gather reaches the 67-frame action terminal without release | Call traveling, award the defender possession, and reset the shot clock. |
 | CPU enters its shooting state | Use the same shot-launch path as the human player. |
 | Clean launch reaches frame 32 | Cross the hoop plane while descending, score exactly once, and apply post-score possession. |
@@ -33,6 +34,7 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 
 | ROM routine | Observed behavior | Native counterpart |
 |---|---|---|
+| `$702D` | In action `$0A`, new-A at player `+$11` bit 0 launches directly while phase is zero. Held-B at `+$12` bit 1 sets phase 1 and `$C16A=1`; the following update clears the latch, advances to phase 2, updates `$7F37`, and launches. | `allstar_one_on_one_shot_input` and `allstar_one_on_one_shot_tick` preserve the distinct immediate and latched paths. The scene passes the resulting ROM phase into the release-origin helper. |
 | `$7BE8` | Once per frame, subtracts `$000F` from 8.8 vertical velocity, applies raw `+/-2` planar friction while the height integer byte is zero, then integrates the three velocity/position pairs. | `allstar_physics_rom_step_7be8` reproduces the exact 16-bit operations and `allstar_physics_update_ball` uses that state as its canonical fixed step. |
 | `$7C58` | Branches on the player's existing shot/jump state, constructs shot state, and transfers possession to the in-flight ball state. | Staged `allstar_one_on_one_shot_press` plus `one_on_one_launch_shot`. |
 | `$7EA9` | For the normal shot vector, shifts signed target displacement left three bits. In 8.8 state this reaches the target in `256/8 = 32` frames. | `allstar_physics_shoot_ball` constructs a 32-frame target crossing. |
@@ -44,13 +46,17 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 | Fixed `$077D` | Tests loose-ball proximity against player reference coordinates with strict Y `<8` and X `<12` limits. | `allstar_one_on_one_player_can_pick_up_ball` reproduces the strict limits and is boundary-tested. |
 | Fixed `$2AE2/$2B07/$2B88` | Decrements the pickup cooldown, applies possession/global/height gates, tests player 1 then player 2 for action and collision eligibility, applies final contact/flight locks, and reloads a 20-frame cooldown on award. | `allstar_one_on_one_rom_recovery_dispatch` preserves that order and is boundary-tested; the scene supplies first-contact flight state and exact proximity, while three still-unclassified global locks remain inactive. |
 
-The original control description also establishes that A begins the jump, A releases the shot, and landing with the ball is traveling. That relationship is implemented and deterministically tested.
+The static control flow is paired with a headless Mesen trace in
+`tools/emulator/trace_one_on_one_input.lua`. From a captured gameplay state it
+asserts the A-A path (`$FFAE=1`, phase 0, immediate possession transfer) and the
+A-B path (`$FFAF=2`, phase 1/`$C16A=1`, then phase 2/release one update later).
+The native test exercises the same state transitions. Landing with the ball at
+the 67-frame action terminal remains traveling.
 
 ## Known deviations
 
 This is a **partial rules improvement**, not verified shot or physics parity:
 
-- the native two-press input meaning remains provisional; `$702D` input bits and `$C16A` release-phase timing still need an emulator trace;
 - launch selection and remaining contact state are incomplete even though the `$7BE8` step itself now uses byte-sized 8.8 state;
 - the alternate `<<2` 64-frame trajectory class and `$7C58` launch tables are not yet classified;
 - accuracy ratings, contests, blocks, the remaining `$1CED` rim/backboard/bounce branches, and full rebound gates are not trace-matched;

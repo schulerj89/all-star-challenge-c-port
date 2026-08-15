@@ -35,8 +35,8 @@
     {"id":"shooting.action_variant_714d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.held_offset_7f37","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.phase_offset_7f37","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
-    {"id":"shooting.gather_input_702d","group":"shooting","status":"partial","note":"Raw player input-bit meanings still need trace confirmation."},
-    {"id":"shooting.release_input_702d","group":"shooting","status":"partial","note":"Native uses a provisional second-press window."},
+    {"id":"shooting.gather_input_702d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","tools/emulator/trace_one_on_one_input.lua"],"test":"--test-one-on-one-shooting"},
+    {"id":"shooting.release_input_702d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md","tools/emulator/trace_one_on_one_input.lua"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.traveling_timing","group":"shooting","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.animation_duration_6a8c","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.animation_frames_6a8c","group":"shooting","status":"verified","evidence":["src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
@@ -71,6 +71,7 @@
     {"date":"2026-08-14","verified":32,"total":50,"percent":64.0,"note":"$6A8C action $0A/$12 record durations, display frames, and phase overrides are represented in native player state."},
     {"date":"2026-08-14","verified":33,"total":50,"percent":66.0,"note":"$7F37 release height now uses player +$05/+$15 coordinates and the signed phase/variant table offset."},
     {"date":"2026-08-14","verified":34,"total":50,"percent":68.0,"note":"$6BAD/$6BBA/$6BC7/$6BD4 player court bounds are normalized, centralized, and boundary-tested."},
-    {"date":"2026-08-14","verified":35,"total":50,"percent":70.0,"note":"Unreleased shot possession now becomes traveling on the exact 67-frame $6A8C terminal transition."}
+    {"date":"2026-08-14","verified":35,"total":50,"percent":70.0,"note":"Unreleased shot possession now becomes traveling on the exact 67-frame $6A8C terminal transition."},
+    {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."}
   ]
 }

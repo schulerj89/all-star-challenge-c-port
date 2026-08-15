@@ -4,7 +4,7 @@ Last audited: **2026-08-14**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 70 are explicitly unmapped, 21 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. Shooting mappings `$791D`, `$794B`, `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **3/94 (3.19%)**. All 94 entry points have stable bank-aware symbols and decompile successfully; 69 are explicitly unmapped, 22 have candidate native analogues, and three narrowly scoped mappings are verified by deterministic boundary tests: `$077D` loose-ball collision, `$1F4D` planar dead-ball stop, and `$28E1` unsigned score comparison. `$702D` is now a candidate backed by an emulator-matched shot-input subset, but its other action branches prevent whole-routine credit. Shooting mappings `$791D`, `$794B`, `$7BE8`, `$7C58`, `$7EA9`, and `$7F37` remain candidate-only because complete state and emulator/native comparisons are missing. This is a conservative reviewed subset, not a claim that the entire ROM contains only 94 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -12,7 +12,7 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
 
-The separate One-on-One behavior manifest is **35/50 (70.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
+The separate One-on-One behavior manifest is **37/50 (74.00%)**. Its fixed requirements make focused gameplay progress visible without promoting incomplete whole-project milestones or candidate routine mappings.
 
 ## Scope
 
@@ -42,7 +42,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Current focused behavior checks | 5 | Mode routing, settings, One-on-One lifecycle, staged shooting/traveling, and tournament progression have focused tests; emulator state/frame comparison remains missing. |
+| Current focused behavior checks | 6 | Mode routing, settings, One-on-One lifecycle, staged shooting/traveling, tournament progression, and a headless `$702D` emulator-state trace are checked; broader frame/state comparison remains missing. |
 
 ### Reviewed Ghidra recovery
 

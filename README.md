@@ -20,7 +20,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | ROM asset pack | Partial | Basic 2bpp decoding works; most runtime art and roster data still come from compiled C tables. |
 | Ghidra-to-C routine coverage | 3/94 verified | 94 reviewed bank-aware functions recover and decompile cleanly; `$077D`, `$1F4D`, and `$28E1` are narrowly verified, 21 mappings remain candidates, and 70 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
-| Scoped One-on-One parity | 70.00% | 35 of 50 Ghidra/manual-grounded gameplay requirements; partial work receives no credit. |
+| Scoped One-on-One parity | 74.00% | 37 of 50 Ghidra/manual-grounded gameplay requirements; partial work receives no credit. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -94,7 +94,7 @@ This command currently extracts a fixed tile range and packages the hardcoded ro
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, fixed-step launch/rim/miss behavior, ROM court-limit responses, mode routing, settings persistence/consumption, the One-on-One lifecycle, `$7F37` release offsets, `$077D` recovery limits, staged shooting/traveling, the complete seven-match tournament bracket, and input-free scene ticking. Exact ROM launch tables, full contact rules, AI, visuals, and automated emulator-state parity remain unverified.
+The tests cover roster invariants, fixed-step launch/rim/miss behavior, ROM court-limit responses, mode routing, settings persistence/consumption, the One-on-One lifecycle, `$702D` staged A-A/A-B release timing, `$7F37` release offsets, `$077D` recovery limits, traveling, the complete seven-match tournament bracket, and input-free scene ticking. Exact ROM launch tables, full contact rules, AI, visuals, and broader emulator/native state parity remain unverified.
 
 For manual comparison with the original ROM:
 

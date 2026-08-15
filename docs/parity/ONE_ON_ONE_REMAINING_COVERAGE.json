@@ -47,8 +47,8 @@
     {"id":"collision.initial_flight_lock_2b88","group":"collision_reaction","status":"verified","rom":"bank 0 $2B88/$FFF8","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md","tools/emulator/trace_one_on_one_defense.lua","src/scenes/scene_one_on_one.c"]},
     {"id":"collision.recovery_dispatch_order_2ae2","group":"collision_reaction","status":"verified","rom":"bank 0 $2AE2/$2B07/$2B88","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
     {"id":"collision.recovery_cooldown_2ae2","group":"collision_reaction","status":"verified","rom":"bank 0 $2AE2/$C12D","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
-    {"id":"collision.player_pair_detector","group":"collision_reaction","status":"unmapped","rom":"remaining bank 1 $7170 controller branches","evidence":[]},
-    {"id":"collision.contact_side_selection","group":"collision_reaction","status":"unmapped","rom":"remaining bank 1 $7170 controller branches","evidence":[]},
+    {"id":"collision.player_pair_detector","group":"collision_reaction","status":"verified","rom":"bank 1 $6E3C","evidence":["docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md","tools/ghidra/function_seeds.json","tools/emulator/trace_one_on_one_player_collision.lua","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c","src/allstar_cli.c"]},
+    {"id":"collision.contact_side_selection","group":"collision_reaction","status":"verified","rom":"bank 1 $6EC0/$6EEA","evidence":["docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md","tools/ghidra/function_seeds.json","tools/emulator/trace_one_on_one_player_collision.lua","src/gameplay/allstar_one_on_one.c","src/allstar_cli.c"]},
     {"id":"collision.contact_action_gates","group":"collision_reaction","status":"partial","rom":"bank 0 $0A78 plus remaining controller gates","evidence":["docs/parity/ONE_ON_ONE_DEFENSE.md"]},
     {"id":"collision.ballhandler_reaction_action","group":"collision_reaction","status":"unmapped","rom":"bank 1 $7170/$6A8C","evidence":[]},
     {"id":"collision.defender_reaction_action","group":"collision_reaction","status":"unmapped","rom":"bank 1 $7170/$6A8C","evidence":[]},
@@ -64,6 +64,7 @@
     {"date":"2026-08-15","verified":12,"total":50,"percent":24.0,"note":"Reconstructed pre-RNG baseline: four animation subsets and eight ball/steal/recovery collision requirements were already verified."},
     {"date":"2026-08-15","verified":22,"total":50,"percent":44.0,"note":"Added exact $0714/$072F shared-frame RNG, BCD entropy, two-frame cadence, and live CPU integration with a 32-frame Mesen assertion."},
     {"date":"2026-08-15","verified":26,"total":50,"percent":52.0,"note":"Extracted all 24 $6C60 action lists into asset-pack v3, ported $6A8C record state, and integrated traced idle and steal sequences into live One-on-One presentation."},
-    {"date":"2026-08-15","verified":28,"total":50,"percent":56.0,"note":"Ported the complete $782E directional/idle selector, integrated held-ball and no-ball movement actions, and traced every direction plus $70FD family-preserving jump/steal transitions."}
+    {"date":"2026-08-15","verified":28,"total":50,"percent":56.0,"note":"Ported the complete $782E directional/idle selector, integrated held-ball and no-ball movement actions, and traced every direction plus $70FD family-preserving jump/steal transitions."},
+    {"date":"2026-08-15","verified":30,"total":50,"percent":60.0,"note":"Ported $6EC0/$6EEA byte-exact contact sides and $6E3C directional player-pair blocking, integrated both players, and verified live ROM block/away/separation outcomes."}
   ]
 }

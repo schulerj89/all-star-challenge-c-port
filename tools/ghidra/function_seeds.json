@@ -71,6 +71,24 @@
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "All 24 $6C60 action lists, three-byte record timing, loops, transitions, idle, steal, shot, and $782E directional subsets are native and trace-tested. Whole-routine credit remains withheld because movement side effects and contact/rebound action callers are not yet equivalent."
     },
+    "rom_b01_6e3c": {
+      "status": "candidate",
+      "native_symbol": "allstar_one_on_one_rom_player_pair_blocks_6e3c",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "All directional probes, mode bypass, contact-side decisions, and live human/CPU movement blocking are trace-tested. Whole-routine credit remains withheld because the native scene consumes the Boolean directly instead of reproducing +$0C/$C16B latch ownership."
+    },
+    "rom_b01_6ec0": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_x_side_6ec0",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact unsigned subtraction, signed probe offset, side 3/4 return values, and asymmetric [-11,+10] endpoints are boundary-tested and exercised by the live Mesen collision trace."
+    },
+    "rom_b01_6eea": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_y_side_6eea",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Exact unsigned subtraction, signed probe offset, side 1/2 return values, and asymmetric [-6,+5] endpoints are boundary-tested and exercised by the live Mesen collision trace."
+    },
     "rom_b00_0100": {
       "status": "candidate",
       "native_symbol": "allstar_game_init",

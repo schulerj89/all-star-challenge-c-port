@@ -93,7 +93,7 @@ See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
 Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
 
-One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **28/50 (56.00%)** overall, comprising RNG **10/10**, animation/assets **10/20**, and collision/reaction **8/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
+One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. A second fixed denominator tracks the explicitly excluded RNG, animation/assets, and collision-reaction work in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json`: **30/50 (60.00%)** overall, comprising RNG **10/10**, animation/assets **10/20**, and collision/reaction **10/20**. Check them with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
 
 ## 4. Current Native Architecture
 
@@ -129,7 +129,7 @@ Input is updated by the Win32 host before this call.
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Scoped gameplay 50/50; remaining focus 28/50 | Core rules, shooting, steals, contests, recovery, RNG, the 24-list animation engine, and `$782E` directional walk/dribble selection are verified. Remaining work is graphics extraction and player collision-reaction behavior. |
+| One-on-One | Scoped gameplay 50/50; remaining focus 30/50 | Core rules, shooting, steals, contests, recovery, RNG, movement animation, and `$6E3C/$6EC0/$6EEA` player-pair collision are verified. Remaining work is graphics extraction and contact-reaction behavior. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |

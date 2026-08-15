@@ -18,10 +18,10 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial | Win32 PCM mixer works, but only a subset of events have samples and the ROM music sequencer is not ported. |
 | ROM asset pack | Partial | Version 3 extracts all 24 `$6C60` animation-control lists plus basic 2bpp tiles; most runtime art and roster data still come from compiled C tables. |
-| Ghidra-to-C routine coverage | 8/100 verified | 100 reviewed bank-aware functions recover and decompile cleanly; exact `$0714/$072F` RNG joins six earlier narrow mappings, 26 mappings remain candidates, and 66 are unmapped. |
+| Ghidra-to-C routine coverage | 10/100 verified | 100 reviewed bank-aware functions recover and decompile cleanly; `$6EC0/$6EEA` contact-side helpers join eight earlier mappings, 28 mappings remain candidates, and 62 are unmapped. |
 | Verified project milestones | 40.00% | 10 of 25 strict milestones; analysis is 6/7 and gameplay parity is 4/11. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. Broader collision reactions, presentation, assets, and frame parity remain outside this focused denominator. |
-| Remaining One-on-One focus | 56.00% | 28 of 50 fixed RNG/animation-asset/collision-reaction requirements: RNG 10/10, animation/assets 10/20, collision/reaction 8/20. |
+| Remaining One-on-One focus | 60.00% | 30 of 50 fixed RNG/animation-asset/collision-reaction requirements: RNG 10/10, animation/assets 10/20, collision/reaction 10/20. |
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
 
@@ -104,7 +104,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces now cover shot input, defense transitions, exact RNG, and the complete `$782E/$6A8C` held/no-ball directional action and cadence state. Broader WRAM snapshots and frame-difference tests remain to be implemented. See [the animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md) for the complete 24-action map and its limits.
+Automated Mesen traces now cover shot input, defense transitions, exact RNG, the complete `$782E/$6A8C` held/no-ball directional action state, and `$6E3C` player-pair blocking. Broader WRAM snapshots and frame-difference tests remain to be implemented. See [the animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md) and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md) for exact scope and limits.
 
 ## Reverse Engineering
 

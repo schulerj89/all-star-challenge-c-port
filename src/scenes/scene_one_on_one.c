@@ -159,6 +159,18 @@ static uint8_t one_on_one_direction_from_delta(float dx, float dy) {
     return direction;
 }
 
+static bool one_on_one_player_pair_blocks(
+    uint8_t direction,
+    const AllStarPlayerState *player,
+    const AllStarPlayerState *other) {
+    return allstar_one_on_one_rom_player_pair_blocks_6e3c(
+        direction, 0,
+        (uint8_t)(player->x - ALLSTAR_ROM_PLAYER_X_TO_CENTER),
+        (uint8_t)player->y,
+        (uint8_t)(other->x - ALLSTAR_ROM_PLAYER_X_TO_CENTER),
+        (uint8_t)other->y);
+}
+
 static void one_on_one_take_live_possession(SceneOneOnOneData *data,
                                              AllStarGame *game,
                                              int player) {
@@ -498,10 +510,30 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             !data->p1_defense_jump_active) {
             data->p1_input_direction = (uint8_t)(
                 input->buttons_held & 0x0f);
-            if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT))  { data->p1.x -= speed * dt; moved = true; }
-            if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT)) { data->p1.x += speed * dt; moved = true; }
-            if (allstar_input_is_held(input, ALLSTAR_BTN_UP))    { data->p1.y -= speed * dt; moved = true; }
-            if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN))  { data->p1.y += speed * dt; moved = true; }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_RIGHT) &&
+                !one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_RIGHT, &data->p1, &data->p2)) {
+                data->p1.x += speed * dt;
+                moved = true;
+            }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_LEFT) &&
+                !one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_LEFT, &data->p1, &data->p2)) {
+                data->p1.x -= speed * dt;
+                moved = true;
+            }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_UP) &&
+                !one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_UP, &data->p1, &data->p2)) {
+                data->p1.y -= speed * dt;
+                moved = true;
+            }
+            if (allstar_input_is_held(input, ALLSTAR_BTN_DOWN) &&
+                !one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_DOWN, &data->p1, &data->p2)) {
+                data->p1.y += speed * dt;
+                moved = true;
+            }
         }
         if (moved && data->p1.has_ball && (int)(data->anim_timer * 4.0f) % 2 == 0) {
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
@@ -559,6 +591,34 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
                       allstar_rom_rng_current(&game->one_on_one_rng), dt);
     data->p2_input_direction = one_on_one_direction_from_delta(
         data->p2.x - p2_before_x, data->p2.y - p2_before_y);
+    {
+        float intended_x = data->p2.x;
+        float intended_y = data->p2.y;
+        data->p2.x = p2_before_x;
+        data->p2.y = p2_before_y;
+        if (intended_x > p2_before_x) {
+            if (!one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_RIGHT, &data->p2, &data->p1)) {
+                data->p2.x = intended_x;
+            }
+        } else if (intended_x < p2_before_x) {
+            if (!one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_LEFT, &data->p2, &data->p1)) {
+                data->p2.x = intended_x;
+            }
+        }
+        if (intended_y < p2_before_y) {
+            if (!one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_UP, &data->p2, &data->p1)) {
+                data->p2.y = intended_y;
+            }
+        } else if (intended_y > p2_before_y) {
+            if (!one_on_one_player_pair_blocks(
+                    ALLSTAR_BTN_DOWN, &data->p2, &data->p1)) {
+                data->p2.y = intended_y;
+            }
+        }
+    }
     if (data->p2_input_direction != 0) {
         data->p2_previous_direction = data->p2_input_direction;
     }

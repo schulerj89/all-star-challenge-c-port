@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **8/100 (8.00%)**. All 100 entry points have stable bank-aware symbols and decompile successfully; 65 are explicitly unmapped, 27 have candidate native analogues, and eight narrowly scoped mappings are verified by deterministic tests and traces: `$0714/$072F` shared-frame RNG, `$077D` loose-ball collision, `$0A78` protected actions, `$1F4D` planar dead-ball stop, `$28E1` unsigned score comparison, `$2B14` steals, and `$2B6C` defensive-jump recovery. `$782E` now has a trace-tested native movement selector but remains a whole-routine candidate until its `$2F88` sound command is equivalent. `$6A8C` likewise remains a candidate because movement side effects and contact/rebound callers are incomplete. `$702D` remains a candidate backed by emulator-matched subsets. This is a conservative reviewed subset, not a claim that the entire ROM contains only 100 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **10/100 (10.00%)**. All 100 entry points have stable bank-aware symbols and decompile successfully; 62 are explicitly unmapped, 28 have candidate native analogues, and ten mappings are verified by deterministic tests and traces: `$0714/$072F` shared-frame RNG, `$077D` loose-ball collision, `$0A78` protected actions, `$1F4D` planar dead-ball stop, `$28E1` unsigned score comparison, `$2B14` steals, `$2B6C` defensive-jump recovery, and `$6EC0/$6EEA` player contact sides. `$6E3C` is trace-tested but remains a whole-routine candidate until its `+$0C/$C16B` latch ownership is equivalent. `$782E`, `$6A8C`, and `$702D` also remain candidates with explicitly documented missing side effects/callers. This is a conservative reviewed subset, not a claim that the entire ROM contains only 100 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -14,7 +14,7 @@ The strict project milestone tracker is currently **10/25 (40.00%)**, increased 
 
 The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, defensive jumps, post-contact recovery, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
 
-The separate remaining-focus manifest is **28/50 (56.00%)**: exact RNG is **10/10**, animation/assets are **10/20**, and collision/reaction recovery is **8/20**. It intentionally tracks work excluded from the completed 50-item gameplay subset.
+The separate remaining-focus manifest is **30/50 (60.00%)**: exact RNG is **10/10**, animation/assets are **10/20**, and collision/reaction recovery is **10/20**. It intentionally tracks work excluded from the completed 50-item gameplay subset.
 
 ## Scope
 
@@ -38,7 +38,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 100 functions | 45 in bank 0, 47 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 113 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 8 of 100 | `$0714`, `$072F`, `$077D`, `$0A78`, `$1F4D`, `$28E1`, `$2B14`, and `$2B6C` are verified for their narrow tested semantics; 27 candidate analogues remain below whole-routine evidence threshold. |
+| Reviewed routine-to-C parity | 10 of 100 | `$0714`, `$072F`, `$077D`, `$0A78`, `$1F4D`, `$28E1`, `$2B14`, `$2B6C`, `$6EC0`, and `$6EEA` are verified for their tested semantics; 28 candidate analogues remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
@@ -106,14 +106,14 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | No | Partial; data remains hardcoded |
-| One-on-One | Yes | 50/50 gameplay; 28/50 remaining focus | Lifecycle, possession, shooting, contacts, CPU decisions, steals, contests, recovery, RNG, `$6C60` records, and `$782E` directional selection are covered. Remaining focus is graphics extraction and player collision-reaction behavior. |
+| One-on-One | Yes | 50/50 gameplay; 30/50 remaining focus | Lifecycle, possession, shooting, contacts, CPU decisions, steals, contests, recovery, RNG, movement animation, and `$6E3C/$6EC0/$6EEA` player-pair blocking are covered. Remaining focus is graphics extraction and contact reactions. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
 | Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, 32/64-frame launch vectors and tables, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes and upstream accuracy/point selection remain incomplete. |
-| Player collision and possession rules | Partial | Focused One-on-One subset | Shot-clock, rebound possession, winners-outs, traveling, exact `$077D` pickup limits, `$2B14` steals, and `$2B6C` post-contact jump recovery exist; broader collision penalties/reactions remain missing. |
+| Player collision and possession rules | Partial | Focused One-on-One subset | Shot-clock, rebound possession, winners-outs, traveling, `$077D` pickup limits, `$2B14` steals, `$2B6C` jump recovery, and `$6E3C/$6EC0/$6EEA` pair blocking/contact sides exist; reaction actions and displacement remain missing. |
 | CPU AI | Yes | Scoped One-on-One behavior | `$72EA` targets, `$74BB` direction dead zones, `$756C` profile/skill shot choice, `$71B3/$762C` steal thresholds, `$71EE` contest gate, and exact shared `$0714/$072F` RNG are integrated; collision and the rest of `$7170` remain incomplete. |
 | Player animation selection | Yes | Complete movement records/caller; partial other callers/art | `$782E/$6A8C/$6C60` directional selection and record timing, idle/steal live paths, `$70FD` jump families, shot phase overrides, and `$6C4D` jump heights are verified. Contact/rebound callers and extracted frame art remain missing. |
 | Court/menu/player rendering | Yes | No | Functional presentation; much data is compiled into headers |
@@ -169,4 +169,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **8/100 routine mappings verified**. Do not use 100 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus percentage is checked separately with `python tools/check_one_on_one_remaining_coverage.py`.
+The manifest now exists, so report its verified subset explicitly: **10/100 routine mappings verified**. Do not use 100 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus percentage is checked separately with `python tools/check_one_on_one_remaining_coverage.py`.

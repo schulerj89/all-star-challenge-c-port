@@ -588,6 +588,71 @@ void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
         *player_ground_y = ALLSTAR_ONE_ON_ONE_PLAYER_MAX_Y;
 }
 
+/* Bank 1 $6EC0 subtracts the actor's byte coordinate (plus signed B) from
+   the other player's +$06 coordinate. The return value is contact side:
+   3 for [0,+10], 4 for [-11,-1], and zero outside that window. */
+uint8_t allstar_one_on_one_rom_player_x_side_6ec0(
+    uint8_t player_x, uint8_t other_x, int8_t probe_offset) {
+    uint8_t probe = (uint8_t)(player_x + probe_offset);
+    uint8_t difference = (uint8_t)(other_x - probe);
+    if (other_x >= probe) return difference < 0x0b ? 0x03 : 0x00;
+    return difference >= 0xf5 ? 0x04 : 0x00;
+}
+
+/* Bank 1 $6EEA is the +$15 counterpart: 2 for [0,+5], 1 for [-6,-1]. */
+uint8_t allstar_one_on_one_rom_player_y_side_6eea(
+    uint8_t player_y, uint8_t other_y, int8_t probe_offset) {
+    uint8_t probe = (uint8_t)(player_y + probe_offset);
+    uint8_t difference = (uint8_t)(other_y - probe);
+    if (other_y >= probe) return difference < 0x06 ? 0x02 : 0x00;
+    return difference >= 0xfa ? 0x01 : 0x00;
+}
+
+/* Bank 1 $6E3C probes four pixels along one direction. A matching contact
+   side means the other player is behind the actor, so moving away is allowed;
+   a nonmatching side on both axes blocks movement into the player. Modes
+   $02/$03 bypass this player-pair collision path. */
+bool allstar_one_on_one_rom_player_pair_blocks_6e3c(
+    uint8_t direction,
+    uint8_t game_mode,
+    uint8_t player_x,
+    uint8_t player_y,
+    uint8_t other_x,
+    uint8_t other_y) {
+    uint8_t primary_side;
+    uint8_t cross_side;
+
+    if (game_mode == 0x02 || game_mode == 0x03) return false;
+    if ((direction & ALLSTAR_BTN_RIGHT) != 0) {
+        primary_side = allstar_one_on_one_rom_player_x_side_6ec0(
+            player_x, other_x, 4);
+        if (primary_side == 0 || primary_side == 4) return false;
+        cross_side = allstar_one_on_one_rom_player_y_side_6eea(
+            player_y, other_y, 0);
+    } else if ((direction & ALLSTAR_BTN_LEFT) != 0) {
+        primary_side = allstar_one_on_one_rom_player_x_side_6ec0(
+            player_x, other_x, -4);
+        if (primary_side == 0 || primary_side == 3) return false;
+        cross_side = allstar_one_on_one_rom_player_y_side_6eea(
+            player_y, other_y, 0);
+    } else if ((direction & ALLSTAR_BTN_UP) != 0) {
+        primary_side = allstar_one_on_one_rom_player_y_side_6eea(
+            player_y, other_y, -4);
+        if (primary_side == 0 || primary_side == 2) return false;
+        cross_side = allstar_one_on_one_rom_player_x_side_6ec0(
+            player_x, other_x, 0);
+    } else if ((direction & ALLSTAR_BTN_DOWN) != 0) {
+        primary_side = allstar_one_on_one_rom_player_y_side_6eea(
+            player_y, other_y, 4);
+        if (primary_side == 0 || primary_side == 1) return false;
+        cross_side = allstar_one_on_one_rom_player_x_side_6ec0(
+            player_x, other_x, 0);
+    } else {
+        return false;
+    }
+    return cross_side != 0;
+}
+
 /* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early
    exits, player 1 is tested before player 2, and an award reloads $C12D
    with 20 frames. $FFEB blocks during counted waits; $FFE2 blocks a pending

@@ -209,6 +209,17 @@ bool allstar_one_on_one_rom_jump_recovery_2b6c(
     float ball_height);
 void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
                                                float *player_ground_y);
+uint8_t allstar_one_on_one_rom_player_x_side_6ec0(
+    uint8_t player_x, uint8_t other_x, int8_t probe_offset);
+uint8_t allstar_one_on_one_rom_player_y_side_6eea(
+    uint8_t player_y, uint8_t other_y, int8_t probe_offset);
+bool allstar_one_on_one_rom_player_pair_blocks_6e3c(
+    uint8_t direction,
+    uint8_t game_mode,
+    uint8_t player_x,
+    uint8_t player_y,
+    uint8_t other_x,
+    uint8_t other_y);
 int allstar_one_on_one_rom_recovery_dispatch(
     AllStarOneOnOneRecoveryState *state,
     bool possession_active,

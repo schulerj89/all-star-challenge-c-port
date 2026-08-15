@@ -1193,6 +1193,37 @@ int allstar_cli_test_one_on_one_shooting(void) {
         return 1;
     }
 
+    if (allstar_one_on_one_rom_player_x_side_6ec0(100, 110, 0) != 3 ||
+        allstar_one_on_one_rom_player_x_side_6ec0(100, 111, 0) != 0 ||
+        allstar_one_on_one_rom_player_x_side_6ec0(100, 89, 0) != 4 ||
+        allstar_one_on_one_rom_player_x_side_6ec0(100, 88, 0) != 0 ||
+        allstar_one_on_one_rom_player_y_side_6eea(100, 105, 0) != 2 ||
+        allstar_one_on_one_rom_player_y_side_6eea(100, 106, 0) != 0 ||
+        allstar_one_on_one_rom_player_y_side_6eea(100, 94, 0) != 1 ||
+        allstar_one_on_one_rom_player_y_side_6eea(100, 93, 0) != 0) {
+        fprintf(stderr, "[Test] $6EC0/$6EEA contact-side windows were incorrect\n");
+        return 1;
+    }
+    if (!allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_RIGHT, 0, 64, 112, 72, 112) ||
+        allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_RIGHT, 0, 64, 112, 60, 112) ||
+        allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_RIGHT, 0, 64, 112, 72, 118) ||
+        !allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_LEFT, 0, 64, 112, 56, 112) ||
+        !allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_UP, 0, 64, 112, 64, 104) ||
+        !allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_DOWN, 0, 64, 112, 64, 120) ||
+        allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            ALLSTAR_BTN_RIGHT, 2, 64, 112, 72, 112) ||
+        allstar_one_on_one_rom_player_pair_blocks_6e3c(
+            0, 0, 64, 112, 72, 112)) {
+        fprintf(stderr, "[Test] $6E3C directional player-pair gate was incorrect\n");
+        return 1;
+    }
+
     memset(&recovery, 0, sizeof(recovery));
     recovery.cooldown_frames = 1;
     if (allstar_one_on_one_rom_recovery_dispatch(

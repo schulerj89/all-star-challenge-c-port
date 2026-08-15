@@ -47,3 +47,10 @@ asserts all four `$782E` direction branches in both possession families,
 directional idle, `$70FD`'s middle-family jump, the following steal family,
 and a six-frame record reload through player fields `+$00..+$04`. Require exit
 code `0` and `TRACE PASSED: $782E/$6A8C directional actions and record cadence`.
+
+`trace_one_on_one_player_collision.lua` follows bank 1 `$6E3C/$6EC0/$6EEA`.
+It injects controlled player coordinates during rightward input and observes
+the ROM's `$C16B` result after the collision routine returns. Require exit code
+`0` and `TRACE PASSED: $6E3C directional player-pair collision`; this proves
+blocking with a player ahead and allowance while moving away or while
+vertically separated.

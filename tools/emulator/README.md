@@ -65,6 +65,7 @@ and protected action`.
 
 `trace_one_on_one_assets.lua` captures the decompressed player, court, and
 ball graphics from the original ROM and checks exact lengths and hashes. It
-also exercises `$6945->$69F5` and verifies one ball phase across all three
-shadow-height bands. Require exit code `0` and `TRACE PASSED: One-on-One asset
-regions and $6945/$69F5 OAM composition`.
+also verifies live `$7F37` held-ball X/Y/Z against the owning player frame,
+then exercises `$6945->$69F5` across all three shadow-height bands. Require
+exit code `0` and `TRACE PASSED: One-on-One assets, $7F37 held ball, and
+$6945/$69F5 OAM`.

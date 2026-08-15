@@ -43,6 +43,11 @@ recreating the Game Boy's temporary VRAM cache.
 the phase moves between halves by four and aligned OAM X shifts by four. Ball
 OAM Y is `ball_y-ball_z`; shadow Y is `ball_y`.
 
+For a held ball, `$7F37` supplies those inputs rather than a time-based bounce.
+The normal table uses player X `+7` or `+10` according to horizontal flip,
+ground Y minus two, and height `$26`. Display frames `$00` and `$0C` suppress
+the separate ball because the player frame already includes it.
+
 | Height | `$6A5C` descriptor family |
 |---:|---|
 | `$00..$07` | ground `$4498..$44B7` |

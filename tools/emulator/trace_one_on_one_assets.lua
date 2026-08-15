@@ -10,6 +10,7 @@ local stopping = false
 local failures = 0
 local scenario = 1
 local assetsChecked = false
+local heldBallChecked = false
 local pendingScenario = 0
 local oamDone = false
 local ballOam = 0xC060
@@ -97,9 +98,38 @@ local function checkBallOam(checkedScenario)
     read(shadowOam + 2), read(shadowOam + 6)))
 end
 
+local function onHeldBallReturn()
+  if not heldBallChecked then
+    local owner = read(0xFFCF)
+    local base = owner == 1 and 0xFF9D or (owner == 2 and 0xFFB6 or 0)
+    if base ~= 0 then
+      local display = read(base + 3)
+      if read(base + 9) == 0 and display ~= 0 and display ~= 0x0C then
+        local playerX = read(base + 6)
+        local groundY = read(base + 0x15)
+        local visualY = read(base + 5)
+        local xOffset = (read(base + 2) & 0x10) ~= 0 and 10 or 7
+        local expectedX = (playerX + xOffset) & 0xFF
+        local expectedY = (groundY - 2) & 0xFF
+        local expectedZ = ((groundY - 4) - (visualY - 2)) & 0xFF
+        expect(read(0xC0A3) == expectedX and
+               read(0xC0A7) == expectedY and
+               read(0xC0AB) == expectedZ,
+          "$7F37 held-ball X/Y/Z did not match the player frame")
+        print(string.format(
+          "HELD $7F37 owner=%d frame=%02X flip=%d ball=%02X/%02X/%02X",
+          owner, display, (read(base + 2) & 0x10) ~= 0 and 1 or 0,
+          read(0xC0A3), read(0xC0A7), read(0xC0AB)))
+        heldBallChecked = true
+      end
+    end
+  end
+end
+
 local function onBallComposer()
   if not assetsChecked then return end
   gameplayReached = true
+  if not heldBallChecked then return end
   -- Mesen's execution callback at the RET boundary can precede the final
   -- in-block OAM writes, so validate the completed pair at the next entry.
   if pendingScenario ~= 0 then
@@ -147,10 +177,10 @@ end
 
 local function onEndFrame()
   if stopping then return end
-  if oamDone and assetsChecked then
+  if oamDone and assetsChecked and heldBallChecked then
     stopping = true
     print(failures == 0 and
-      "TRACE PASSED: One-on-One asset VRAM and $6945/$69F5 ball OAM" or
+      "TRACE PASSED: One-on-One assets, $7F37 held ball, and $6945/$69F5 OAM" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))
     emu.stop(failures == 0 and 0 or 3)
   elseif totalFrames >= 3600 then
@@ -162,6 +192,8 @@ end
 
 emu.addMemoryCallback(onBallComposer, emu.callbackType.exec,
   0x6945, 0x6945, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onHeldBallReturn, emu.callbackType.exec,
+  0x7FC6, 0x7FC6, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onCourtLoadReturn, emu.callbackType.exec,
   0x04E2, 0x04E2, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onRosterChoose, emu.callbackType.exec,

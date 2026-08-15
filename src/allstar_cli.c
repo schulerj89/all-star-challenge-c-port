@@ -782,6 +782,31 @@ int allstar_cli_test_one_on_one_shooting(void) {
         fprintf(stderr, "[Test] $6945 rear/high ball phase selection was incorrect\n");
         return 1;
     }
+    {
+        AllStarRomHeldBallPresentation held_ball;
+        allstar_renderer_rom_held_ball_7f37(
+            80, 130, 0x13, 0x0d, false, &held_ball);
+        if (!held_ball.visible || held_ball.ball_x != 0x4f ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
+            held_ball.behind_owner) {
+            fprintf(stderr, "[Test] $7F37 unflipped held-ball placement was incorrect\n");
+            return 1;
+        }
+        allstar_renderer_rom_held_ball_7f37(
+            84, 130, 0x13, 0x0d, true, &held_ball);
+        if (!held_ball.visible || held_ball.ball_x != 0x56 ||
+            held_ball.ball_y != 0x80 || held_ball.ball_z != 0x26 ||
+            !held_ball.behind_owner) {
+            fprintf(stderr, "[Test] $7F37 flipped/rear held-ball placement was incorrect\n");
+            return 1;
+        }
+        allstar_renderer_rom_held_ball_7f37(
+            80, 130, 0x13, 0x0c, false, &held_ball);
+        if (held_ball.visible) {
+            fprintf(stderr, "[Test] $7F37 frame-contained ball was drawn twice\n");
+            return 1;
+        }
+    }
     allstar_one_on_one_rom_animation_init_6a8c(&animation_state, 0x10);
     if (!allstar_one_on_one_rom_animation_tick_6a8c(
             &animation_pack, &animation_state) ||
@@ -1829,6 +1854,17 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
     snprintf(path, sizeof(path), "%s\\04_one_on_one.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 4d. Held-ball movement exposes the separate $7F37 ball sprite. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    for (int i = 0; i < 8; i++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\04d_one_on_one_dribble.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     /* 4a. One-on-One gather: one native A edge begins the held-ball jump. */
     allstar_input_update(&game.input, ALLSTAR_BTN_A);

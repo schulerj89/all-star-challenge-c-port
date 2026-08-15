@@ -340,6 +340,47 @@ void allstar_renderer_rom_ball_presentation_6945(
     presentation->shadow_pair_index = (uint8_t)(8 + tier * 8 + adjusted);
 }
 
+/* Bank 1 $7F37 attaches the held ball to the current player frame.  The two
+   action tables at $7FC7/$7FCB are byte-identical in this ROM: X is +7 when
+   unflipped or +10 when flipped and the height offset is -2.  Display frames
+   $00/$0C already contain the ball and therefore clear $C0A3 instead. */
+void allstar_renderer_rom_held_ball_7f37(
+    int32_t player_center_x, int32_t player_ground_y,
+    uint8_t action, uint8_t display_frame, bool horizontal_flip,
+    AllStarRomHeldBallPresentation *presentation) {
+    static const int8_t held_offsets[2][2][2] = {
+        {{7, -2}, {10, -2}},
+        {{7, -2}, {10, -2}}
+    };
+    uint8_t player_x;
+    uint8_t ground_y;
+    uint8_t visual_y;
+    uint8_t action_table;
+    uint8_t flip_table;
+    int8_t x_offset;
+    int8_t height_offset;
+    if (!presentation) return;
+    memset(presentation, 0, sizeof(*presentation));
+    if (display_frame == 0 || display_frame == 0x0c) return;
+
+    player_x = (uint8_t)(player_center_x - 8);
+    ground_y = (uint8_t)player_ground_y;
+    visual_y = (uint8_t)(ground_y - 40);
+    action_table = action == 0x0a ? 0 : 1;
+    flip_table = horizontal_flip ? 1 : 0;
+    x_offset = held_offsets[action_table][flip_table][0];
+    height_offset = held_offsets[action_table][flip_table][1];
+    presentation->visible = true;
+    presentation->ball_x = (uint8_t)(player_x + x_offset);
+    presentation->ball_y = (uint8_t)(ground_y - 2);
+    presentation->ball_z = (uint8_t)(
+        (uint8_t)(ground_y - 4) -
+        (uint8_t)(visual_y + height_offset));
+    presentation->behind_owner =
+        (presentation->ball_y < (uint8_t)(visual_y + 40)) ==
+        ((player_x & 4) != 0);
+}
+
 /* Fixed $2933/$293D->$2945->$2A2B selects one of three action families and
    traverses each 18-index frame as nine top/bottom 8x16 sprite pairs. */
 bool allstar_renderer_rom_player_tiles_2945(
@@ -507,13 +548,15 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
 
     /* If dribbling ball */
     if (has_ball && !is_shooting) {
-        int ball_x = x + (facing_left ? -8 : 8);
-        int bounce_y = y - 4 + (((int)(anim_time * 8.0f) % 2) ? 3 : -2);
-        uint8_t owner_rom_x = (uint8_t)(x - 8);
-        bool behind_owner = ((uint8_t)bounce_y < (uint8_t)y) ==
-            ((owner_rom_x & 4) != 0);
-        allstar_renderer_draw_ball_rom_6945(
-            renderer, ball_x, bounce_y, 0, anim_time, behind_owner);
+        AllStarRomHeldBallPresentation held_ball;
+        allstar_renderer_rom_held_ball_7f37(
+            x, y, rom_action, rom_display_frame,
+            !facing_left, &held_ball);
+        if (held_ball.visible) {
+            allstar_renderer_draw_ball_rom_6945(
+                renderer, held_ball.ball_x, held_ball.ball_y,
+                held_ball.ball_z, anim_time, held_ball.behind_owner);
+        }
     }
 }
 

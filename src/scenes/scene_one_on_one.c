@@ -674,21 +674,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
             data->ball.x, data->ball.y));
 
     if (recovering_player == 1) {
-            bool reset_shot_clock = !game->one_on_one.p1_possession;
-            data->p1.has_ball = true;
-            data->p1.is_shooting = false;
-            data->p2.is_shooting = false;
-            allstar_one_on_one_match_take_possession(
-                &game->one_on_one, 1, reset_shot_clock);
-            allstar_physics_init_ball(&data->ball);
+        one_on_one_take_live_possession(data, game, 1, true);
     } else if (recovering_player == 2) {
-            bool reset_shot_clock = game->one_on_one.p1_possession;
-            data->p2.has_ball = true;
-            data->p1.is_shooting = false;
-            data->p2.is_shooting = false;
-            allstar_one_on_one_match_take_possession(
-                &game->one_on_one, 2, reset_shot_clock);
-            allstar_physics_init_ball(&data->ball);
+        one_on_one_take_live_possession(data, game, 2, true);
     }
 
     {

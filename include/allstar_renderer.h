@@ -35,6 +35,14 @@ typedef struct {
     uint8_t shadow_pair_index;
 } AllStarRomBallPresentation;
 
+typedef struct {
+    bool visible;
+    uint8_t ball_x;
+    uint8_t ball_y;
+    uint8_t ball_z;
+    bool behind_owner;
+} AllStarRomHeldBallPresentation;
+
 bool allstar_renderer_init(AllStarRenderer *renderer, uint32_t width, uint32_t height);
 void allstar_renderer_set_asset_pack(AllStarRenderer *renderer,
                                      const AllStarAssetPack *asset_pack);
@@ -58,6 +66,10 @@ void allstar_renderer_draw_player_ex(AllStarRenderer *renderer, int32_t x, int32
 void allstar_renderer_rom_ball_presentation_6945(
     uint8_t ball_x, uint8_t ball_y, uint8_t ball_z,
     bool behind_owner, AllStarRomBallPresentation *presentation);
+void allstar_renderer_rom_held_ball_7f37(
+    int32_t player_center_x, int32_t player_ground_y,
+    uint8_t action, uint8_t display_frame, bool horizontal_flip,
+    AllStarRomHeldBallPresentation *presentation);
 bool allstar_renderer_rom_player_tiles_2945(
     const AllStarAssetPack *pack, uint8_t action, uint8_t display_frame,
     bool horizontal_flip,

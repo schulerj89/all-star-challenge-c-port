@@ -67,6 +67,7 @@
     {"date":"2026-08-15","verified":28,"total":50,"percent":56.0,"note":"Ported the complete $782E directional/idle selector, integrated held-ball and no-ball movement actions, and traced every direction plus $70FD family-preserving jump/steal transitions."},
     {"date":"2026-08-15","verified":30,"total":50,"percent":60.0,"note":"Ported $6EC0/$6EEA byte-exact contact sides and $6E3C directional player-pair blocking, integrated both players, and verified live ROM block/away/separation outcomes."},
     {"date":"2026-08-15","verified":40,"total":50,"percent":80.0,"note":"Converted $6A8C->$6B72 movement callbacks, $2C50/$2CCA/$0AC5 charging/blocking enforcement, and $75CD CPU contact response; verified that the ROM has no recoil action or player velocity state."},
-    {"date":"2026-08-15","verified":50,"total":50,"percent":100.0,"note":"Converted exact rebound no-action behavior, eight-phase $6945 ball OAM, all player/frame/court/ball asset regions, $2945/$2A2B player composition, and the user-ROM-only asset-pack v4 runtime boundary."}
+    {"date":"2026-08-15","verified":50,"total":50,"percent":100.0,"note":"Converted exact rebound no-action behavior, eight-phase $6945 ball OAM, all player/frame/court/ball asset regions, $2945/$2A2B player composition, and the user-ROM-only asset-pack v4 runtime boundary."},
+    {"date":"2026-08-15","verified":50,"total":50,"percent":100.0,"note":"Regression fix: every recovery resets the native shot wrapper, and live dribbling now uses $7F37 held-ball placement/visibility instead of a synthetic ground bounce."}
   ]
 }

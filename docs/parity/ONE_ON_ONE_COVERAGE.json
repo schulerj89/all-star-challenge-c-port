@@ -29,7 +29,7 @@
     {"id":"rules.pickup_player_priority","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
     {"id":"rules.pickup_height_gate","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
     {"id":"rules.pickup_cooldown","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md"],"test":"--test-one-on-one-shooting"},
-    {"id":"rules.pickup_global_locks","group":"rules","status":"partial","note":"Dispatcher accepts all recovered locks, but scene meanings for $FFE2/$FFE7/$FFEB are not mapped."},
+    {"id":"rules.pickup_global_locks","group":"rules","status":"verified","evidence":["docs/parity/ONE_ON_ONE_POSSESSION.md","src/gameplay/allstar_one_on_one.c","src/scenes/scene_one_on_one.c"],"test":"--test-one-on-one-shooting"},
 
     {"id":"shooting.position_variant_791d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
     {"id":"shooting.action_variant_714d","group":"shooting","status":"verified","evidence":["docs/parity/ONE_ON_ONE_SHOOTING.md"],"test":"--test-one-on-one-shooting"},
@@ -72,6 +72,7 @@
     {"date":"2026-08-14","verified":33,"total":50,"percent":66.0,"note":"$7F37 release height now uses player +$05/+$15 coordinates and the signed phase/variant table offset."},
     {"date":"2026-08-14","verified":34,"total":50,"percent":68.0,"note":"$6BAD/$6BBA/$6BC7/$6BD4 player court bounds are normalized, centralized, and boundary-tested."},
     {"date":"2026-08-14","verified":35,"total":50,"percent":70.0,"note":"Unreleased shot possession now becomes traveling on the exact 67-frame $6A8C terminal transition."},
-    {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."}
+    {"date":"2026-08-14","verified":37,"total":50,"percent":74.0,"note":"Headless Mesen and native tests now agree on $702D A-A phase-zero release and A-B $C16A phase-one-to-two release."},
+    {"date":"2026-08-15","verified":38,"total":50,"percent":76.0,"note":"$FFEB counted-wait, $FFE2 score-event, $FFE7 transition, and $FFF8 first-ground recovery locks are mapped and gate-tested."}
   ]
 }

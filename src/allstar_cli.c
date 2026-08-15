@@ -776,6 +776,15 @@ int allstar_cli_test_one_on_one_shooting(void) {
             &recovery, false, false, 24.0f, false, false, false,
             true, true, true, true) != 0 ||
         allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, true, 0.0f, false, false, false,
+            true, true, true, true) != 0 ||
+        allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 0.0f, true, false, false,
+            true, true, true, true) != 0 ||
+        allstar_one_on_one_rom_recovery_dispatch(
+            &recovery, false, false, 0.0f, false, true, false,
+            true, true, true, true) != 0 ||
+        allstar_one_on_one_rom_recovery_dispatch(
             &recovery, false, false, 0.0f, false, false, true,
             true, true, true, true) != 0 ||
         allstar_one_on_one_rom_recovery_dispatch(

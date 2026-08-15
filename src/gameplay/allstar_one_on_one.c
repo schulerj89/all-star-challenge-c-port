@@ -276,14 +276,16 @@ void allstar_one_on_one_rom_clamp_player_court(float *player_center_x,
 
 /* Fixed bank $2AE2/$2B07/$2B88: the cooldown decrements before all early
    exits, player 1 is tested before player 2, and an award reloads $C12D
-   with 20 frames. The three lock inputs correspond to $FFE2/$FFE7/$FFF8. */
+   with 20 frames. $FFEB blocks during counted waits; $FFE2 blocks a pending
+   score event; $FFE7 blocks play transitions; $FFF8 blocks until the first
+   ground contact. */
 int allstar_one_on_one_rom_recovery_dispatch(
     AllStarOneOnOneRecoveryState *state,
     bool possession_active,
-    bool global_blocked,
+    bool counted_wait_locked,
     float ball_height,
-    bool contact_locked,
-    bool secondary_locked,
+    bool score_event_locked,
+    bool transition_locked,
     bool flight_locked,
     bool p1_action_eligible,
     bool p1_collision,
@@ -294,7 +296,7 @@ int allstar_one_on_one_rom_recovery_dispatch(
     if (!state) return 0;
     if (state->cooldown_frames > 0) state->cooldown_frames--;
 
-    if (possession_active || global_blocked ||
+    if (possession_active || counted_wait_locked ||
         ball_height >= ALLSTAR_ROM_RECOVERY_MAX_HEIGHT) {
         return 0;
     }
@@ -307,7 +309,7 @@ int allstar_one_on_one_rom_recovery_dispatch(
         return 0;
     }
 
-    if (contact_locked || secondary_locked || flight_locked ||
+    if (score_event_locked || transition_locked || flight_locked ||
         state->cooldown_frames > 0) {
         return 0;
     }

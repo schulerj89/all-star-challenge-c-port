@@ -147,7 +147,7 @@
       "status": "candidate",
       "native_symbol": "allstar_one_on_one_rom_recovery_dispatch",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "Native dispatcher preserves cooldown decrement, possession/global/height gates, player order, action/collision eligibility, final locks, and the 20-frame reload. Three global lock meanings and emulator state traces remain missing."
+      "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, and the 20-frame reload. Whole-routine emulator state traces remain missing."
     },
     "rom_b01_6ca2": {
       "status": "candidate",

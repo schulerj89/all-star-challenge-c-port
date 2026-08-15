@@ -339,10 +339,10 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     recovering_player = allstar_one_on_one_rom_recovery_dispatch(
         &data->recovery,
         data->p1.has_ball || data->p2.has_ball,
-        false,
+        false, /* $FFEB: the native live update is not a counted wait. */
         data->ball.z,
-        false,
-        false,
+        data->ball.made_basket, /* $FFE2 score event; handled above. */
+        game->one_on_one.phase != ALLSTAR_ONE_ON_ONE_PLAYING, /* $FFE7 */
         !data->ball.recoverable,
         !data->p1.is_shooting,
         allstar_one_on_one_player_can_pick_up_ball(

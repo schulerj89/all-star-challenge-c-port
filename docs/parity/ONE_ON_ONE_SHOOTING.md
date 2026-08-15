@@ -44,7 +44,7 @@ The recovered bank-1 shooting cluster provides the structural basis for this cha
 | Fixed `$1CED` | Dispatches outer limits, back-court return, hoop/backboard contact, and ground/bounce behavior. | The exact outer-limit and `y<$5C` return branches are ported; later contact branches remain partial. |
 | Fixed `$1F4D` | Zeroes the two planar 8.8 velocity words. | `allstar_physics_apply_rom_court_contacts` zeroes native `vx` and `vy`; deterministic boundary tests cover the semantic result. |
 | Fixed `$077D` | Tests loose-ball proximity against player reference coordinates with strict Y `<8` and X `<12` limits. | `allstar_one_on_one_player_can_pick_up_ball` reproduces the strict limits and is boundary-tested. |
-| Fixed `$2AE2/$2B07/$2B88` | Decrements the pickup cooldown, applies possession/global/height gates, tests player 1 then player 2 for action and collision eligibility, applies final contact/flight locks, and reloads a 20-frame cooldown on award. | `allstar_one_on_one_rom_recovery_dispatch` preserves that order and is boundary-tested; the scene supplies first-contact flight state and exact proximity, while three still-unclassified global locks remain inactive. |
+| Fixed `$2AE2/$2B07/$2B88` | Decrements the pickup cooldown, applies possession/`$FFEB`/height gates, tests player 1 then player 2 for action and collision eligibility, applies `$FFE2/$FFE7/$FFF8` final locks, and reloads a 20-frame cooldown on award. | `allstar_one_on_one_rom_recovery_dispatch` preserves that order and is boundary-tested; the scene supplies the score-event, transition, first-contact flight, and exact proximity states. |
 
 The static control flow is paired with a headless Mesen trace in
 `tools/emulator/trace_one_on_one_input.lua`. From a captured gameplay state it

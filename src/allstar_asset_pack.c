@@ -311,6 +311,179 @@ static bool extract_one_on_one_art(AllStarAssetPack *pack,
     return true;
 }
 
+static uint16_t rom_word(const AllStarRom *rom, size_t offset) {
+    return (uint16_t)(rom->data[offset] | (rom->data[offset + 1] << 8));
+}
+
+static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
+    uint32_t hash = 2166136261u;
+    size_t i;
+    for (i = 0; i < count; i++) {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+/* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
+   $2FB0, program pointers at $3849, instrument records at $3888, duration
+   table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
+   This intentionally decodes only the two One-on-One square programs. */
+static bool decode_rom_square_stream(const AllStarRom *rom,
+                                     size_t stream,
+                                     int channel,
+                                     AllStarRomSfxProgram *program,
+                                     size_t *next_stream) {
+    size_t cursor = stream;
+    size_t output_frame = 0;
+    uint8_t instrument;
+    size_t descriptor;
+    if (!rom || !program || !next_stream || stream >= rom->size) return false;
+    instrument = rom->data[cursor++];
+    if ((instrument & 0x80) == 0) return false;
+    descriptor = 0x3888u + (size_t)(instrument & 0x7f) * 8u;
+    if (descriptor + 7 >= rom->size) return false;
+
+    if (channel == 1) {
+        program->square1_sweep = rom->data[descriptor + 2];
+        program->square1_duty_length = rom->data[descriptor + 3];
+        program->square1_envelope = rom->data[descriptor + 4];
+    } else {
+        program->square2_duty_length = rom->data[descriptor + 3];
+        program->square2_envelope = rom->data[descriptor + 4];
+    }
+
+    while (cursor < rom->size && rom->data[cursor] != 0xff) {
+        uint8_t note;
+        uint8_t duration_code;
+        uint8_t duration;
+        uint16_t base_frequency;
+        size_t local_frame;
+        if (cursor + 1 >= rom->size) return false;
+        note = rom->data[cursor++];
+        duration_code = rom->data[cursor++];
+        if ((size_t)note + 0x31c6u >= rom->size ||
+            (size_t)note + 0x3159u >= rom->size ||
+            (size_t)duration_code + 0x312bu >= rom->size) return false;
+        duration = rom->data[0x312b + duration_code];
+        base_frequency = (uint16_t)(rom->data[0x31c6 + note] |
+            ((uint16_t)rom->data[0x3159 + note] << 8));
+        if (duration == 0 || output_frame + duration >
+                ALLSTAR_ROM_SFX_MAX_FRAMES) return false;
+        for (local_frame = 0; local_frame < duration; local_frame++) {
+            AllStarRomSfxFrame *frame =
+                &program->frames[output_frame + local_frame];
+            int modulation = 0;
+            uint16_t frequency;
+            if ((rom->data[descriptor + 7] & 0x80) != 0) {
+                modulation = (int8_t)rom->data[0x3244 + (local_frame & 7u)];
+            }
+            frequency = (uint16_t)(base_frequency + modulation) & 0x07ffu;
+            if (channel == 1) {
+                frame->square1_frequency = frequency;
+                frame->flags |= ALLSTAR_ROM_SFX_CHANNEL_1;
+                if (local_frame == 0) frame->flags |= ALLSTAR_ROM_SFX_TRIGGER_1;
+            } else {
+                frame->square2_frequency = frequency;
+                frame->flags |= ALLSTAR_ROM_SFX_CHANNEL_2;
+                if (local_frame == 0) frame->flags |= ALLSTAR_ROM_SFX_TRIGGER_2;
+            }
+        }
+        output_frame += duration;
+    }
+    if (cursor >= rom->size || rom->data[cursor++] != 0xff) return false;
+    if (output_frame > program->frame_count)
+        program->frame_count = (uint8_t)output_frame;
+    *next_stream = cursor;
+    return true;
+}
+
+static bool extract_one_on_one_audio(AllStarAssetPack *pack,
+                                     const AllStarRom *rom) {
+    static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
+        {0x0d, 0x05};
+    size_t i;
+    if (!pack || !rom || rom->size <= 0x3fa5) return false;
+    memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
+    for (i = 0; i < ALLSTAR_ROM_SFX_PROGRAM_COUNT; i++) {
+        AllStarRomSfxProgram *program = &pack->rom_sfx_programs[i];
+        uint8_t command = commands[i];
+        uint16_t mapping = rom_word(rom, 0x2fb0 + command * 2u);
+        uint8_t program_id = (uint8_t)(mapping & 0xff);
+        uint16_t stream = rom_word(rom, 0x3849 + program_id * 2u);
+        size_t next_stream;
+        program->command = command;
+        program->program_id = program_id;
+        program->priority_frames = (uint8_t)(mapping >> 8);
+        program->stream_pointer_1 = stream;
+        program->source_checksum = fnv1a_bytes(
+            rom->data + 0x2fb0, 0x3fa6 - 0x2fb0);
+        if (!decode_rom_square_stream(
+                rom, stream, 1, program, &next_stream)) return false;
+        if (command == 0x05) {
+            program->stream_pointer_2 = (uint16_t)next_stream;
+            if (!decode_rom_square_stream(
+                    rom, next_stream, 2, program, &next_stream)) return false;
+        }
+    }
+    if (pack->rom_sfx_programs[0].command != 0x0d ||
+        pack->rom_sfx_programs[0].program_id != 0x11 ||
+        pack->rom_sfx_programs[0].priority_frames != 0x14 ||
+        pack->rom_sfx_programs[0].stream_pointer_1 != 0x3fa2 ||
+        pack->rom_sfx_programs[0].frame_count != 3 ||
+        pack->rom_sfx_programs[0].frames[0].square1_frequency != 0x07ba ||
+        pack->rom_sfx_programs[0].frames[1].square1_frequency != 0x07bb ||
+        pack->rom_sfx_programs[0].frames[2].square1_frequency != 0x07bc ||
+        pack->rom_sfx_programs[1].command != 0x05 ||
+        pack->rom_sfx_programs[1].program_id != 0x0c ||
+        pack->rom_sfx_programs[1].priority_frames != 0x64 ||
+        pack->rom_sfx_programs[1].stream_pointer_1 != 0x3ef6 ||
+        pack->rom_sfx_programs[1].stream_pointer_2 != 0x3f00 ||
+        pack->rom_sfx_programs[1].frame_count != 72 ||
+        pack->rom_sfx_programs[1].frames[0].square1_frequency != 0x060b ||
+        pack->rom_sfx_programs[1].frames[0].square2_frequency != 0x0563 ||
+        pack->rom_sfx_programs[1].frames[16].square1_frequency != 0x0672 ||
+        pack->rom_sfx_programs[1].frames[16].square2_frequency != 0x060b ||
+        pack->rom_sfx_programs[1].frames[24].square1_frequency != 0x06b2 ||
+        pack->rom_sfx_programs[1].frames[24].square2_frequency != 0x0672 ||
+        pack->rom_sfx_programs[1].frames[71].square1_frequency != 0x06b1 ||
+        pack->rom_sfx_programs[1].frames[71].square2_frequency != 0x0671)
+        return false;
+    pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
+    pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO;
+    return true;
+}
+
+static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
+    const AllStarRomSfxProgram *movement;
+    const AllStarRomSfxProgram *score;
+    if (!pack || pack->header.rom_sfx_program_count !=
+            ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
+    movement = &pack->rom_sfx_programs[0];
+    score = &pack->rom_sfx_programs[1];
+    return movement->command == 0x0d && movement->program_id == 0x11 &&
+        movement->priority_frames == 0x14 && movement->frame_count == 3 &&
+        movement->stream_pointer_1 == 0x3fa2 &&
+        movement->frames[0].square1_frequency == 0x07ba &&
+        movement->frames[1].square1_frequency == 0x07bb &&
+        movement->frames[2].square1_frequency == 0x07bc &&
+        score->command == 0x05 && score->program_id == 0x0c &&
+        score->priority_frames == 0x64 && score->frame_count == 72 &&
+        score->stream_pointer_1 == 0x3ef6 &&
+        score->stream_pointer_2 == 0x3f00 &&
+        score->frames[0].square1_frequency == 0x060b &&
+        score->frames[0].square2_frequency == 0x0563 &&
+        score->frames[16].square1_frequency == 0x0672 &&
+        score->frames[16].square2_frequency == 0x060b &&
+        score->frames[24].square1_frequency == 0x06b2 &&
+        score->frames[24].square2_frequency == 0x0672 &&
+        score->frames[71].square1_frequency == 0x06b1 &&
+        score->frames[71].square2_frequency == 0x0671 &&
+        movement->source_checksum != 0 &&
+        movement->source_checksum == score->source_checksum;
+}
+
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
     if (!pack) return;
     memset(pack, 0, sizeof(AllStarAssetPack));
@@ -319,7 +492,7 @@ void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
     pack->header.version = ALLSTAR_ASSET_VERSION;
     pack->header.tile_count = 128;
     pack->header.player_count = ALLSTAR_DEFAULT_ROSTER_COUNT;
-    pack->header.audio_sequence_count = 10;
+    pack->header.audio_sequence_count = 0;
     pack->header.animation_action_count =
         ALLSTAR_ROM_ANIMATION_ACTION_COUNT;
     pack->header.feature_flags = 0;
@@ -378,6 +551,10 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
         return false;
     }
+    if (!extract_one_on_one_audio(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid One-on-One $3014 audio streams\n");
+        return false;
+    }
 
     /* Verify and retain authentic 27-player roster */
     AllStarRoster temp_roster;
@@ -388,9 +565,11 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
     }
 
     printf("[AssetPack] Built asset pack from ROM: '%s' "
-           "(%u tiles, %u players, %u animation actions, One-on-One art)\n",
+           "(%u tiles, %u players, %u animation actions, One-on-One art, "
+           "%u ROM audio programs)\n",
            rom->header.title, pack->header.tile_count,
-           pack->header.player_count, pack->header.animation_action_count);
+           pack->header.player_count, pack->header.animation_action_count,
+           pack->header.rom_sfx_program_count);
 
     return true;
 }
@@ -429,7 +608,10 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
                pack->header.court_tile_count ||
         fwrite(pack->net_tiles, sizeof(AllStarTile),
                pack->header.net_tile_count, f) !=
-               pack->header.net_tile_count) {
+               pack->header.net_tile_count ||
+        fwrite(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
+               pack->header.rom_sfx_program_count, f) !=
+               pack->header.rom_sfx_program_count) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -495,7 +677,16 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
           pack->header.ball_source_tile_count != 0 ||
           pack->header.ball_oam_pair_count != 0 ||
           pack->header.court_tile_count != 0 ||
-          pack->header.net_tile_count != 0))) {
+           pack->header.net_tile_count != 0)) ||
+        ((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) != 0 &&
+         (pack->header.rom_sfx_program_count !=
+              ALLSTAR_ROM_SFX_PROGRAM_COUNT ||
+          pack->header.audio_sequence_count !=
+              ALLSTAR_ROM_SFX_PROGRAM_COUNT)) ||
+        ((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) == 0 &&
+         pack->header.rom_sfx_program_count != 0)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One asset counts\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);
@@ -530,8 +721,20 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
               pack->header.court_tile_count ||
         fread(pack->net_tiles, sizeof(AllStarTile),
               pack->header.net_tile_count, f) !=
-              pack->header.net_tile_count) {
+              pack->header.net_tile_count ||
+        fread(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
+              pack->header.rom_sfx_program_count, f) !=
+              pack->header.rom_sfx_program_count) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
+        fclose(f);
+        allstar_asset_pack_init_default(pack);
+        return false;
+    }
+
+    if ((pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) != 0 &&
+        !validate_one_on_one_audio(pack)) {
+        fprintf(stderr, "[AssetPack] Invalid decoded One-on-One audio\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);
         return false;
@@ -540,8 +743,9 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
     fclose(f);
     pack->is_loaded = true;
     printf("[AssetPack] Loaded asset pack: %u tiles, %u players, "
-           "%u animation actions\n",
+           "%u animation actions, %u ROM audio programs\n",
            pack->header.tile_count, pack->header.player_count,
-           pack->header.animation_action_count);
+           pack->header.animation_action_count,
+           pack->header.rom_sfx_program_count);
     return true;
 }

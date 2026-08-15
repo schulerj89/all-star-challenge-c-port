@@ -221,11 +221,17 @@
       "source": "src/allstar_controls.c",
       "note": "Native edge-state utility; Game Boy register polling itself is platform-native and excluded."
     },
+    "rom_b00_2f88": {
+      "status": "candidate",
+      "native_symbol": "extract_one_on_one_audio",
+      "source": "src/allstar_asset_pack.c",
+      "note": "Focused partial mapping: exact command-table words $05->$640C and $0D->$1411 are extracted and live-traced. Other command priorities and dispatch behavior keep whole-routine credit withheld."
+    },
     "rom_b00_3014": {
       "status": "candidate",
-      "native_symbol": "allstar_audio_update",
+      "native_symbol": "allstar_audio_bind_rom_sfx",
       "source": "src/audio/allstar_audio.c",
-      "note": "Subsystem analogue only; the ROM command sequencer is not ported."
+      "note": "Focused partial mapping: command $05 program $0C and command $0D program $11 are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep PCM. The remaining programs, channels, and music keep whole-routine credit withheld."
     },
     "rom_b00_0b80": {
       "status": "candidate",
@@ -301,9 +307,9 @@
     },
     "rom_b00_20f7": {
       "status": "candidate",
-      "native_symbol": "one_on_one_reset_possession",
-      "source": "src/scenes/scene_one_on_one.c",
-      "note": "The post-score owner change, shot-clock reset, ball clear, player reset, and frame-214 ordering are emulator/native tested; VRAM/OAM and unrelated initialization work prevent whole-routine credit."
+      "native_symbol": "allstar_one_on_one_rom_inbound_placement_20f7",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "The post-score owner change plus $2197/$21C8/$21E1 player targets, $50/$90 ball origin, shot-clock reset, and frame-214 ordering are emulator/native tested; VRAM/OAM and unrelated initialization work prevent whole-routine credit."
     },
     "rom_b00_27c7": {
       "status": "verified",

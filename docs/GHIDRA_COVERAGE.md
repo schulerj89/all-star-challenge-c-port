@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **31/117 (26.50%)**. All 117 entry points have stable bank-aware symbols and decompile successfully; 56 are explicitly unmapped, 30 have candidate native analogues, and 31 mappings are verified by deterministic tests and traces. This audit adds verified whole-routine credit for `$1F33` net-effect initialization, `$2AB5` roster command dispatch, `$6F2A` final dribble placement, and `$782E` movement-action/audio selection. It also corrects the asset call graph: `$2219` receives net-loader credit, while `$2243` is returned to unmapped because it belongs to another mode. This is a conservative reviewed subset, not a claim that the entire ROM contains only 117 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **31/117 (26.50%)**. All 117 entry points have stable bank-aware symbols and decompile successfully; 55 are explicitly unmapped, 31 have candidate native analogues, and 31 mappings are verified by deterministic tests and traces. The focused `$2F88/$3014` audio work promotes `$2F88` from unmapped to candidate but deliberately adds no whole-routine credit. This remains a conservative reviewed subset, not a claim that the entire ROM contains only 117 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -22,11 +22,13 @@ corrected. The path now couples `$6A8C`, `$6C4D/$7F37`, `$7C58`, `$7BE8`, and
 
 The separate remaining-focus manifest is **50/50 (100.00%)**: exact RNG is **10/10**, animation/assets are **20/20**, and collision/contact recovery is **20/20**. Ghidra corrected two speculative requirements: the ROM has no contact-hit/recoil animation and no rebound-pickup action assignment. Verified absence and the actual charging/blocking, CPU hold/reroute, and asset/OAM paths receive credit instead.
 
-The focused One-on-One presentation/audio event manifest is **20/20
-(100.00%)**, up from a reconstructed pre-audit **6/20 (30.00%)**. It covers
-`$1ECC` net animation, sound commands `$05/$08/$0C/$0D/$0E/$0F`, `$6F2A`
-held-ball placement, and their live integration. The bank-0 `$3014` APU
-sequencer remains only a candidate, so this does not claim waveform parity.
+The expanded One-on-One presentation/audio manifest is **25/25 (100.00%)**.
+It now covers `$1ECC` net animation, sound commands `$05/$08/$0C/$0D/$0E/$0F`,
+focused `$3014` program `$0C/$11` extraction and square/sweep rendering,
+`$6F2A` held-ball placement, and `$20F7/$21C8/$21E1` take-out placement. The
+whole bank-0 `$3014` interpreter remains a candidate mapping because only the
+two user-requested programs are converted; whole-engine waveform/music parity
+is not claimed.
 
 ## Scope
 
@@ -50,7 +52,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 117 functions | 61 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 130 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 31 of 117 | 31 mappings have address-level C plus deterministic or emulator evidence; 30 candidates remain below whole-routine evidence threshold. |
+| Reviewed routine-to-C parity | 31 of 117 | 31 mappings have address-level C plus deterministic or emulator evidence; 31 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |

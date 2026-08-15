@@ -2,6 +2,7 @@
 #define ALLSTAR_AUDIO_H
 
 #include "allstar_types.h"
+#include "allstar_asset_pack.h"
 
 typedef enum {
     ALLSTAR_SFX_NONE = 0,
@@ -36,11 +37,20 @@ typedef struct {
     AllStarBgmId current_bgm;
     AllStarSfxId last_sfx;
     uint32_t sfx_play_count;
+    bool rom_sfx_bound;
+    uint32_t rom_sfx_source_checksum;
 } AllStarAudioEngine;
 
 /* Native PCM platform layer. The cartridge command/APU sequencer begins in
    the reviewed fixed-bank $3014 region and is not yet ported whole. */
 void allstar_audio_init(AllStarAudioEngine *audio);
+/* Synthesize command $0D/$05 directly from the decoded ROM programs stored
+   in a user-built version-6 asset pack. These replace any native fallback. */
+bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
+                                const AllStarAssetPack *pack);
+bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
+                                      uint8_t command,
+                                      const char *filepath);
 void allstar_audio_update(AllStarAudioEngine *audio, float dt);
 
 /* Native fallback-tone utility; not a ROM-routine mapping. */

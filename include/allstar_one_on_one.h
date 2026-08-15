@@ -94,6 +94,13 @@ typedef enum {
     ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING = (1 << 2)
 } AllStarOneOnOneShotEvent;
 
+typedef struct {
+    float p1_center_x;
+    float p1_ground_y;
+    float p2_center_x;
+    float p2_ground_y;
+} AllStarRomInboundPlacement;
+
 typedef enum {
     ALLSTAR_ROM_SCORE_EVENT_NONE = 0,
     ALLSTAR_ROM_SCORE_EVENT_COMMIT = (1 << 0),
@@ -333,6 +340,9 @@ AllStarRomNetFrame allstar_one_on_one_score_net_frame_1ecc(
 int allstar_one_on_one_next_possession_after_score(
     const AllStarOneOnOneMatch *match,
     int shooter);
+void allstar_one_on_one_rom_inbound_placement_20f7(
+    int possession_owner,
+    AllStarRomInboundPlacement *placement);
 int allstar_one_on_one_compare_scores(uint16_t p1_score, uint16_t p2_score);
 bool allstar_one_on_one_result_can_dismiss(uint8_t buttons_pressed);
 bool allstar_one_on_one_overtime_can_dismiss(uint8_t buttons_pressed);

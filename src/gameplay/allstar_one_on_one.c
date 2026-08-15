@@ -79,6 +79,20 @@ void allstar_one_on_one_match_take_possession(AllStarOneOnOneMatch *match,
     if (reset_shot_clock) match->shot_clock = match->shot_clock_seconds;
 }
 
+/* Fixed $20F7 calls $2197 for both records. The player opposite $FFD0 owns
+   the restart and receives template $21C8 (+$06=$4C, target +$16=$98);
+   the prior scorer/offender receives $21E1 ($4C/$88). */
+void allstar_one_on_one_rom_inbound_placement_20f7(
+    int possession_owner,
+    AllStarRomInboundPlacement *placement) {
+    const float center_x = 0x4c + ALLSTAR_ROM_PLAYER_X_TO_CENTER;
+    if (!placement) return;
+    placement->p1_center_x = center_x;
+    placement->p2_center_x = center_x;
+    placement->p1_ground_y = possession_owner == 1 ? 152.0f : 136.0f;
+    placement->p2_ground_y = possession_owner == 2 ? 152.0f : 136.0f;
+}
+
 uint32_t allstar_one_on_one_match_call_traveling(AllStarOneOnOneMatch *match,
                                                  int player) {
     int defender;

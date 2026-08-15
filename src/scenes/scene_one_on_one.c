@@ -167,12 +167,15 @@ static void one_on_one_tick_defense(SceneOneOnOneData *data, float dt) {
 static void one_on_one_reset_possession(SceneOneOnOneData *data,
                                         AllStarGame *game,
                                         bool p1_possession) {
+    AllStarRomInboundPlacement placement;
     allstar_one_on_one_match_take_possession(
         &game->one_on_one, p1_possession ? 1 : 2, true);
-    data->p1.x = 80.0f;
-    data->p2.x = 80.0f;
-    data->p1.y = p1_possession ? 130.0f : 105.0f;
-    data->p2.y = p1_possession ? 105.0f : 130.0f;
+    allstar_one_on_one_rom_inbound_placement_20f7(
+        p1_possession ? 1 : 2, &placement);
+    data->p1.x = placement.p1_center_x;
+    data->p2.x = placement.p2_center_x;
+    data->p1.y = placement.p1_ground_y;
+    data->p2.y = placement.p2_ground_y;
     data->p1.has_ball = p1_possession;
     data->p2.has_ball = !p1_possession;
     data->p1.is_shooting = false;
@@ -954,4 +957,18 @@ AllStarScene* allstar_scene_create_one_on_one(void) {
     scene->draw = one_on_one_draw;
     scene->destroy = one_on_one_destroy;
     return scene;
+}
+
+bool allstar_scene_one_on_one_set_test_positions(AllStarScene *scene,
+                                                 float p1_x, float p1_y,
+                                                 float p2_x, float p2_y) {
+    SceneOneOnOneData *data;
+    if (!scene || scene->id != ALLSTAR_SCENE_ONE_ON_ONE || !scene->user_data)
+        return false;
+    data = (SceneOneOnOneData*)scene->user_data;
+    data->p1.x = p1_x;
+    data->p1.y = p1_y;
+    data->p2.x = p2_x;
+    data->p2.y = p2_y;
+    return true;
 }

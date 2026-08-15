@@ -24,10 +24,11 @@ the cartridge.
 | `$7C58->$7EA9->$7BE8->$1CED->$1E0E` | Select the distance/profile/record arc, integrate 8.8 motion, then accept only an exact score cell. | The ROM launcher and fixed physics contact dispatcher feed `allstar_one_on_one_score_presentation_begin_1e0e`. |
 | `$1E0E->$1F33->$1ECC` | Seed a four-step net effect, then write bend/deep/bend/rest tile sets at `+20/+35/+50/+65`. | The score helper exposes the exact frame and the renderer replaces the same six BG cells from the extracted 17-tile stream. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
-| `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select multi-step command `$05`. | The scene updates the score and plays the separate `ALLSTAR_SFX_SCORE_CHIME`. |
+| `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
+| `$2F88->$3014->$32A9->$347B->$35F0/$3631` | Commands `$05/$0D` select programs `$0C/$11`; the driver loads instruments, notes, durations, pitch modulation, and square APU registers. | Asset-pack v6 decodes those two programs into per-frame square state; the native renderer applies DMG frequency, duty, envelope, retrigger, and `$0D` NR10 sweep behavior. |
 | `$0B80/$0B9A->$0C13->$2D08` | Suspend normal match input through the post-score counted holds. | `allstar_one_on_one_score_presentation_tick_0c13` advances at the fixed 60 Hz physics step. |
 | `$27C7->$27EA` | Fade BGP through `E4,F9,FE,FF` in 34 frames. | The presentation exposes each byte and `allstar_renderer_apply_dmg_bgp` applies it after scene drawing. |
-| `$20F7->$27CC->$27EA->$2D08->$702D` | Rebuild possession at `+214`, reverse the palette table, reach the final counted `$FFEB=1` player update at `+254`, then restore OBJ/input for playable inbound at `+258`. | The scene resets possession at the same event and releases its input lock only at `INBOUND`. |
+| `$20F7->$2197->$21C8/$21E1->$27CC->$27EA->$2D08->$702D` | Rebuild possession at `+214`: the new owner takes out at `$4C/$98`, the prior scorer uses `$4C/$88`, and the ball seeds at `$50/$90`; then reverse the palette and restore playable input at `+258`. | `allstar_one_on_one_rom_inbound_placement_20f7` maps these to native centers `(84,152)` and `(84,136)` before the same fade/input timeline. |
 
 The cartridge script `trace_one_on_one_score_presentation.lua` proves every
 boundary above. The focused shooting denominator was therefore expanded from
@@ -80,7 +81,7 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$7F37 -> $6F2A/$6FEA` | `$7F37` supplies shot/gather placement; final held-ball presentation uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-5 asset pack. The old
+The extracted bytes exist only in a user-built version-6 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 
@@ -89,8 +90,9 @@ uses a source-free procedural fallback when no pack is supplied.
 ```powershell
 .\build.ps1
 .\build\allstar_port.exe --test-all
-.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v5.pack
-.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v5.pack
+.\build\allstar_port.exe --build-assetpack "<user ROM>" build\one_on_one_v6.pack
+.\build\allstar_port.exe --dump-screenshots build\one_on_one_screenshots build\one_on_one_v6.pack
+.\build\allstar_port.exe --export-rom-sfx build\one_on_one_v6.pack build\command_05.wav build\command_0D.wav
 .\tools\ghidra\run_ghidra_decomp.ps1
 ```
 

@@ -81,7 +81,7 @@ boundary, retaining prior direction and the horizontal-flip bit per player.
 It uses `$70FD`'s family selector for defense jumps, `$2B14`'s family selector
 for steals, and passes the resulting display-frame byte to the renderer.
 
-Asset-pack version 5 retains the 24 `AllStarRomAnimationAction` entries. Building a
+Asset-pack version 6 retains the 24 `AllStarRomAnimationAction` entries. Building a
 pack reads the `$6C60` pointers and their control lists directly from the
 user-supplied ROM. It also extracts the three player tile families and all 60
 18-index frame maps used by fixed `$2933/$293D->$2945->$2A2B`. The repository

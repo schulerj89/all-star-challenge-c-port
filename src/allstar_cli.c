@@ -61,6 +61,7 @@ static void print_usage(const char *prog_name) {
     printf("  --play [assetpack]                 Launch game\n");
     printf("  --rom-test <rom.gb>                Validate Game Boy ROM header & checksum\n");
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
+    printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> Export decoded ROM cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -1671,8 +1672,18 @@ int allstar_cli_test_one_on_one_shooting(void) {
        profile/distance/record state, not one universal release frame. */
     srand(1);
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    /* Keep this shot-result proof at its original class-one geometry; the
+       separate $20F7 test above owns the newly exact take-out placement. */
+    if (!allstar_scene_one_on_one_set_test_positions(
+            game.active_scene, 80.0f, 130.0f, 80.0f, 105.0f)) {
+        fprintf(stderr, "[Test] Could not place class-one shot fixture\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
     allstar_input_update(&game.input, 0);
     allstar_game_tick(&game, 0.0f);
+    allstar_rom_rng_init(&game.one_on_one_rng, 0x0018);
+    srand(1);
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     allstar_input_update(&game.input, 0);
@@ -2028,11 +2039,54 @@ int allstar_cli_test_headless_frames(void) {
     return 0;
 }
 
+int allstar_cli_export_rom_sfx(const char *pack_path,
+                               const char *score_path,
+                               const char *squeak_path) {
+    AllStarAssetPack pack;
+    const AllStarRomSfxProgram *squeak;
+    const AllStarRomSfxProgram *score;
+    if (!allstar_asset_pack_load_file(&pack, pack_path)) return 1;
+    if (pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
+        return 1;
+    squeak = &pack.rom_sfx_programs[0];
+    score = &pack.rom_sfx_programs[1];
+    if (!allstar_audio_export_rom_sfx_wav(&pack, 0x05, score_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0d, squeak_path)) {
+        fprintf(stderr, "[ROM SFX] Failed to export decoded WAV proof\n");
+        return 1;
+    }
+    printf("[ROM SFX] command $05 -> program $%02X, priority %u, "
+           "streams $%04X/$%04X, %u frames, source FNV-1a %08X\n",
+           score->program_id, score->priority_frames,
+           score->stream_pointer_1, score->stream_pointer_2,
+           score->frame_count, score->source_checksum);
+    printf("[ROM SFX] command $0D -> program $%02X, priority %u, "
+           "stream $%04X, %u frames, source FNV-1a %08X\n",
+           squeak->program_id, squeak->priority_frames,
+           squeak->stream_pointer_1, squeak->frame_count,
+           squeak->source_checksum);
+    printf("[ROM SFX] Exported %s and %s\n", score_path, squeak_path);
+    return 0;
+}
+
 int allstar_cli_test_one_on_one_presentation(void) {
     AllStarGame game;
+    AllStarRomInboundPlacement inbound;
     bool dribble_heard = false;
     int frame;
     printf("[Test] Running One-on-One Presentation/Audio Integration Tests...\n");
+    allstar_one_on_one_rom_inbound_placement_20f7(1, &inbound);
+    if (inbound.p1_center_x != 84.0f || inbound.p1_ground_y != 152.0f ||
+        inbound.p2_center_x != 84.0f || inbound.p2_ground_y != 136.0f) {
+        fprintf(stderr, "[Test] $20F7 P1 take-out placement mismatch\n");
+        return 1;
+    }
+    allstar_one_on_one_rom_inbound_placement_20f7(2, &inbound);
+    if (inbound.p1_center_x != 84.0f || inbound.p1_ground_y != 136.0f ||
+        inbound.p2_center_x != 84.0f || inbound.p2_ground_y != 152.0f) {
+        fprintf(stderr, "[Test] $20F7 P2 take-out placement mismatch\n");
+        return 1;
+    }
     if (!allstar_game_init(&game, NULL)) {
         fprintf(stderr, "[Test] Failed initializing presentation/audio game\n");
         return 1;
@@ -2329,6 +2383,13 @@ int allstar_cli_main(int argc, char **argv) {
             return 1;
         }
         return allstar_cli_build_assetpack(argv[2], argv[3]);
+    } else if (strcmp(cmd, "--export-rom-sfx") == 0) {
+        if (argc < 5) {
+            fprintf(stderr, "Error: --export-rom-sfx requires <pack>, "
+                    "<05.wav>, and <0D.wav>\n");
+            return 1;
+        }
+        return allstar_cli_export_rom_sfx(argv[2], argv[3], argv[4]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");

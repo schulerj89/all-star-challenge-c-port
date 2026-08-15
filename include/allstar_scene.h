@@ -39,4 +39,9 @@ AllStarScene* allstar_scene_create_free_throw(void);
 AllStarScene* allstar_scene_create_horse(void);
 AllStarScene* allstar_scene_create_tournament(void);
 
+/* Deterministic headless-test placement; production gameplay never calls it. */
+bool allstar_scene_one_on_one_set_test_positions(AllStarScene *scene,
+                                                 float p1_x, float p1_y,
+                                                 float p2_x, float p2_y);
+
 #endif /* ALLSTAR_SCENE_H */

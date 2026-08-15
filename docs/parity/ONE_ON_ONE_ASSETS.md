@@ -5,7 +5,8 @@
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-5 pack.
+small composition maps in a version-6 pack. Version 6 also appends the focused
+One-on-One `$05/$0D` audio programs; the graphics payload itself is unchanged.
 
 | Asset | ROM source | Decoded result |
 |---|---|---:|

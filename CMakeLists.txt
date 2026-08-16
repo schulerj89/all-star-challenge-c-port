@@ -86,6 +86,9 @@ if(ALLSTAR_BUILD_SDL_GAME)
     FetchContent_MakeAvailable(SDL3)
 
     if(IOS)
+        option(ALLSTAR_IOS_USE_ASSET_CATALOG
+            "Compile the iOS asset catalog instead of using legacy PNG icons"
+            ON)
         if(NOT ALLSTAR_ASSETPACK_PATH)
             set(ALLSTAR_ASSETPACK_PATH
                 "${CMAKE_CURRENT_SOURCE_DIR}/build/macos/allstar.assetpack")
@@ -104,9 +107,12 @@ if(ALLSTAR_BUILD_SDL_GAME)
         )
         set(ALLSTAR_IOS_RESOURCES
             "${ALLSTAR_ASSETPACK_PATH}"
-            "${ALLSTAR_IOS_ASSET_CATALOG}"
             ${ALLSTAR_IOS_LEGACY_ICONS}
         )
+        if(ALLSTAR_IOS_USE_ASSET_CATALOG)
+            list(APPEND ALLSTAR_IOS_RESOURCES
+                "${ALLSTAR_IOS_ASSET_CATALOG}")
+        endif()
         set_source_files_properties(${ALLSTAR_IOS_RESOURCES} PROPERTIES
             MACOSX_PACKAGE_LOCATION "Resources"
         )
@@ -124,12 +130,16 @@ if(ALLSTAR_BUILD_SDL_GAME)
                 "com.schulerj89.allstarchallenge.ios"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
             MACOSX_BUNDLE_BUNDLE_VERSION "1"
-            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+            XCODE_ATTRIBUTE_COMBINE_HIDPI_IMAGES "NO"
             XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
             XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER
                 "com.schulerj89.allstarchallenge.ios"
             XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1"
         )
+        if(ALLSTAR_IOS_USE_ASSET_CATALOG)
+            set_property(TARGET allstar_port_game PROPERTY
+                XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+        endif()
     elseif(APPLE)
         set(ALLSTAR_MACOS_ICON
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/nba_allstar_challenge.icns")

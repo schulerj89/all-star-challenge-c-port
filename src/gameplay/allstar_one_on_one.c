@@ -885,6 +885,125 @@ AllStarRomContactEvent allstar_one_on_one_rom_contact_tick_2c50(
     return ALLSTAR_ROM_CONTACT_NONE;
 }
 
+/* Bank 1 $702D is deliberately represented as one state transition rather
+   than a collection of scene-side shortcuts.  $7170 feeds this exact routine
+   for the CPU through its synthetic $FFD2/$FFD3 input bytes. */
+uint32_t allstar_one_on_one_rom_player_controller_702d(
+        AllStarRomPlayerController *player,
+        const AllStarRomPlayerControllerContext *context) {
+    uint32_t events = ALLSTAR_ROM_PLAYER_EVENT_NONE;
+    bool eligible;
+
+    if (!player || !context) return events;
+    eligible = allstar_one_on_one_rom_action_eligible_0a78(player->action);
+
+    if (eligible) {
+        uint8_t direction = (uint8_t)(player->held_input & 0xf0u);
+        if (!context->transition_locked && direction != 0) {
+            direction = (uint8_t)(direction >> 4);
+            player->input_direction = direction;
+            player->stored_direction = direction;
+        } else {
+            player->input_direction = 0;
+            player->blocked_contact = false;
+        }
+
+        if ((player->new_input & 0x01u) != 0) {
+            if (context->jump_locked) return events;
+            if (player->without_ball != 0) {
+                player->action = allstar_one_on_one_rom_defense_jump_action_70fd(
+                    player->action);
+                player->record_index = 0;
+                events |= ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET |
+                          ALLSTAR_ROM_PLAYER_EVENT_DEFENSE_JUMP;
+                return events;
+            }
+
+            /* Fixed $0AA3 resets the record, installs action $13, stores a
+               side direction from ball X, then $70FD immediately replaces
+               it with the position-selected $0A/$12 gather action. */
+            player->record_index = 0;
+            if (context->ball_x < 0x54) {
+                player->flags |= 0x10;
+                player->stored_direction = 3;
+            } else {
+                player->flags &= (uint8_t)~0x10u;
+                player->stored_direction = 4;
+            }
+            player->shot_phase = 0;
+            player->action = player->shot_variant == 1
+                ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
+            if (context->player_center_x < 0x54) player->flags |= 0x10;
+            else player->flags &= (uint8_t)~0x10u;
+            events |= ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET |
+                      ALLSTAR_ROM_PLAYER_EVENT_SHOT_GATHER;
+            return events;
+        }
+
+        if ((player->held_input & 0x02u) == 0) {
+            player->direction_override = 0;
+            return events;
+        }
+        if (player->without_ball != 0) {
+            if (player->steal_lock == 0 &&
+                (player->new_input & 0x02u) != 0) {
+                events |= ALLSTAR_ROM_PLAYER_EVENT_STEAL;
+            }
+            return events;
+        }
+        if (player->direction_override == 0) {
+            player->direction_override = player->stored_direction;
+        }
+        return events;
+    }
+
+    /* $714D assigns the position-selected shot family directly, preserving
+       the current animation record; defensive jumps are exempt. */
+    if (player->action != 0x05 && player->action != 0x0c &&
+        player->action != 0x14 && !context->shot_assignment_locked) {
+        uint8_t shot_action = player->shot_variant == 1
+            ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
+        if (player->action != shot_action) {
+            player->action = shot_action;
+            events |= ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT;
+        }
+        if (context->player_center_x < 0x54) player->flags |= 0x10;
+        else player->flags &= (uint8_t)~0x10u;
+    }
+    events |= ALLSTAR_ROM_PLAYER_EVENT_BALL_PRESENTATION;
+
+    if (player->shot_phase != 0 && player->release_latch != 0) {
+        player->release_latch--;
+        if (player->release_latch == 0) {
+            player->shot_phase++;
+            events |= ALLSTAR_ROM_PLAYER_EVENT_BALL_PRESENTATION;
+            if (context->possession_active && !context->launch_locked) {
+                events |= ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE;
+            }
+            return events;
+        }
+    }
+
+    if (player->action == 0x05 || player->action == 0x0c ||
+        player->action == 0x14) {
+        events |= ALLSTAR_ROM_PLAYER_EVENT_JUMP_RECOVERY;
+        return events;
+    }
+    if ((player->new_input & 0x01u) != 0) {
+        if (player->shot_phase == 0 && context->possession_active &&
+            !context->launch_locked) {
+            events |= ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE;
+        }
+        return events;
+    }
+    if ((player->held_input & 0x02u) != 0 &&
+        context->possession_active && player->shot_phase == 0) {
+        player->shot_phase = 1;
+        player->release_latch = 1;
+    }
+    return events;
+}
+
 void allstar_one_on_one_foul_presentation_begin_05a3(
         AllStarRomFoulPresentation *presentation,
         AllStarRomContactEvent violation,

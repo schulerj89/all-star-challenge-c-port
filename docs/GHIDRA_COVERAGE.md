@@ -4,13 +4,13 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **34/118 (28.81%)**. All 118 entry points have stable bank-aware symbols and decompile successfully; 55 are explicitly unmapped, 29 have candidate native analogues, and 34 mappings are verified by deterministic tests and traces. This update adds and fully verifies `$21FA`'s selected-roster OBJ palette routine; the focused `$2F88/$3014` audio interpreter remains partial. This is a conservative reviewed subset, not a claim that the entire ROM contains only 118 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **38/118 (32.20%)**. All 118 entry points have stable bank-aware symbols and decompile successfully; 54 are explicitly unmapped, 26 have candidate native analogues, and 38 mappings are verified by deterministic tests and traces. This update completes `$702D/$714D` shared player control and `$7170/$74BB` CPU input synthesis; the focused `$2F88/$3014` audio interpreter remains partial. This is a conservative reviewed subset, not a claim that the entire ROM contains only 118 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
 The port currently has broad native scene scaffolding. Mode routing, settings persistence/consumption, the high-level One-on-One lifecycle, and the seven-match tournament progression are verified against reviewed fixed-bank control flow; most detailed game rules remain partial, simplified, or unverified.
 
-The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
+The strict project milestone tracker is currently **11/25 (44.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **5/11 (45.45%)** verified.
 
 The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, moving defensive jumps, post-contact recovery that preserves action/direction/facing, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
 
@@ -60,13 +60,13 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 118 functions | 62 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 131 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 34 of 118 | 34 mappings have address-level C plus deterministic or emulator evidence; 29 candidates remain below whole-routine evidence threshold. |
+| Reviewed routine-to-C parity | 38 of 118 | 38 mappings have address-level C plus deterministic or emulator evidence; 26 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Headless Mesen trace scripts | 15 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, take-back clearing and violation, exact rim-noise, input/dunk, shot, defense, RNG, animation, collision, and contact-rule assertions. |
+| Headless Mesen trace scripts | 18 | Includes complete score/fade/inbound, net/audio/roster, held-ball/assets, take-back clearing and violation, exact rim-noise, input/dunk, shot, offense/defense CPU control, RNG, animation, collision, and contact-rule assertions. |
 
 ### Reviewed Ghidra recovery
 
@@ -74,7 +74,7 @@ Game rules, two-player state synchronization after transport, audio command sequ
 
 The current conservative boundaries are:
 
-- bank 0: 61 boot, RNG, cross-bank anchor, One-on-One lifecycle, score-presentation, contact-rule, asset-load, player-composition, steal, recovery, and roster-audio routines;
+- bank 0: 62 boot, RNG, cross-bank anchor, One-on-One lifecycle, score-presentation, contact-rule, asset-load, player-composition, steal, recovery, and roster-audio routines;
 - bank 1: 48 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher and `$6F2A` final dribble placement; generated labels before that region remain excluded as likely data false positives;
 - bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
 - bank 3: no reviewed functions yet; observed uses are asset-copy sources.
@@ -93,6 +93,7 @@ Bank 1 `$76A7` is a confirmed call target but remains deferred because Ghidra fo
 | Mode routing + One-on-One lifecycle | 8/25 | 32.00% | +8.00 points |
 | Settings persistence and consumption | 9/25 | 36.00% | +4.00 points |
 | Tournament bracket and championship | 10/25 | 40.00% | +4.00 points |
+| `$702D/$7170` player and CPU controllers | 11/25 | 44.00% | +4.00 points |
 
 Run `python tools/check_coverage.py` to validate and report the current checkpoint. For future changes, use `python tools/check_coverage.py --baseline-ref HEAD --require-delta 2` to enforce the two-point commit gate against the currently committed manifest. The initial 12%→20% checkpoint uses the recorded history because the manifest did not exist at the prior Git revision.
 
@@ -128,7 +129,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Intro/title/menu presentation | Yes | No | Partial |
 | Settings UI | Yes | Scoped behavior | ROM defaults/cycles persist for the session and feed mode state; presentation parity remains partial. |
 | Roster selection | Yes | Scoped audio behavior | Navigation command `$0F`/program `$07` and accepted-player command `$0E`/five-step program `$12` are live-traced, extracted, and integrated; data and screen art remain hardcoded/partial. |
-| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 60/60 presentation/audio | Lifecycle, possession, shooting/dunk phase, roster palettes, hoop-facing shots and held-ball offsets, live steals, RNG, record-boundary movement, charging/blocking/take-back presentation/audio, CPU route/contact response, defender landing, grounded OAM, score-ball/net priority, rim recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
+| One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 60/60 presentation/audio | Lifecycle, possession, shooting/dunk phase, roster palettes, hoop-facing shots and held-ball offsets, live steals, RNG, complete `$702D` shared input control, record-boundary movement, charging/blocking/take-back presentation/audio, complete `$7170` CPU decisions, defender landing, grounded OAM, score-ball/net priority, rim recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | No | Broken/incomplete prototype |
 | H-O-R-S-E | Yes | No | Incomplete prototype |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
@@ -136,7 +137,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Two-player gameplay | No | No | Missing |
 | Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, live animation-record arc selection, record-coupled release height, 32/64-frame vectors, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes remain incomplete. |
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
-| CPU AI | Yes | Scoped One-on-One behavior | The prior target/shot/steal/contest/RNG paths plus `$75CD` owner reroute/fourteenth-contact shot and defender ten-count saved-position hold are integrated; unrelated `$7170` states remain incomplete. |
+| CPU AI | Yes | Verified `$7170-$761A` controller | Mode dispatch/gates, `$FFD2/$FFD3` synthesis, offense routes, defense offsets, loose-ball chase, profile/skill decisions, close-drive/special timers, `$75CD` contact behavior, `$74BB` 8/4/1 hysteresis, arrival/gather, and record-gated release are native and traced. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
 | Court/menu/player rendering | Yes | One-on-One scoped | Court, animated net and OBJ priority, shared player action art, ball, and shadow tiles/composition load from asset-pack v11; `$21FA` applies selected-roster palettes. Other screens retain separate presentation work. |
 | ROM asset extraction | Yes | One-on-One scoped | Exact player/frame/net/court/ball sources, `$050F` RLE, composition maps, endpoint validation, and runtime loading are implemented. |
@@ -161,7 +162,7 @@ No whole subsystem should currently be labeled 100% ROM-equivalent; the
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
 | P1 | Physics | One-on-One launch/contact/bounce, `$FFD7` 2/3-point selection, and `$6A8C` timing-to-launch-index logic are covered; extend equivalent evidence to other modes. |
-| P1 | AI | One-on-One targets, profile/skill shot selection, steal thresholds, contest gating, and `$75CD` contact response are covered; recover unrelated remaining `$7170` states. |
+| Complete | `$702D/$7170` controllers | Shared human/CPU player input, full CPU decision state, synthetic input handoff, direction hysteresis, contact response, mode dispatch, and record-gated shooting are verified. |
 | Complete | Focused One-on-One animation/assets | Directional records, direct movement, verified no-contact-hit/no-pickup-action behavior, eight-phase ball/shadow OAM, player composition, and court/player/ball extraction are covered. |
 | P1 | Audio sequencing | Recover the bank-0 audio command interpreter, song/SFX tables, channel timing, pitch, envelope, and event mappings. |
 | P1 | Asset pipeline | One-on-One court/player/ball extraction is complete; portraits, logos, other-mode animation art, roster records, and audio data remain. |
@@ -191,4 +192,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **34/118 routine mappings verified**. Do not use 118 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus and presentation/audio percentages are checked separately with `python tools/check_one_on_one_remaining_coverage.py` and `python tools/check_one_on_one_presentation_audio_coverage.py`.
+The manifest now exists, so report its verified subset explicitly: **38/118 routine mappings verified**. Do not use 118 as a whole-ROM function denominator until the remaining code/data review is complete. The scoped remaining-focus and presentation/audio percentages are checked separately with `python tools/check_one_on_one_remaining_coverage.py` and `python tools/check_one_on_one_presentation_audio_coverage.py`.

@@ -32,11 +32,61 @@ typedef struct {
     uint8_t rom_contact_saved_y;
     uint8_t rom_offense_stage;
     uint8_t rom_stored_shot_random;
+    uint8_t rom_new_input;               /* $FFD2 */
+    uint8_t rom_held_input;              /* $FFD3 */
+    uint8_t rom_offense_active;          /* $C0F7 */
+    uint8_t rom_initial_target_active;    /* $C0F8 */
+    uint8_t rom_drive_b_frames;           /* $C0F9 */
+    uint8_t rom_defense_offset_frames;    /* $C0FB */
+    uint8_t rom_arrived;                 /* $C0FD */
+    uint8_t rom_accepted_direction;      /* $C0FE */
+    uint8_t rom_special_frames;          /* $C0FF */
+    uint8_t rom_direction_hysteresis;    /* $C103 */
+    uint8_t rom_direction_reload;        /* $C144 */
+    uint8_t rom_force_route;             /* $C106 */
+    uint8_t rom_mode2_arrival;           /* $C145 */
     bool rom_steal_pressed;
     bool rom_force_shot;
     bool rom_shot_release;
     bool rom_had_possession;
 } AllStarAIController;
+
+typedef struct {
+    uint8_t game_mode;             /* $FF8F */
+    bool counted_wait_locked;      /* $C12C */
+    bool cpu_enabled;              /* $FF90 */
+    bool score_event_locked;       /* $FFE2 */
+    bool special_route;            /* $FFE4 */
+    bool initial_flight;           /* $FFF8 */
+    uint8_t cpu_player;            /* $C127 */
+    uint8_t possession_owner;      /* $FFCF */
+    uint8_t shot_owner;            /* $FFD0 */
+    uint8_t skill_level;           /* $FF97 */
+    uint8_t random_current;        /* $FFFB */
+    uint8_t random_target;         /* $FFFC */
+    uint8_t random_route;          /* $FFFD */
+    uint8_t random_position;       /* $FFFE */
+    uint8_t ball_x;                /* $C0A3 */
+    uint8_t ball_y;                /* $C0A7 */
+    uint8_t ball_height;           /* $C0AB */
+    bool ball_contact;             /* $077D returned Z */
+    bool movement_blocked;         /* $C16B */
+    uint8_t cpu_action;
+    uint8_t cpu_record;
+    uint8_t cpu_roster_index;
+    uint8_t cpu_shot_profile;
+    uint8_t cpu_stored_direction;
+    float cpu_center_x;
+    float cpu_ground_y;
+    uint8_t opponent_action;
+    uint8_t opponent_record;
+    uint8_t opponent_stored_direction;
+    float opponent_center_x;
+    float opponent_ground_y;
+    uint8_t mode2_target_x;        /* $FFDB */
+    uint8_t mode2_target_y;        /* $FFDC */
+    uint8_t mode2_state;           /* $C172 */
+} AllStarRomCpuControllerContext;
 
 void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats);
 void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level);
@@ -66,9 +116,14 @@ bool allstar_ai_rom_contact_response_75cd(
     bool movement_blocked,
     bool owns_ball,
     uint8_t random_byte,
+    uint8_t target_random,
     uint8_t ball_x,
     float cpu_center_x,
     float cpu_ground_y);
+/* Bank 1 $7170-$761A: complete CPU synthetic-input controller. */
+void allstar_ai_rom_controller_7170(
+    AllStarAIController *ai,
+    const AllStarRomCpuControllerContext *context);
 void allstar_ai_update(AllStarAIController *ai, AllStarPlayerState *cpu,
                        const AllStarPlayerState *human,
                        const AllStarBall *ball, uint8_t rom_random_byte,

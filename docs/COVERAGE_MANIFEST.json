@@ -134,7 +134,9 @@
       "id": "behavior.ai",
       "group": "gameplay",
       "description": "CPU decisions and difficulty/player-rating effects are verified against ROM traces.",
-      "status": "scaffolded"
+      "status": "verified",
+      "evidence": ["docs/parity/ONE_ON_ONE_CONTROLLERS.md", "src/gameplay/allstar_ai.c", "src/scenes/scene_one_on_one.c", "tools/emulator/trace_one_on_one_cpu_decision.lua", "tools/emulator/trace_one_on_one_cpu_controller_full.lua"],
+      "verification_command": ".\\build\\allstar_port.exe --test-one-on-one-shooting"
     },
     {
       "id": "behavior.animation",
@@ -221,6 +223,13 @@
       "total": 25,
       "percent": 40.0,
       "note": "Verified the seven-match tournament bracket, winner validation and propagation, round transitions, championship lock, and title return."
+    },
+    {
+      "date": "2026-08-15",
+      "verified": 11,
+      "total": 25,
+      "percent": 44.0,
+      "note": "Completed the shared $702D player controller and full $7170 CPU synthetic-input controller, including mode dispatch, offense/defense routes, 8/4/1 hysteresis, contact response, loose-ball chase, and record-gated shooting, with native fixtures and Mesen traces."
     }
   ]
 }

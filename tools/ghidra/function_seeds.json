@@ -135,7 +135,7 @@
       "status": "verified",
       "native_symbol": "allstar_ai_rom_contact_response_75cd",
       "source": "src/gameplay/allstar_ai.c",
-      "note": "Skill RNG thresholds, fourteenth offensive-contact shot, and ten-count defensive saved-position hold are deterministic-tested and live-integrated."
+      "note": "Skill RNG thresholds, separate $FFFB qualification/$FFFC reroute entropy, fourteenth offensive-contact shot, and ten-count defensive saved-position hold are deterministic-tested and live-integrated."
     },
     "rom_b01_6945": {
       "status": "verified",
@@ -366,16 +366,16 @@
       "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
     },
     "rom_b01_7170": {
-      "status": "candidate",
-      "native_symbol": "allstar_ai_update",
+      "status": "verified",
+      "native_symbol": "allstar_ai_rom_controller_7170",
       "source": "src/gameplay/allstar_ai.c",
-      "note": "Mode-0 CPU target, movement, profile shot-decision, $04/$19/$46 skill steal thresholds, and contest subsets are ported and boundary-tested; collision and other-mode branches prevent whole-routine credit."
+      "note": "Complete mode dispatch and $7190-$761A controller semantics are native: gates, $FFD2/$FFD3 synthesis, offense routes, defense offsets, loose-ball chase, skill/profile tables, steal/contest decisions, close-drive/special timers, contact response, record-gated release, and mode-2 target/gather behavior. Deterministic native fixtures and two Mesen traces cover offense and defense branches."
     },
     "rom_b01_74bb": {
-      "status": "candidate",
-      "native_symbol": "allstar_ai_rom_direction_74bb",
+      "status": "verified",
+      "native_symbol": "allstar_ai_rom_target_74bb",
       "source": "src/gameplay/allstar_ai.c",
-      "note": "Exact asymmetric byte dead zones (+3 accepted, +4 moves, -4 accepted, -5 moves) are boundary-tested; a scene regression pairs them with $6BBA's raw-X $08->$04 edge step and proves $72EA->$732C->$756C release. Surrounding AI hysteresis/state ownership remains part of the larger candidate controller."
+      "note": "Exact asymmetric byte dead zones, $C103/$C144 8/4/1 direction-change hysteresis, prior-$C0FE restoration, arrival flags, contact/offset clears, initial-target to route transition, and route-to-gather transition are native, boundary-tested, scene-integrated, and Mesen-traced."
     },
     "rom_b01_782e": {
       "status": "verified",
@@ -402,10 +402,16 @@
       "note": "Both recovered wedge tables and their strict/inclusive coordinate comparisons are ported and boundary-tested; an emulator state trace is still missing."
     },
     "rom_b01_702d": {
-      "status": "candidate",
-      "native_symbol": "allstar_one_on_one_shot_input",
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_controller_702d",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "The A-A phase-zero and A-B $C16A phase-one-to-two shot-release paths match a deterministic Mesen trace and native tests. Other action, possession, and player-state branches in the ROM routine remain incomplete."
+      "note": "Complete shared player controller is native: direction/contact clears, A priority, held-ball override, $2B14 steal gate, $70FD defense jump/gather, protected-action $714D/$7F37 behavior, $C16A phase advance, $2B6C recovery dispatch, and $7C58 release. Both players consume it, with $7170 supplying CPU input."
+    },
+    "rom_b01_714d": {
+      "status": "verified",
+      "native_symbol": "allstar_one_on_one_rom_player_controller_702d",
+      "source": "src/gameplay/allstar_one_on_one.c",
+      "note": "Protected jump exemptions, $C12A assignment lock, shot-variant $0A/$12 direct assignment without record reset, and $7138 hoop-facing bit are implemented inside the shared $702D controller and deterministic-tested."
     },
     "rom_b01_7c58": {
       "status": "candidate",

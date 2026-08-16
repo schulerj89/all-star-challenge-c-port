@@ -30,6 +30,8 @@ typedef struct {
     float defense_step_accumulator;
     AllStarRomAnimationState p1_animation;
     AllStarRomAnimationState p2_animation;
+    AllStarRomPlayerController p1_controller;
+    AllStarRomPlayerController p2_controller;
     uint8_t p1_input_direction;
     uint8_t p2_input_direction;
     uint8_t p1_previous_direction;
@@ -211,6 +213,16 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
         ? ALLSTAR_BTN_UP : ALLSTAR_BTN_RIGHT;
     data->p1_horizontal_flip = p1_possession;
     data->p2_horizontal_flip = !p1_possession;
+    memset(&data->p1_controller, 0, sizeof(data->p1_controller));
+    memset(&data->p2_controller, 0, sizeof(data->p2_controller));
+    data->p1_controller.action = data->p1_animation.action;
+    data->p2_controller.action = data->p2_animation.action;
+    data->p1_controller.without_ball = p1_possession ? 0 : 1;
+    data->p2_controller.without_ball = p1_possession ? 1 : 0;
+    data->p1_controller.stored_direction = data->p1_previous_direction;
+    data->p2_controller.stored_direction = data->p2_previous_direction;
+    if (data->p1_horizontal_flip) data->p1_controller.flags |= 0x10;
+    if (data->p2_horizontal_flip) data->p2_controller.flags |= 0x10;
     memset(&data->p1_contact, 0, sizeof(data->p1_contact));
     memset(&data->p2_contact, 0, sizeof(data->p2_contact));
     data->animation_step_accumulator = 0.0f;
@@ -219,15 +231,6 @@ static void one_on_one_reset_possession(SceneOneOnOneData *data,
     one_on_one_reset_defense(data);
     allstar_one_on_one_shot_reset(&data->shot_attempt);
     allstar_physics_init_ball(&data->ball);
-}
-
-static uint8_t one_on_one_direction_from_delta(float dx, float dy) {
-    uint8_t direction = 0;
-    if (dx > 0.001f) direction |= ALLSTAR_BTN_RIGHT;
-    else if (dx < -0.001f) direction |= ALLSTAR_BTN_LEFT;
-    if (dy < -0.001f) direction |= ALLSTAR_BTN_UP;
-    else if (dy > 0.001f) direction |= ALLSTAR_BTN_DOWN;
-    return direction;
 }
 
 static void one_on_one_take_live_possession(SceneOneOnOneData *data,
@@ -266,6 +269,12 @@ static void one_on_one_take_live_possession(SceneOneOnOneData *data,
         data->p1_horizontal_flip = player == 1;
         data->p2_horizontal_flip = player == 2;
     }
+    data->p1_controller.without_ball = player == 1 ? 0 : 1;
+    data->p2_controller.without_ball = player == 2 ? 0 : 1;
+    data->p1_controller.shot_phase = 0;
+    data->p2_controller.shot_phase = 0;
+    data->p1_controller.release_latch = 0;
+    data->p2_controller.release_latch = 0;
     data->recovery.cooldown_frames = ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES;
     allstar_one_on_one_shot_reset(&data->shot_attempt);
     /* $2B88 changes owner without clearing $C0A3/$C0A7. $6F2A replaces
@@ -280,6 +289,39 @@ static void one_on_one_take_live_possession(SceneOneOnOneData *data,
     data->ball.rom_step_state.vz = 0;
     data->take_back_required = reset_shot_clock;
     data->take_back_violation_pending = 0;
+}
+
+static uint8_t one_on_one_rom_input_from_native(
+        uint8_t native_input, bool include_buttons) {
+    uint8_t rom_input = (uint8_t)((native_input & 0x0fu) << 4);
+    if (include_buttons) {
+        if ((native_input & ALLSTAR_BTN_A) != 0) rom_input |= 0x01;
+        if ((native_input & ALLSTAR_BTN_B) != 0) rom_input |= 0x02;
+    }
+    return rom_input;
+}
+
+static void one_on_one_live_ball_position(
+        const SceneOneOnOneData *data, float *ball_x, float *ball_y) {
+    const AllStarPlayerState *owner = data->p1.has_ball ? &data->p1 :
+        (data->p2.has_ball ? &data->p2 : NULL);
+    if (owner) {
+        const AllStarRomAnimationState *animation = data->p1.has_ball
+            ? &data->p1_animation : &data->p2_animation;
+        bool flip = data->p1.has_ball
+            ? data->p1_horizontal_flip : data->p2_horizontal_flip;
+        AllStarRomHeldBallPresentation held_ball;
+        allstar_renderer_rom_dribble_ball_6f2a(
+            (int32_t)owner->x, (int32_t)owner->y,
+            animation->action, animation->record_index, flip, &held_ball);
+        if (held_ball.visible) {
+            if (ball_x) *ball_x = (float)held_ball.ball_x;
+            if (ball_y) *ball_y = (float)held_ball.ball_y;
+            return;
+        }
+    }
+    if (ball_x) *ball_x = data->ball.x;
+    if (ball_y) *ball_y = data->ball.y;
 }
 
 static void one_on_one_update_take_back_78e9(SceneOneOnOneData *data) {
@@ -486,6 +528,117 @@ static void one_on_one_launch_shot(SceneOneOnOneData *data,
         shooter, point_value);
     data->ball.rom_player_shot_phase_active = player->is_shooting;
     allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+}
+
+static uint32_t one_on_one_run_player_controller_702d(
+        SceneOneOnOneData *data, int player,
+        uint8_t new_input, uint8_t held_input) {
+    AllStarRomPlayerController *controller = player == 1
+        ? &data->p1_controller : &data->p2_controller;
+    AllStarRomAnimationState *animation = player == 1
+        ? &data->p1_animation : &data->p2_animation;
+    AllStarPlayerState *state = player == 1 ? &data->p1 : &data->p2;
+    AllStarRomPlayerControllerContext context;
+    uint32_t events;
+    float live_ball_x;
+    float live_ball_y;
+
+    controller->action = animation->action;
+    controller->record_index = animation->record_index;
+    controller->without_ball = state->has_ball ? 0 : 1;
+    controller->blocked_contact = player == 1
+        ? data->p1_contact.blocked_contact
+        : data->p2_contact.blocked_contact;
+    controller->steal_lock = player == 1
+        ? data->p1_steal_latch_frames : data->p2_steal_latch_frames;
+    controller->shot_variant = allstar_one_on_one_rom_shot_variant(
+        state->x, state->y);
+    if (player == 1 ? data->p1_horizontal_flip
+                    : data->p2_horizontal_flip) {
+        controller->flags |= 0x10;
+    } else {
+        controller->flags &= (uint8_t)~0x10u;
+    }
+    controller->new_input = new_input;
+    controller->held_input = held_input;
+    memset(&context, 0, sizeof(context));
+    context.possession_active = data->p1.has_ball || data->p2.has_ball;
+    one_on_one_live_ball_position(data, &live_ball_x, &live_ball_y);
+    (void)live_ball_y;
+    context.ball_x = (uint8_t)live_ball_x;
+    context.player_center_x = state->x;
+    events = allstar_one_on_one_rom_player_controller_702d(
+        controller, &context);
+
+    if ((events & ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET) != 0) {
+        allstar_one_on_one_rom_animation_set_action_6a8c(
+            animation, controller->action);
+    } else if ((events & ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT) != 0) {
+        animation->action = controller->action;
+    }
+    if (player == 1) {
+        data->p1_input_direction = controller->input_direction;
+        data->p1_previous_direction = controller->stored_direction;
+        data->p1_horizontal_flip = (controller->flags & 0x10u) != 0;
+        data->p1_contact.blocked_contact = controller->blocked_contact;
+    } else {
+        data->p2_input_direction = controller->input_direction;
+        data->p2_previous_direction = controller->stored_direction;
+        data->p2_horizontal_flip = (controller->flags & 0x10u) != 0;
+        data->p2_contact.blocked_contact = controller->blocked_contact;
+    }
+    return events;
+}
+
+static bool one_on_one_apply_player_controller_events(
+        SceneOneOnOneData *data, AllStarGame *game,
+        int player, uint32_t events) {
+    AllStarPlayerState *state = player == 1 ? &data->p1 : &data->p2;
+    AllStarRomPlayerController *controller = player == 1
+        ? &data->p1_controller : &data->p2_controller;
+    bool *jump_active = player == 1
+        ? &data->p1_defense_jump_active : &data->p2_defense_jump_active;
+    uint16_t *jump_elapsed = player == 1
+        ? &data->p1_defense_jump_elapsed_frames
+        : &data->p2_defense_jump_elapsed_frames;
+
+    if ((events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_GATHER) != 0) {
+        uint8_t shot_action = controller->action;
+        allstar_one_on_one_shot_reset(&data->shot_attempt);
+        allstar_one_on_one_shot_press(&data->shot_attempt, player);
+        data->shot_attempt.rom_phase = controller->shot_phase;
+        state->is_jumping = true;
+        state->is_shooting = true;
+        if (player == 1) {
+            data->p1_shot_action = shot_action;
+            data->p1_shot_animation_clock =
+                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        } else {
+            data->p2_shot_action = shot_action;
+            data->p2_shot_animation_clock =
+                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+        }
+        allstar_one_on_one_rom_shot_animation_frame(
+            shot_action, controller->shot_phase, 0, &state->anim_frame);
+    }
+    if ((events & ALLSTAR_ROM_PLAYER_EVENT_DEFENSE_JUMP) != 0) {
+        *jump_active = true;
+        *jump_elapsed = 0;
+    }
+    if ((events & ALLSTAR_ROM_PLAYER_EVENT_STEAL) != 0 &&
+        one_on_one_try_steal(data, game, player)) {
+        return true;
+    }
+    if ((events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE) != 0) {
+        data->shot_attempt.phase = ALLSTAR_ONE_ON_ONE_SHOT_RELEASED;
+        data->shot_attempt.shooter = player;
+        data->shot_attempt.rom_phase = controller->shot_phase;
+        data->shot_attempt.release_latch_frames = 0;
+        one_on_one_launch_shot(data, game, player);
+    } else if (data->shot_attempt.shooter == player) {
+        data->shot_attempt.rom_phase = controller->shot_phase;
+    }
+    return false;
 }
 
 static void one_on_one_update_shot_animations(SceneOneOnOneData *data,
@@ -700,8 +853,7 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     uint32_t events;
     uint32_t ball_contacts;
     int recovering_player;
-    float p2_before_x;
-    float p2_before_y;
+    int shot_tick_player;
     data->anim_timer += dt;
 
     if (one_on_one_update_score_presentation(data, game, dt)) return;
@@ -734,139 +886,89 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     one_on_one_tick_defense(data, dt);
     one_on_one_update_shot_animations(data, dt);
 
+    shot_tick_player = data->shot_attempt.shooter;
     events = allstar_one_on_one_shot_tick(&data->shot_attempt, dt);
     if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
-        one_on_one_launch_shot(data, game, 1);
+        one_on_one_launch_shot(data, game, shot_tick_player);
     }
     if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_TRAVELING) {
-        events = allstar_one_on_one_match_call_traveling(&game->one_on_one, 1);
+        events = allstar_one_on_one_match_call_traveling(
+            &game->one_on_one, shot_tick_player);
         if (events & ALLSTAR_ONE_ON_ONE_EVENT_TRAVELING) {
-            one_on_one_reset_possession(data, game, false);
+            one_on_one_reset_possession(
+                data, game, shot_tick_player != 1);
             allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_WHISTLE);
         }
         return;
     }
-
     {
-        /* On $70FD's protected actions $05/$0C/$14, $702D branches at
-           $709A before clearing or refreshing player +$07. Preserve the
-           direction sampled on the jump edge so $6BF9->$6B72 can keep
-           moving at record boundaries until the landing transition. */
-        if (!data->p1_defense_jump_active &&
-            !one_on_one_action_is_defense_jump_70fd(
-                data->p1_animation.action)) {
-            data->p1_input_direction = (uint8_t)(
-                input->buttons_held & 0x0f);
-        }
-        if (data->p1_input_direction != 0) {
-            data->p1_previous_direction = data->p1_input_direction;
-        }
+        uint32_t player_events = one_on_one_run_player_controller_702d(
+            data, 1,
+            one_on_one_rom_input_from_native(input->buttons_pressed, true),
+            one_on_one_rom_input_from_native(input->buttons_held, true));
+        if (one_on_one_apply_player_controller_events(
+                data, game, 1, player_events)) return;
     }
-
     allstar_one_on_one_rom_clamp_player_court(&data->p1.x, &data->p1.y);
 
-    if (data->p1.has_ball) {
-        uint32_t shot_events = allstar_one_on_one_shot_input(
-            &data->shot_attempt, 1,
-            allstar_input_is_pressed(input, ALLSTAR_BTN_A),
-            allstar_input_is_held(input, ALLSTAR_BTN_B));
-        if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_GATHER) {
-            uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
-                data->p1.x, data->p1.y);
-            data->p1.is_jumping = true;
-            data->p1.is_shooting = true;
-            data->p1_shot_action = shot_variant == 1
-                ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
-            data->p1_shot_animation_clock =
-                ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
-            data->p1_horizontal_flip =
-                allstar_one_on_one_rom_shot_horizontal_flip_7138(
-                    data->p1.x);
-            allstar_one_on_one_rom_animation_set_action_6a8c(
-                &data->p1_animation, data->p1_shot_action);
-            allstar_one_on_one_rom_shot_animation_frame(
-                data->p1_shot_action, data->shot_attempt.rom_phase, 0,
-                &data->p1.anim_frame);
-        } else if (shot_events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) {
-            one_on_one_launch_shot(data, game, 1);
-        } else if (data->shot_attempt.rom_phase == 1) {
-            allstar_one_on_one_rom_shot_animation_frame(
-                data->p1_shot_action, data->shot_attempt.rom_phase, 0,
-                &data->p1.anim_frame);
-        }
-    } else {
-        if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) &&
-            !data->p1.is_shooting && !data->p1_defense_jump_active &&
-            !one_on_one_action_is_defense_jump_70fd(
-                data->p1_animation.action)) {
-            data->p1_defense_jump_active = true;
-            data->p1_defense_jump_elapsed_frames = 0;
-            allstar_one_on_one_rom_animation_set_action_6a8c(
-                &data->p1_animation,
-                allstar_one_on_one_rom_defense_jump_action_70fd(
-                    data->p1_animation.action));
-        }
-        if (allstar_input_is_held(input, ALLSTAR_BTN_B) &&
-            one_on_one_try_steal(data, game, 1)) {
-            return;
-        }
-    }
-
-    p2_before_x = data->p2.x;
-    p2_before_y = data->p2.y;
-    allstar_ai_rom_contact_response_75cd(
-        &data->ai, data->p2_contact.blocked_contact,
-        data->p2.has_ball,
-        allstar_rom_rng_current(&game->one_on_one_rng),
-        (uint8_t)data->ball.x, data->p2.x, data->p2.y);
-    data->ai.rom_action_index = data->p2_animation.record_index;
-    allstar_ai_update(&data->ai, &data->p2, &data->p1, &data->ball,
-                      allstar_rom_rng_current(&game->one_on_one_rng),
-                      allstar_rom_rng_high(&game->one_on_one_rng),
-                      allstar_rom_rng_alternate(&game->one_on_one_rng),
-                      allstar_rom_rng_alternate_high(&game->one_on_one_rng),
-                      dt);
-    if (data->p2.has_ball && data->p2.is_shooting &&
-        data->p2_animation.action != ALLSTAR_ROM_SHOT_ACTION_A &&
-        data->p2_animation.action != ALLSTAR_ROM_SHOT_ACTION_B) {
-        uint8_t shot_variant = allstar_one_on_one_rom_shot_variant(
-            data->p2.x, data->p2.y);
-        data->p2_shot_action = shot_variant == 1
-            ? ALLSTAR_ROM_SHOT_ACTION_A : ALLSTAR_ROM_SHOT_ACTION_B;
-        data->p2_shot_animation_clock =
-            ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
-        data->p2_horizontal_flip =
-            allstar_one_on_one_rom_shot_horizontal_flip_7138(data->p2.x);
-        allstar_one_on_one_rom_animation_set_action_6a8c(
-            &data->p2_animation, data->p2_shot_action);
-    }
-    if (!data->p2_defense_jump_active &&
-        !one_on_one_action_is_defense_jump_70fd(
-            data->p2_animation.action)) {
-        data->p2_input_direction = one_on_one_direction_from_delta(
-            data->p2.x - p2_before_x, data->p2.y - p2_before_y);
-    }
     {
-        data->p2.x = p2_before_x;
-        data->p2.y = p2_before_y;
-    }
-    if (data->p2_input_direction != 0) {
-        data->p2_previous_direction = data->p2_input_direction;
-    }
-    if (data->ai.rom_steal_pressed &&
-        one_on_one_try_steal(data, game, 2)) {
-        return;
-    }
-    if (data->p2.is_jumping && !data->p2.is_shooting &&
-        !data->p2_defense_jump_active &&
-        !one_on_one_action_is_defense_jump_70fd(
-            data->p2_animation.action)) {
-        data->p2_defense_jump_active = true;
-        data->p2_defense_jump_elapsed_frames = 0;
-        allstar_one_on_one_rom_animation_set_action_6a8c(
-            &data->p2_animation,
-            allstar_one_on_one_rom_defense_jump_action_70fd(
-                data->p2_animation.action));
+        AllStarRomCpuControllerContext cpu_context;
+        uint32_t player_events;
+        float live_ball_x;
+        float live_ball_y;
+        one_on_one_live_ball_position(data, &live_ball_x, &live_ball_y);
+        memset(&cpu_context, 0, sizeof(cpu_context));
+        cpu_context.game_mode = 0;
+        cpu_context.cpu_enabled = true;
+        cpu_context.cpu_player = 2;
+        cpu_context.possession_owner = data->p1.has_ball ? 1 :
+            (data->p2.has_ball ? 2 : 0);
+        cpu_context.shot_owner = data->ball.shooter_id;
+        cpu_context.skill_level = game->settings.skill_level;
+        cpu_context.random_current =
+            allstar_rom_rng_current(&game->one_on_one_rng);
+        cpu_context.random_target =
+            allstar_rom_rng_high(&game->one_on_one_rng);
+        cpu_context.random_route =
+            allstar_rom_rng_alternate(&game->one_on_one_rng);
+        cpu_context.random_position =
+            allstar_rom_rng_alternate_high(&game->one_on_one_rng);
+        cpu_context.ball_x = (uint8_t)live_ball_x;
+        cpu_context.ball_y = (uint8_t)live_ball_y;
+        cpu_context.ball_height = (uint8_t)data->ball.z;
+        cpu_context.ball_contact =
+            allstar_one_on_one_player_can_pick_up_ball(
+                data->p2.x,
+                data->p2.y + ALLSTAR_ROM_PLAYER_GROUND_TO_PICKUP_Y,
+                live_ball_x, live_ball_y);
+        cpu_context.movement_blocked = data->p2_contact.blocked_contact;
+        cpu_context.initial_flight = data->ball.in_flight &&
+            !data->ball.recoverable;
+        cpu_context.cpu_action = data->p2_animation.action;
+        cpu_context.cpu_record = data->p2_animation.record_index;
+        cpu_context.cpu_roster_index = (uint8_t)game->selected_player_2;
+        cpu_context.cpu_shot_profile = data->ai.rom_shot_profile;
+        cpu_context.cpu_stored_direction = data->p2_previous_direction;
+        cpu_context.cpu_center_x = data->p2.x;
+        cpu_context.cpu_ground_y = data->p2.y;
+        cpu_context.opponent_action = data->p1_animation.action;
+        cpu_context.opponent_record = data->p1_animation.record_index;
+        cpu_context.opponent_stored_direction = data->p1_previous_direction;
+        cpu_context.opponent_center_x = data->p1.x;
+        cpu_context.opponent_ground_y = data->p1.y;
+        allstar_ai_rom_controller_7170(&data->ai, &cpu_context);
+        data->ai.rom_action_index = data->p2_animation.record_index;
+        data->ai.state = data->p2.has_ball
+            ? (data->ai.rom_offense_stage == 2
+                ? ALLSTAR_AI_STATE_PULL_UP_JUMPER
+                : ALLSTAR_AI_STATE_DRIVE_TO_HOOP)
+            : (cpu_context.possession_owner == 0
+                ? ALLSTAR_AI_STATE_REBOUND
+                : ALLSTAR_AI_STATE_DEFEND_PERIMETER);
+        player_events = one_on_one_run_player_controller_702d(
+            data, 2, data->ai.rom_new_input, data->ai.rom_held_input);
+        if (one_on_one_apply_player_controller_events(
+                data, game, 2, player_events)) return;
     }
     data->p1.is_jumping = data->p1.is_shooting ||
                           data->p1_defense_jump_active;
@@ -881,11 +983,6 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
          one_on_one_try_jump_recovery(data, game, 2))) {
         return;
     }
-    if (data->p2.has_ball && data->p2.is_shooting &&
-        data->ai.rom_shot_release && !data->ball.in_flight) {
-        one_on_one_launch_shot(data, game, 2);
-    }
-
     allstar_physics_update_ball(&data->ball, dt);
     ball_contacts = allstar_physics_apply_rom_court_contacts(&data->ball);
     if (ball_contacts & ALLSTAR_BALL_CONTACT_RIM_BACKBOARD) {

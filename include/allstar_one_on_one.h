@@ -186,6 +186,47 @@ typedef struct {
     bool new_frame;
 } AllStarRomAnimationState;
 
+/* Bank 1 $702D consumes the same compact input layout for both players:
+   direction bits occupy the high nibble and A/B are bits 0/1. */
+typedef enum {
+    ALLSTAR_ROM_PLAYER_EVENT_NONE = 0,
+    ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET = (1 << 0),
+    ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT = (1 << 1),
+    ALLSTAR_ROM_PLAYER_EVENT_STEAL = (1 << 2),
+    ALLSTAR_ROM_PLAYER_EVENT_DEFENSE_JUMP = (1 << 3),
+    ALLSTAR_ROM_PLAYER_EVENT_SHOT_GATHER = (1 << 4),
+    ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE = (1 << 5),
+    ALLSTAR_ROM_PLAYER_EVENT_JUMP_RECOVERY = (1 << 6),
+    ALLSTAR_ROM_PLAYER_EVENT_BALL_PRESENTATION = (1 << 7)
+} AllStarRomPlayerControllerEvent;
+
+typedef struct {
+    uint8_t action;             /* player +$00 */
+    uint8_t flags;              /* player +$02 */
+    uint8_t record_index;       /* player +$03 */
+    uint8_t input_direction;    /* player +$07 */
+    uint8_t without_ball;       /* player +$09 */
+    bool blocked_contact;       /* player +$0C */
+    uint8_t stored_direction;   /* player +$10 */
+    uint8_t new_input;          /* player +$11 */
+    uint8_t held_input;         /* player +$12 */
+    uint8_t shot_phase;         /* player +$13 */
+    uint8_t direction_override; /* player +$14 */
+    uint8_t shot_variant;       /* player +$16 */
+    uint8_t steal_lock;         /* player +$17 */
+    uint8_t release_latch;      /* global $C16A */
+} AllStarRomPlayerController;
+
+typedef struct {
+    bool transition_locked;     /* $FFE7 */
+    bool jump_locked;           /* $FFE6 */
+    bool possession_active;     /* $FFCF != 0 */
+    bool launch_locked;         /* $FFE3 */
+    bool shot_assignment_locked;/* $C12A */
+    uint8_t ball_x;             /* $C0A3 */
+    float player_center_x;      /* player +$06 + 8 */
+} AllStarRomPlayerControllerContext;
+
 /* $1ECC tile-pointer choice after the score-effect countdown. */
 typedef enum {
     ALLSTAR_ROM_NET_UNCHANGED = 0,
@@ -251,6 +292,10 @@ void allstar_one_on_one_rom_animation_set_action_6a8c(
     AllStarRomAnimationState *state, uint8_t action);
 bool allstar_one_on_one_rom_animation_tick_6a8c(
     const AllStarAssetPack *pack, AllStarRomAnimationState *state);
+/* Bank 1 $702D/$70FD/$714D: complete shared human/CPU player controller. */
+uint32_t allstar_one_on_one_rom_player_controller_702d(
+    AllStarRomPlayerController *player,
+    const AllStarRomPlayerControllerContext *context);
 /* Bank 1 $782E: record-boundary movement/idle action selection. */
 bool allstar_one_on_one_rom_select_movement_action_782e(
     AllStarRomAnimationState *state,

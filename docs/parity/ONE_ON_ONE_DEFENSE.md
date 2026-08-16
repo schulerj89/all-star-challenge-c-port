@@ -44,6 +44,6 @@ Start-Process $mesen -ArgumentList $arguments -Wait -NoNewWindow
 .\build\allstar_port.exe --test-one-on-one-shooting
 ```
 
-The Ghidra inventory records `$0A78`, `$2B14`, and `$2B6C` as verified narrow
-mappings. `$702D` and `$7170` remain candidate whole-routine mappings because
-they also contain unrelated and other-mode branches.
+The Ghidra inventory records `$0A78`, `$2B14`, `$2B6C`, `$702D`, and `$7170`
+as verified mappings. The full player/CPU handoff and the additional CPU
+defense trace are documented in `ONE_ON_ONE_CONTROLLERS.md`.

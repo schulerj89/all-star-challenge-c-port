@@ -91,7 +91,7 @@ These figures are an analysis queue, not a function count. Without code/data map
 
 See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the current audit.
 
-Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **10/25 (40.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **4/11 (36.36%)**.
+Project progress is tracked by 25 strict milestones in `docs/COVERAGE_MANIFEST.json`. Only `verified` milestones receive credit. The current checkpoint is **11/25 (44.00%)**, up from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and verified gameplay parity is **5/11 (45.45%)**.
 
 One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE_COVERAGE.json`: **50/50 (100.00%)**. The second fixed denominator in `docs/parity/ONE_ON_ONE_REMAINING_COVERAGE.json` is also complete at **50/50 (100.00%)**, comprising RNG **10/10**, animation/assets **20/20**, and collision/reaction **20/20**. Frame-perfect synchronization remains deliberately excluded. Check both manifests with `python tools/check_one_on_one_coverage.py` and `python tools/check_one_on_one_remaining_coverage.py`.
 
@@ -102,9 +102,9 @@ One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE
 | `src/allstar_game.c` | Scene ownership and per-frame orchestration | Implemented structurally; not tied to ROM dispatcher states. |
 | `src/scenes/` | Intro, menu, settings, roster, and game-mode scenes | Broad scaffolding; most game-mode rules are partial. |
 | `src/gameplay/allstar_physics.c` | 60 Hz shot integration, rim-plane crossing, and court contacts | `$7BE8` uses exact 8.8 gravity/friction/integration operations; `$7EA9` normal-vector duration, `$1F4D` dead-ball stop, and two `$1CED` branches are represented; alternate launch, remaining contact, and bounce parity remain. |
-| `src/gameplay/allstar_ai.c` | CPU targets, decisions, defense, contact response, and shared ROM RNG consumption | Scoped One-on-One decisions and exact `$75CD` contact routing/hold behavior are verified; unrelated `$7170` states remain incomplete. |
+| `src/gameplay/allstar_ai.c` | `$7170-$761A` CPU mode dispatch, targets, decisions, defense, contact response, synthetic input, and shared ROM RNG consumption | The complete recovered controller is verified; modes 0/4 use the full play path, modes 1/3 return, and mode 2 uses the `$74A8/$756C` target/gather/release path. |
 | `src/gameplay/allstar_rng.c` | Fixed `$0714/$072F` shared-frame RNG and BCD entropy | Exact low-byte recurrence/cadence is Ghidra- and Mesen-verified. |
-| `src/gameplay/allstar_one_on_one.c` | Match clocks, possession, shots, `$782E/$6A8C/$6B72` movement, and `$2C50/$2CCA/$0AC5` contact rules | The scoped One-on-One lifecycle, animation, direct movement, contact latch, and charging/blocking paths are verified. |
+| `src/gameplay/allstar_one_on_one.c` | Match clocks, possession, shots, shared `$702D/$714D` player control, `$782E/$6A8C/$6B72` movement, and `$2C50/$2CCA/$0AC5` contact rules | The scoped One-on-One lifecycle, complete player controller, animation, direct movement, contact latch, and charging/blocking paths are verified. |
 | `src/allstar_renderer.c` | Software pixels and ROM-derived court/player/ball composition | One-on-One `$2945/$2A2B` player and `$6945/$69F5` ball/shadow paths consume the user-built pack; other screens retain legacy assets. |
 | `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Functional mixer; ROM sequencer and most sound events are missing. |
 | `src/allstar_asset_pack.c` | Versioned container, `$050F` decoding, and One-on-One graphics/animation extraction | Version 4 extracts and validates the complete One-on-One court/player/ball data set; other modes, roster records, and audio remain partial. |
@@ -129,7 +129,7 @@ Input is updated by the Win32 host before this call.
 | Title and menu | Partial | All five modes route correctly; the 1P/2P choice is not persisted. |
 | Settings | Behavior verified | ROM defaults/cycles persist for the session and feed the relevant native modes; presentation parity remains partial. |
 | Roster selection | Partial | Selection UI works; behavior and data are not yet verified against ROM tables. |
-| One-on-One | Gameplay 50/50; remaining focus 50/50 | Rules, shooting, steals, contests, recovery, RNG, animation records, direct movement/contact, charging/blocking, CPU contact response, and ROM-derived court/player/ball presentation are verified. Frame-perfect synchronization remains excluded. |
+| One-on-One | Gameplay 50/50; remaining focus 50/50 | Rules, shooting, steals, contests, recovery, RNG, complete `$702D` player input, complete `$7170` CPU decisions, animation records, direct movement/contact, charging/blocking, and ROM-derived court/player/ball presentation are verified. Frame-perfect synchronization remains excluded. |
 | Free Throws | Prototype | Correct basket parameters, configured attempt count, result state, and ROM timing model. |
 | H-O-R-S-E | Prototype | Called-shot storage, matching attempts, CPU/human turns, letter rules, and win state. |
 | Accuracy Shootout | Prototype/misidentified | The routed scene consumes time and position-source settings but remains a generic five-position contest. |

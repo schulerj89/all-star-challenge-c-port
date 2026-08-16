@@ -12,7 +12,7 @@ same byte during a gameplay update.
 | Fixed `$0B68->$0714` | Update RNG after the gameplay controller. `$FF8B` bit 0 produces the gameplay-visible every-other-frame cadence. | `allstar_game_tick` calls `allstar_rom_rng_end_frame_0714` after the One-on-One scene update. |
 | Fixed `$072F` | Compute `seed*9+$002B`; add `$C133` and `$C0B6` to the low byte without carrying into the high byte; store at `$FFFB/$FFFC`. | `allstar_rom_rng_step_072f`. |
 | `$C133`, `$C0B6` | P1 low BCD score and low BCD clock-seconds bytes perturb the low byte. | The game converts native score and clock seconds to packed BCD before the frame update. |
-| Bank 1 `$702D/$74BB/$75CD` | Gameplay branches read `$FFFB`; reads do not advance it. | `allstar_ai_update` receives one `rom_random_byte` and reuses it for target, shot, and steal decisions. |
+| Bank 1 `$702D/$7170/$74BB/$75CD` | Gameplay branches read `$FFFB..$FFFE`; reads do not advance them. `$75CD` qualifies with `$FFFB` but `$72EA` independently selects its reroute with `$FFFC`. | `allstar_ai_rom_controller_7170` receives the four bytes from the shared native RNG state and uses each at the recovered branch. |
 
 ## Deterministic verification
 

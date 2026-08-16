@@ -1120,21 +1120,21 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_ai_init(&contact_ai, NULL);
     allstar_ai_set_skill(&contact_ai, 1);
     if (allstar_ai_rom_contact_response_75cd(
-            &contact_ai, true, false, 0xbd, 0x40, 80.0f, 112.0f) ||
+            &contact_ai, true, false, 0xbd, 0x20, 0x40, 80.0f, 112.0f) ||
         !allstar_ai_rom_contact_response_75cd(
-            &contact_ai, true, false, 0xbe, 0x40, 80.0f, 112.0f) ||
+            &contact_ai, true, false, 0xbe, 0x20, 0x40, 80.0f, 112.0f) ||
         contact_ai.rom_contact_hold_frames != 10 ||
         contact_ai.rom_contact_saved_x != 80 ||
         contact_ai.rom_contact_saved_y != 112 ||
         allstar_ai_rom_contact_response_75cd(
-            &contact_ai, true, false, 0xff, 0x40, 80.0f, 112.0f)) {
+            &contact_ai, true, false, 0xff, 0x20, 0x40, 80.0f, 112.0f)) {
         fprintf(stderr, "[Test] $75CD defender threshold/hold response was incorrect\n");
         return 1;
     }
     allstar_ai_init(&contact_ai, NULL);
     contact_ai.rom_contact_offense_count = 13;
     if (!allstar_ai_rom_contact_response_75cd(
-            &contact_ai, true, true, 0xbe, 0x40, 80.0f, 112.0f) ||
+            &contact_ai, true, true, 0xbe, 0x20, 0x40, 80.0f, 112.0f) ||
         contact_ai.rom_contact_offense_count != 14 ||
         !contact_ai.rom_force_shot) {
         fprintf(stderr, "[Test] $75CD fourteenth-contact shot response was incorrect\n");
@@ -1267,6 +1267,293 @@ int allstar_cli_test_one_on_one_shooting(void) {
         attempt.rom_phase != 2 || attempt.release_latch_frames != 0) {
         fprintf(stderr, "[Test] $702D $C16A release did not advance to phase two\n");
         return 1;
+    }
+
+    {
+        AllStarRomPlayerController controller;
+        AllStarRomPlayerControllerContext controller_context;
+        uint32_t controller_events;
+        memset(&controller, 0, sizeof(controller));
+        memset(&controller_context, 0, sizeof(controller_context));
+        controller_context.possession_active = true;
+        controller_context.ball_x = 0x40;
+        controller_context.player_center_x = 0x60;
+        controller.action = 0x00;
+        controller.held_input = 0x10;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if (controller_events != ALLSTAR_ROM_PLAYER_EVENT_NONE ||
+            controller.input_direction != 1 ||
+            controller.stored_direction != 1) {
+            fprintf(stderr, "[Test] $702D did not latch normal direction input\n");
+            return 1;
+        }
+        controller.held_input = 0x12;
+        allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if (controller.direction_override != 1) {
+            fprintf(stderr, "[Test] $702D held-ball B direction override diverged\n");
+            return 1;
+        }
+        controller.held_input = 0;
+        controller.blocked_contact = true;
+        controller_context.transition_locked = true;
+        allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if (controller.input_direction != 0 || controller.blocked_contact ||
+            controller.direction_override != 0) {
+            fprintf(stderr, "[Test] $702D transition clear path diverged\n");
+            return 1;
+        }
+
+        memset(&controller, 0, sizeof(controller));
+        controller_context.transition_locked = false;
+        controller.without_ball = 1;
+        controller.new_input = 1;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events &
+                (ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET |
+                 ALLSTAR_ROM_PLAYER_EVENT_DEFENSE_JUMP)) !=
+                (ALLSTAR_ROM_PLAYER_EVENT_ACTION_RESET |
+                 ALLSTAR_ROM_PLAYER_EVENT_DEFENSE_JUMP) ||
+            controller.action != 0x05) {
+            fprintf(stderr, "[Test] $702D/$70FD defensive jump branch diverged\n");
+            return 1;
+        }
+
+        memset(&controller, 0, sizeof(controller));
+        controller.without_ball = 1;
+        controller.new_input = 2;
+        controller.held_input = 2;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events & ALLSTAR_ROM_PLAYER_EVENT_STEAL) == 0) {
+            fprintf(stderr, "[Test] $702D did not emit new-B steal input\n");
+            return 1;
+        }
+        controller.steal_lock = 1;
+        if ((allstar_one_on_one_rom_player_controller_702d(
+                &controller, &controller_context) &
+                ALLSTAR_ROM_PLAYER_EVENT_STEAL) != 0) {
+            fprintf(stderr, "[Test] $702D ignored player +$17 steal lock\n");
+            return 1;
+        }
+
+        memset(&controller, 0, sizeof(controller));
+        controller.shot_variant = 1;
+        controller.new_input = 1;
+        controller.record_index = 7;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_GATHER) == 0 ||
+            controller.action != ALLSTAR_ROM_SHOT_ACTION_A ||
+            controller.record_index != 0 || controller.shot_phase != 0 ||
+            (controller.flags & 0x10u) != 0) {
+            fprintf(stderr, "[Test] $702D/$0AA3 shot-gather state diverged\n");
+            return 1;
+        }
+        controller.new_input = 0;
+        controller.held_input = 2;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE) != 0 ||
+            controller.shot_phase != 1 || controller.release_latch != 1) {
+            fprintf(stderr, "[Test] $702D did not arm phase-one $C16A\n");
+            return 1;
+        }
+        controller.held_input = 0;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE) == 0 ||
+            controller.shot_phase != 2 || controller.release_latch != 0) {
+            fprintf(stderr, "[Test] $702D $C16A expiry did not launch phase two\n");
+            return 1;
+        }
+
+        memset(&controller, 0, sizeof(controller));
+        controller.action = 0x03;
+        controller.shot_variant = 2;
+        controller_context.player_center_x = 0x40;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events &
+                (ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT |
+                 ALLSTAR_ROM_PLAYER_EVENT_BALL_PRESENTATION)) !=
+                (ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT |
+                 ALLSTAR_ROM_PLAYER_EVENT_BALL_PRESENTATION) ||
+            controller.action != ALLSTAR_ROM_SHOT_ACTION_B ||
+            (controller.flags & 0x10u) == 0) {
+            fprintf(stderr, "[Test] $702D/$714D direct shot assignment diverged\n");
+            return 1;
+        }
+        controller.action = 0x0c;
+        controller_events = allstar_one_on_one_rom_player_controller_702d(
+            &controller, &controller_context);
+        if ((controller_events & ALLSTAR_ROM_PLAYER_EVENT_JUMP_RECOVERY) == 0 ||
+            (controller_events & ALLSTAR_ROM_PLAYER_EVENT_ACTION_DIRECT) != 0) {
+            fprintf(stderr, "[Test] $702D protected jump-recovery dispatch diverged\n");
+            return 1;
+        }
+    }
+
+    {
+        AllStarAIController controller_ai;
+        AllStarRomCpuControllerContext cpu_context;
+        memset(&cpu_context, 0, sizeof(cpu_context));
+        cpu_context.cpu_enabled = true;
+        cpu_context.game_mode = 0;
+        cpu_context.cpu_player = 2;
+        cpu_context.possession_owner = 2;
+        cpu_context.skill_level = 3;
+        cpu_context.random_current = 0xff;
+        cpu_context.random_target = 0x30;
+        cpu_context.random_route = 0;
+        cpu_context.random_position = 0x98;
+        cpu_context.ball_x = 0x53;
+        cpu_context.cpu_center_x = 0x54;
+        cpu_context.cpu_ground_y = 0x98;
+        cpu_context.cpu_roster_index = 0x02;
+        cpu_context.cpu_shot_profile = 0;
+        cpu_context.cpu_action = 0x13;
+        allstar_ai_init(&controller_ai, NULL);
+        allstar_ai_set_skill(&controller_ai, 3);
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_offense_active != 1 ||
+            controller_ai.rom_initial_target_active != 1 ||
+            controller_ai.rom_target_x != 0x1c ||
+            controller_ai.rom_target_y != 0x8c ||
+            controller_ai.rom_held_input == 0) {
+            fprintf(stderr, "[Test] $7170/$72EA offense target state diverged\n");
+            return 1;
+        }
+        cpu_context.cpu_center_x = controller_ai.rom_target_x;
+        cpu_context.cpu_ground_y = controller_ai.rom_target_y;
+        cpu_context.random_route = 0x20;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_initial_target_active != 0 ||
+            controller_ai.rom_target_x != 0x14 ||
+            controller_ai.rom_target_y != 0x88) {
+            fprintf(stderr,
+                "[Test] $7170/$732C route transition diverged "
+                "(initial=%02X target=%02X,%02X stage=%02X input=%02X)\n",
+                controller_ai.rom_initial_target_active,
+                controller_ai.rom_target_x, controller_ai.rom_target_y,
+                controller_ai.rom_offense_stage,
+                controller_ai.rom_held_input);
+            return 1;
+        }
+        cpu_context.cpu_center_x = controller_ai.rom_target_x;
+        cpu_context.cpu_ground_y = controller_ai.rom_target_y;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_offense_stage != 2 ||
+            controller_ai.rom_new_input != 1 ||
+            controller_ai.rom_stored_shot_random != 0xff) {
+            fprintf(stderr, "[Test] $7170/$74BB/$755D gather transition diverged\n");
+            return 1;
+        }
+        cpu_context.cpu_action = ALLSTAR_ROM_SHOT_ACTION_A;
+        cpu_context.cpu_record = 5;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_new_input != 1 ||
+            !controller_ai.rom_shot_release) {
+            fprintf(stderr, "[Test] $7170/$756C record-gated release diverged\n");
+            return 1;
+        }
+
+        allstar_ai_init(&controller_ai, NULL);
+        allstar_ai_set_skill(&controller_ai, 3);
+        memset(&cpu_context, 0, sizeof(cpu_context));
+        cpu_context.cpu_enabled = true;
+        cpu_context.game_mode = 0;
+        cpu_context.cpu_player = 2;
+        cpu_context.possession_owner = 1;
+        cpu_context.skill_level = 3;
+        cpu_context.ball_contact = true;
+        cpu_context.random_current = 0x45;
+        cpu_context.ball_x = 0x70;
+        cpu_context.ball_y = 0x78;
+        cpu_context.cpu_center_x = 0x40;
+        cpu_context.cpu_ground_y = 0x70;
+        cpu_context.opponent_center_x = 0x70;
+        cpu_context.opponent_ground_y = 0x78;
+        cpu_context.opponent_stored_direction = 1;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if ((controller_ai.rom_new_input & 0x02u) == 0 ||
+            !controller_ai.rom_steal_pressed) {
+            fprintf(stderr, "[Test] $7170/$71B3 steal/chase input diverged\n");
+            return 1;
+        }
+        cpu_context.ball_contact = false;
+        cpu_context.initial_flight = true;
+        cpu_context.shot_owner = 1;
+        cpu_context.cpu_center_x = 0x54;
+        cpu_context.cpu_ground_y = 0x60;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if ((controller_ai.rom_new_input & 0x01u) == 0) {
+            fprintf(stderr, "[Test] $7170/$71EE contest input diverged\n");
+            return 1;
+        }
+        cpu_context.initial_flight = false;
+        cpu_context.movement_blocked = true;
+        cpu_context.random_current = 0xff;
+        cpu_context.cpu_center_x = 0x50;
+        cpu_context.cpu_ground_y = 0x70;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_contact_hold_frames != 10 ||
+            controller_ai.rom_contact_saved_x != 0x50 ||
+            controller_ai.rom_contact_saved_y != 0x70) {
+            fprintf(stderr, "[Test] $7170/$75CD contact hold diverged\n");
+            return 1;
+        }
+        controller_ai.rom_new_input = 0xff;
+        cpu_context.counted_wait_locked = true;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_new_input != 0 ||
+            controller_ai.rom_held_input != 0) {
+            fprintf(stderr, "[Test] $7170 entry gates did not clear CPU input\n");
+            return 1;
+        }
+
+        allstar_ai_init(&controller_ai, NULL);
+        allstar_ai_set_skill(&controller_ai, 3);
+        memset(&cpu_context, 0, sizeof(cpu_context));
+        cpu_context.cpu_enabled = true;
+        cpu_context.game_mode = 2;
+        cpu_context.cpu_player = 2;
+        cpu_context.skill_level = 3;
+        cpu_context.cpu_action = 0;
+        cpu_context.cpu_center_x = 0x40;
+        cpu_context.cpu_ground_y = 0x70;
+        cpu_context.mode2_target_x = 0x50;
+        cpu_context.mode2_target_y = 0x78;
+        cpu_context.mode2_state = 2;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_held_input == 0) {
+            fprintf(stderr, "[Test] $7170/$74A8 mode-2 target path diverged\n");
+            return 1;
+        }
+        cpu_context.cpu_center_x = 0x50;
+        cpu_context.cpu_ground_y = 0x78;
+        controller_ai.rom_direction_hysteresis = 1;
+        controller_ai.rom_direction_reload = 1;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_mode2_arrival != 2 ||
+            controller_ai.rom_new_input != 1) {
+            fprintf(stderr, "[Test] $7170/$74A8/$755D mode-2 gather diverged\n");
+            return 1;
+        }
+        cpu_context.cpu_action = ALLSTAR_ROM_SHOT_ACTION_A;
+        cpu_context.cpu_record = 5;
+        cpu_context.cpu_shot_profile = 0;
+        controller_ai.rom_stored_shot_random = 0xff;
+        cpu_context.random_current = 0;
+        allstar_ai_rom_controller_7170(&controller_ai, &cpu_context);
+        if (controller_ai.rom_new_input != 1) {
+            fprintf(stderr, "[Test] $7170/$756C mode-2 skill bypass diverged\n");
+            return 1;
+        }
     }
     if (allstar_one_on_one_rom_take_back_cleared_78e9(84.0f, 112.0f) ||
         !allstar_one_on_one_rom_take_back_cleared_78e9(58.0f, 112.0f) ||
@@ -1692,11 +1979,24 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_input_update(&game.input, ALLSTAR_BTN_A);
     allstar_game_tick(&game, 0.0f);
     allstar_input_update(&game.input, 0);
-    for (frame = 0; frame < 120 && game.one_on_one.p1_possession; frame++) {
+    for (frame = 0; frame < 360 && game.one_on_one.p1_possession; frame++) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     }
     if (game.one_on_one.p1_score != 0 || game.one_on_one.p1_possession) {
-        fprintf(stderr, "[Test] Traced class-one shot did not resolve through ROM contacts\n");
+        AllStarOneOnOneDebugState shot_debug;
+        allstar_scene_one_on_one_get_debug_state(
+            game.active_scene, &shot_debug);
+        fprintf(stderr,
+                "[Test] Traced class-one shot did not resolve through ROM contacts "
+                "(score=%u owner=%d ball=%d/%d xyz=%.0f,%.0f,%.0f "
+                "actions=%02X/%02X cpu=%u/%u)\n",
+                (unsigned)game.one_on_one.p1_score,
+                game.one_on_one.p1_possession ? 1 : 2,
+                shot_debug.ball_in_flight ? 1 : 0,
+                shot_debug.ball_recoverable ? 1 : 0,
+                shot_debug.ball_x, shot_debug.ball_y, shot_debug.ball_z,
+                shot_debug.p1_action, shot_debug.p2_action,
+                shot_debug.cpu_state, shot_debug.cpu_offense_stage);
         allstar_game_shutdown(&game);
         return 1;
     }
@@ -2461,13 +2761,16 @@ int allstar_cli_test_one_on_one_presentation(void) {
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
     defender_start_x = debug.p1_x;
-    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT);
+    /* The exact $7170 defender is holding the right-hand contact lane here;
+       move away from that legal block to prove the landed player controller
+       has re-entered normal movement. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_LEFT);
     for (frame = 0; frame < 24; frame++)
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
     defender_recovered = !debug.p1_defense_jump_active &&
         debug.p1_action != 0x05 && debug.p1_action != 0x0c &&
-        debug.p1_action != 0x14 && debug.p1_x > defender_start_x;
+        debug.p1_action != 0x14 && debug.p1_x < defender_start_x;
     if (!defender_recovered) {
         fprintf(stderr,
                 "[Test] Defender froze after $70FD/$6A8C block jump "

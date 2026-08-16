@@ -14,9 +14,12 @@ void allstar_ai_init(AllStarAIController *ai, const AllStarPlayerStats *stats) {
     ai->rom_shot_profile = 2;
     ai->rom_action_index = 2;
     ai->rom_skill_level = 1;
+    ai->rom_direction_reload = 8;
+    ai->rom_direction_hysteresis = 8;
 }
 
-/* ROM $1FFA maps skill levels 1/2/3 to update delays of 8/4/1 frames. */
+/* ROM $1FFA maps skill levels 1/2/3 to $74BB direction-hysteresis reloads
+   of 8/4/1 controller calls.  $7170 itself still runs every gameplay call. */
 void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level) {
     static const float ROM_SKILL_DELAYS[3] = {
         8.0f / 60.0f, 4.0f / 60.0f, 1.0f / 60.0f
@@ -25,6 +28,9 @@ void allstar_ai_set_skill(AllStarAIController *ai, uint8_t skill_level) {
     if (skill_level < 1 || skill_level > 3) skill_level = 1;
     ai->rom_skill_level = skill_level;
     ai->decision_interval = ROM_SKILL_DELAYS[skill_level - 1];
+    ai->rom_direction_reload = (uint8_t)(skill_level == 1 ? 8 :
+        (skill_level == 2 ? 4 : 1));
+    ai->rom_direction_hysteresis = ai->rom_direction_reload;
     if (ai->decision_timer > ai->decision_interval) {
         ai->decision_timer = ai->decision_interval;
     }
@@ -34,6 +40,382 @@ void allstar_ai_set_rom_profile(AllStarAIController *ai, uint8_t roster_index) {
     if (!ai) return;
     ai->rom_roster_index = roster_index;
     ai->rom_shot_profile = allstar_one_on_one_rom_shot_profile(roster_index);
+}
+
+static uint8_t allstar_ai_rom_skill_value_761b(
+        uint8_t skill, const uint8_t values[3]) {
+    if (skill < 1 || skill > 3) skill = 1;
+    return values[skill - 1];
+}
+
+static bool allstar_ai_rom_inside_07b4(float center_x, float ground_y,
+                                       uint8_t margin) {
+    if ((uint8_t)ground_y >= (uint8_t)(0x5c + margin)) return false;
+    if ((uint8_t)center_x >= 0x54) {
+        return (uint8_t)((uint8_t)center_x - margin) < 0x54;
+    }
+    return (uint8_t)((uint8_t)center_x + margin - 1u) >= 0x54;
+}
+
+static void allstar_ai_rom_select_route_732c(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    allstar_ai_rom_route_target_732c(
+        context->cpu_roster_index, context->random_route,
+        context->random_position, &ai->rom_target_x, &ai->rom_target_y);
+    ai->rom_initial_target_active = 0;
+    ai->rom_force_route = 0;
+    if (ai->rom_target_x == 0x54 && ai->rom_target_y == 0x5d) {
+        ai->rom_special_frames = 1;
+    } else {
+        ai->rom_special_frames = 0;
+        ai->rom_offense_stage = 1;
+    }
+}
+
+static void allstar_ai_rom_arm_gather_755d(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    ai->rom_offense_stage = 2;
+    ai->rom_stored_shot_random = context->random_current;
+    ai->rom_new_input = 0x01;
+}
+
+/* $74BB owns both the asymmetric four-pixel dead zone and the 8/4/1
+   direction-change hysteresis.  Arrival also advances the offense state. */
+static void allstar_ai_rom_target_74bb(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context,
+        uint8_t target_x, uint8_t target_y) {
+    uint8_t direction = (uint8_t)(ai->rom_held_input |
+        allstar_ai_rom_direction_74bb(
+            context->cpu_center_x, context->cpu_ground_y,
+            target_x, target_y));
+    ai->rom_arrived = 0;
+
+    if ((direction & 0xf0u) != 0) {
+        if (direction != ai->rom_accepted_direction) {
+            ai->rom_direction_hysteresis--;
+            if (ai->rom_direction_hysteresis != 0) {
+                ai->rom_held_input = ai->rom_accepted_direction;
+                return;
+            }
+            ai->rom_direction_hysteresis = ai->rom_direction_reload;
+            ai->rom_accepted_direction = direction;
+        }
+        ai->rom_held_input = direction;
+        return;
+    }
+    if (direction != 0 && (direction & 0x02u) == 0) {
+        if (direction != ai->rom_accepted_direction) {
+            ai->rom_direction_hysteresis--;
+            if (ai->rom_direction_hysteresis != 0) {
+                ai->rom_held_input = ai->rom_accepted_direction;
+                return;
+            }
+            ai->rom_direction_hysteresis = ai->rom_direction_reload;
+            ai->rom_accepted_direction = direction;
+        }
+        ai->rom_held_input = direction;
+        return;
+    }
+
+    ai->rom_held_input = direction;
+    ai->rom_arrived = 1;
+    if (context->game_mode == 2 && context->mode2_state == 2) {
+        ai->rom_mode2_arrival = 2;
+    }
+    if (ai->rom_contact_hold_frames == 0) ai->rom_defense_offset_frames = 0;
+    ai->rom_drive_b_frames = 0;
+    ai->rom_contact_offense_count = 0;
+    if (ai->rom_initial_target_active != 0) {
+        ai->rom_initial_target_active = 0;
+        allstar_ai_rom_select_route_732c(ai, context);
+        allstar_ai_rom_target_74bb(
+            ai, context, ai->rom_target_x, ai->rom_target_y);
+        return;
+    }
+    if ((uint8_t)(ai->rom_offense_stage - 1u) == 0) {
+        allstar_ai_rom_arm_gather_755d(ai, context);
+    }
+}
+
+static void allstar_ai_rom_select_initial_72ea(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    allstar_ai_rom_offense_target_72ea(
+        context->ball_x, context->random_target,
+        &ai->rom_target_x, &ai->rom_target_y);
+    ai->rom_initial_target_active = 1;
+    allstar_ai_rom_target_74bb(
+        ai, context, ai->rom_target_x, ai->rom_target_y);
+}
+
+/* Returns true when $75CD uses its stack-pop tail and the caller must stop. */
+static bool allstar_ai_rom_contact_75cd(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    static const uint8_t thresholds[3] = {0xbe,0xaa,0x96};
+    uint8_t threshold = allstar_ai_rom_skill_value_761b(
+        context->skill_level, thresholds);
+    if (!context->movement_blocked || ai->rom_contact_hold_frames != 0 ||
+        context->random_current < threshold) return false;
+    if (context->possession_owner == context->cpu_player) {
+        ai->rom_contact_offense_count++;
+        if (ai->rom_contact_offense_count == 0x0e) {
+            allstar_ai_rom_arm_gather_755d(ai, context);
+        } else {
+            ai->rom_contact_hold_frames = 0;
+            allstar_ai_rom_select_initial_72ea(ai, context);
+        }
+    } else {
+        ai->rom_contact_saved_y = (uint8_t)context->cpu_ground_y;
+        ai->rom_contact_saved_x = (uint8_t)context->cpu_center_x;
+        ai->rom_contact_hold_frames = 0x0a;
+        allstar_ai_rom_target_74bb(
+            ai, context, ai->rom_contact_saved_x,
+            ai->rom_contact_saved_y);
+    }
+    return true;
+}
+
+static void allstar_ai_rom_chase_ball_7476(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    static const uint8_t jump_thresholds[3] = {0x19,0x50,0x96};
+    allstar_ai_rom_target_74bb(
+        ai, context, context->ball_x, context->ball_y);
+    if (ai->rom_arrived != 0 && context->ball_height >= 0x28 &&
+        context->random_position < allstar_ai_rom_skill_value_761b(
+            context->skill_level, jump_thresholds)) {
+        ai->rom_new_input = (uint8_t)(ai->rom_accepted_direction | 0x01u);
+    }
+}
+
+static void allstar_ai_rom_defense_7190(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    static const uint8_t steal_thresholds[3] = {0x04,0x19,0x46};
+    static const uint8_t contest_thresholds[3] = {0x19,0x50,0x96};
+    static const uint8_t offset_thresholds[3] = {0x1b,0x10,0x07};
+    uint8_t target_x;
+    uint8_t target_y;
+
+    ai->rom_offense_active = 0;
+    ai->rom_offense_stage = 0;
+    ai->rom_drive_b_frames = 0;
+    ai->rom_initial_target_active = 0;
+    ai->rom_contact_offense_count = 0;
+    ai->rom_force_route = 0;
+    if (context->possession_owner == 0) {
+        allstar_ai_rom_chase_ball_7476(ai, context);
+        return;
+    }
+    if (context->ball_contact &&
+        context->random_current < allstar_ai_rom_skill_value_761b(
+            context->skill_level, steal_thresholds)) {
+        ai->rom_new_input = 0x02;
+        allstar_ai_rom_chase_ball_7476(ai, context);
+        return;
+    }
+    if (allstar_ai_rom_contact_75cd(ai, context)) return;
+    if (ai->rom_contact_hold_frames != 0) {
+        ai->rom_contact_hold_frames--;
+        allstar_ai_rom_target_74bb(
+            ai, context, ai->rom_contact_saved_x,
+            ai->rom_contact_saved_y);
+        return;
+    }
+    if (ai->rom_defense_offset_frames != 0) {
+        ai->rom_defense_offset_frames--;
+        goto direction_offset;
+    }
+    if (context->initial_flight &&
+        context->shot_owner != context->cpu_player &&
+        allstar_ai_rom_inside_07b4(
+            context->cpu_center_x, context->cpu_ground_y, 0x0e)) {
+        ai->rom_new_input = (uint8_t)(ai->rom_accepted_direction | 0x01u);
+        return;
+    }
+    if (!allstar_one_on_one_rom_action_eligible_0a78(
+            context->opponent_action) && ai->rom_arrived != 0 &&
+        context->opponent_action == 0x03 &&
+        context->random_target >= allstar_ai_rom_skill_value_761b(
+            context->skill_level, contest_thresholds)) {
+        ai->rom_new_input = (uint8_t)(ai->rom_accepted_direction | 0x01u);
+        return;
+    }
+    if (context->random_route < allstar_ai_rom_skill_value_761b(
+            context->skill_level, offset_thresholds)) {
+direction_offset:
+        target_x = (uint8_t)context->opponent_center_x;
+        target_y = (uint8_t)(context->opponent_ground_y + 4.0f);
+        if ((context->opponent_stored_direction & 0x01u) != 0) {
+            target_x = (uint8_t)(target_x + 0x10u);
+        } else if ((context->opponent_stored_direction & 0x02u) != 0) {
+            target_x = target_x < 0x10 ? 0 : (uint8_t)(target_x - 0x10u);
+        } else if ((context->opponent_stored_direction & 0x04u) != 0) {
+            target_y = (uint8_t)(target_y - 0x08u);
+        } else {
+            target_y = (uint8_t)(target_y + 0x08u);
+        }
+        ai->rom_target_x = target_x;
+        ai->rom_target_y = target_y;
+        ai->rom_defense_offset_frames = 0x3c;
+        allstar_ai_rom_target_74bb(ai, context, target_x, target_y);
+        return;
+    }
+
+    target_x = (uint8_t)(context->opponent_center_x -
+        ALLSTAR_ROM_PLAYER_X_TO_CENTER);
+    target_y = (uint8_t)context->opponent_ground_y;
+    if (target_x <= 0x3c) target_x = (uint8_t)(target_x + 0x10u);
+    else if (target_x > 0x6c) target_x = (uint8_t)(target_x - 0x08u);
+    else target_x = (uint8_t)(target_x + 0x08u);
+    target_y = (uint8_t)(target_y - 0x08u);
+    allstar_ai_rom_target_74bb(ai, context, target_x, target_y);
+}
+
+static void allstar_ai_rom_offense_72bf(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    static const uint8_t initial_thresholds[3] = {0x1e,0x14,0x04};
+    if (ai->rom_force_route != 0) {
+        allstar_ai_rom_select_route_732c(ai, context);
+        allstar_ai_rom_target_74bb(
+            ai, context, ai->rom_target_x, ai->rom_target_y);
+        return;
+    }
+    if (ai->rom_offense_active == 0) {
+        ai->rom_contact_hold_frames = 0;
+        ai->rom_offense_active = 1;
+        if (ai->rom_initial_target_active != 0) {
+            allstar_ai_rom_target_74bb(
+                ai, context, ai->rom_target_x, ai->rom_target_y);
+        } else if (!context->special_route &&
+            context->random_current < allstar_ai_rom_skill_value_761b(
+                context->skill_level, initial_thresholds)) {
+            allstar_ai_rom_select_route_732c(ai, context);
+            allstar_ai_rom_target_74bb(
+                ai, context, ai->rom_target_x, ai->rom_target_y);
+        } else {
+            allstar_ai_rom_select_initial_72ea(ai, context);
+        }
+        return;
+    }
+    if (ai->rom_offense_stage == 2) {
+        uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
+            context->cpu_center_x, context->cpu_ground_y);
+        if (allstar_ai_rom_should_shoot_756c(
+                context->cpu_shot_profile, distance_class,
+                context->cpu_record, context->skill_level,
+                ai->rom_stored_shot_random, context->random_current)) {
+            ai->rom_new_input = 0x01;
+        }
+        return;
+    }
+    if (ai->rom_special_frames != 0) {
+        if (ai->rom_special_frames == 1) {
+            bool special = false;
+            if ((uint8_t)context->cpu_ground_y == 0x60 &&
+                context->random_current < 0x30 &&
+                allstar_ai_rom_inside_07b4(
+                    context->cpu_center_x, context->cpu_ground_y, 0x1e) &&
+                !allstar_ai_rom_inside_07b4(
+                    context->cpu_center_x, context->cpu_ground_y, 0x1a)) {
+                special = true;
+            }
+            if (special || allstar_ai_rom_inside_07b4(
+                    context->cpu_center_x, context->cpu_ground_y, 0x12)) {
+                ai->rom_special_frames = 0x2a;
+                ai->rom_new_input = (uint8_t)(
+                    ai->rom_accepted_direction | 0x01u);
+                return;
+            }
+        } else {
+            ai->rom_special_frames--;
+            if (ai->rom_special_frames == 0x25 &&
+                context->cpu_roster_index != 0x0d &&
+                context->random_current < 0x0a) {
+                ai->rom_special_frames = 0;
+            } else if (ai->rom_special_frames != 0) {
+                ai->rom_special_frames--;
+                if (ai->rom_special_frames != 0) return;
+            }
+            ai->rom_held_input = 0x02;
+            return;
+        }
+    }
+    if (allstar_ai_rom_contact_75cd(ai, context)) return;
+    if (ai->rom_drive_b_frames != 0) {
+        ai->rom_drive_b_frames--;
+        ai->rom_held_input = 0x02;
+        ai->rom_new_input = 0x02;
+        allstar_ai_rom_target_74bb(
+            ai, context, ai->rom_target_x, ai->rom_target_y);
+        return;
+    }
+    if (context->random_route < 0x07) {
+        ai->rom_drive_b_frames = 0x32;
+        ai->rom_held_input = 0x02;
+        ai->rom_new_input = 0x02;
+        return;
+    }
+    allstar_ai_rom_target_74bb(
+        ai, context, ai->rom_target_x, ai->rom_target_y);
+}
+
+void allstar_ai_rom_controller_7170(
+        AllStarAIController *ai,
+        const AllStarRomCpuControllerContext *context) {
+    if (!ai || !context) return;
+    ai->rom_new_input = 0;
+    ai->rom_held_input = 0;
+    ai->rom_steal_pressed = false;
+    ai->rom_force_shot = false;
+    ai->rom_shot_release = false;
+    if (context->counted_wait_locked || !context->cpu_enabled ||
+        context->score_event_locked) return;
+    if (context->game_mode == 0 || context->game_mode == 4) {
+        if (context->possession_owner == context->cpu_player) {
+            allstar_ai_rom_offense_72bf(ai, context);
+        } else {
+            allstar_ai_rom_defense_7190(ai, context);
+        }
+    } else if (context->game_mode == 2) {
+        if (!allstar_one_on_one_rom_action_eligible_0a78(
+                context->cpu_action)) {
+            static const uint8_t profile_thresholds[3] = {
+                0xb0,0x60,0x40
+            };
+            uint8_t distance_class = allstar_one_on_one_rom_shot_distance_class(
+                context->cpu_center_x, context->cpu_ground_y);
+            uint8_t profile = context->cpu_shot_profile > 2
+                ? 2 : context->cpu_shot_profile;
+            uint8_t expected_record = distance_class < 3
+                ? (uint8_t)(4 + distance_class) : 7;
+            bool release = ai->rom_stored_shot_random <
+                profile_thresholds[profile]
+                ? context->cpu_record == expected_record
+                : context->cpu_record >= 5 && context->cpu_record < 8;
+            if (release) {
+                ai->rom_new_input = 0x01;
+            }
+        } else if (ai->rom_mode2_arrival != 0) {
+            allstar_ai_rom_arm_gather_755d(ai, context);
+        } else {
+            allstar_ai_rom_target_74bb(
+                ai, context, context->mode2_target_x,
+                context->mode2_target_y);
+        }
+    }
+    ai->rom_steal_pressed = (ai->rom_new_input & 0x02u) != 0;
+    ai->rom_force_shot = context->possession_owner == context->cpu_player &&
+        (ai->rom_new_input & 0x01u) != 0 &&
+        allstar_one_on_one_rom_action_eligible_0a78(context->cpu_action);
+    ai->rom_shot_release = context->possession_owner == context->cpu_player &&
+        (ai->rom_new_input & 0x01u) != 0 &&
+        !allstar_one_on_one_rom_action_eligible_0a78(context->cpu_action);
 }
 
 /* $74BB emits direction bits only when an axis is more than four pixels
@@ -166,6 +548,7 @@ bool allstar_ai_rom_contact_response_75cd(
     bool movement_blocked,
     bool owns_ball,
     uint8_t random_byte,
+    uint8_t target_random,
     uint8_t ball_x,
     float cpu_center_x,
     float cpu_ground_y) {
@@ -183,7 +566,8 @@ bool allstar_ai_rom_contact_response_75cd(
             ai->rom_force_shot = true;
         } else {
             allstar_ai_rom_offense_target_72ea(
-                ball_x, random_byte, &ai->rom_target_x, &ai->rom_target_y);
+                ball_x, target_random,
+                &ai->rom_target_x, &ai->rom_target_y);
         }
     } else {
         ai->rom_contact_saved_y = (uint8_t)cpu_ground_y;

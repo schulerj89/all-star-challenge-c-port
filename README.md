@@ -122,9 +122,10 @@ connected phone. The local asset pack remains inside the ignored build tree.
 | B | `X` or `K` | East / right face button | Right `B` button |
 | Start | Return | Start | `START` pill |
 | Select | Space or Shift | Back | `SELECT` pill |
+| Cycle palette | `P` | — | Top-right `COLOR` button |
 
 Press `1`, `2`, or `3` to select the original green, grayscale, or modern
-palette. Press `P` to cycle palettes.
+palette. Press `P` or the iPhone `COLOR` button to cycle palettes.
 
 ### Windows with MSVC
 

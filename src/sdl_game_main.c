@@ -18,6 +18,7 @@
 typedef struct {
     SDL_FingerID finger_id;
     uint8_t buttons;
+    bool palette;
     bool active;
 } AllStarTouchSlot;
 
@@ -26,6 +27,7 @@ typedef struct {
     SDL_FRect game;
     SDL_FRect select_button;
     SDL_FRect start_button;
+    SDL_FRect palette_button;
     float dpad_x;
     float dpad_y;
     float dpad_radius;
@@ -247,6 +249,13 @@ static void update_touch_layout(AllStarSdlApp *app) {
     layout->start_button.y = layout->select_button.y;
     layout->start_button.w = pill_width;
     layout->start_button.h = pill_height;
+    layout->palette_button.w = minimum_float(
+        right_width * 0.54f, layout->safe_area.h * 0.22f);
+    layout->palette_button.h = layout->safe_area.h * 0.070f;
+    layout->palette_button.x = right_start + right_width * 0.5f -
+        layout->palette_button.w * 0.5f;
+    layout->palette_button.y = layout->safe_area.y +
+        layout->safe_area.h * 0.055f;
     layout->valid = true;
 }
 
@@ -309,20 +318,38 @@ static AllStarTouchSlot *find_touch_slot(AllStarSdlApp *app,
 }
 
 static void update_touch(AllStarSdlApp *app,
-                         const SDL_TouchFingerEvent *event) {
+                         const SDL_TouchFingerEvent *event,
+                         bool finger_down) {
     AllStarTouchSlot *slot;
     int output_width;
     int output_height;
+    float x;
+    float y;
     if (!app || !event || !app->touch_controls) return;
     update_touch_layout(app);
     if (!SDL_GetRenderOutputSize(
             app->renderer, &output_width, &output_height)) return;
     slot = find_touch_slot(app, event->fingerID, true);
     if (!slot) return;
-    slot->buttons = touch_buttons_at(
-        &app->touch_layout, event->x * output_width,
-        event->y * output_height);
+    x = event->x * output_width;
+    y = event->y * output_height;
+    slot->palette = point_in_rect(
+        x, y, &app->touch_layout.palette_button);
+    if (finger_down && slot->palette && app->game.renderer)
+        allstar_renderer_cycle_palette(app->game.renderer);
+    slot->buttons = slot->palette ? 0 :
+        touch_buttons_at(&app->touch_layout, x, y);
     refresh_touch_buttons(app);
+}
+
+static bool touch_palette_pressed(const AllStarSdlApp *app) {
+    size_t index;
+    if (!app) return false;
+    for (index = 0; index < ALLSTAR_MAX_TOUCHES; index++) {
+        if (app->touches[index].active && app->touches[index].palette)
+            return true;
+    }
+    return false;
 }
 
 static void end_touch(AllStarSdlApp *app, SDL_FingerID finger_id) {
@@ -433,6 +460,7 @@ static const uint8_t *pixel_glyph(char character) {
     static const uint8_t glyph_c[5] = {3, 4, 4, 4, 3};
     static const uint8_t glyph_e[5] = {7, 4, 6, 4, 7};
     static const uint8_t glyph_l[5] = {4, 4, 4, 4, 7};
+    static const uint8_t glyph_o[5] = {2, 5, 5, 5, 2};
     static const uint8_t glyph_r[5] = {6, 5, 6, 5, 5};
     static const uint8_t glyph_s[5] = {3, 4, 2, 1, 6};
     static const uint8_t glyph_t[5] = {7, 2, 2, 2, 2};
@@ -442,6 +470,7 @@ static const uint8_t *pixel_glyph(char character) {
         case 'C': return glyph_c;
         case 'E': return glyph_e;
         case 'L': return glyph_l;
+        case 'O': return glyph_o;
         case 'R': return glyph_r;
         case 'S': return glyph_s;
         case 'T': return glyph_t;
@@ -518,6 +547,7 @@ static bool draw_touch_controls(AllStarSdlApp *app) {
     float arrow_offset;
     float label_scale;
     uint8_t visual_buttons;
+    bool palette_pressed;
     if (!app || !app->renderer) return false;
     layout = &app->touch_layout;
     if (!layout->valid) return false;
@@ -526,6 +556,42 @@ static bool draw_touch_controls(AllStarSdlApp *app) {
 
     visual_buttons = app->keyboard_buttons | app->gamepad_buttons |
         app->touch_buttons;
+    palette_pressed = touch_palette_pressed(app);
+
+    capsule = layout->palette_button;
+    capsule.x += 3.0f;
+    capsule.y += 4.0f;
+    if (!SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 115) ||
+        !draw_horizontal_capsule(app->renderer, &capsule)) return false;
+    switch (app->game.renderer->palette_style) {
+        case ALLSTAR_PALETTE_DMG_ORIGINAL:
+            if (!SDL_SetRenderDrawColor(app->renderer,
+                    palette_pressed ? 164 : 119,
+                    palette_pressed ? 189 : 151,
+                    palette_pressed ? 105 : 78, 245)) return false;
+            break;
+        case ALLSTAR_PALETTE_POCKET_BW:
+            if (!SDL_SetRenderDrawColor(app->renderer,
+                    palette_pressed ? 190 : 132,
+                    palette_pressed ? 194 : 139,
+                    palette_pressed ? 199 : 148, 245)) return false;
+            break;
+        case ALLSTAR_PALETTE_MODERN_VIBRANT:
+        default:
+            if (!SDL_SetRenderDrawColor(app->renderer,
+                    palette_pressed ? 78 : 42,
+                    palette_pressed ? 156 : 108,
+                    palette_pressed ? 225 : 173, 245)) return false;
+            break;
+    }
+    if (!draw_horizontal_capsule(
+            app->renderer, &layout->palette_button) ||
+        !SDL_SetRenderDrawColor(app->renderer, 249, 250, 252, 255) ||
+        !draw_pixel_text(app->renderer, "COLOR",
+            layout->palette_button.x + layout->palette_button.w * 0.5f,
+            layout->palette_button.y + layout->palette_button.h * 0.5f,
+            layout->palette_button.h * 0.105f)) return false;
+
     directions = visual_buttons &
         (ALLSTAR_BTN_UP | ALLSTAR_BTN_DOWN |
          ALLSTAR_BTN_LEFT | ALLSTAR_BTN_RIGHT);
@@ -798,8 +864,10 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
                           gamepad_button(event->gbutton.button), false);
             break;
         case SDL_EVENT_FINGER_DOWN:
+            update_touch(app, &event->tfinger, true);
+            break;
         case SDL_EVENT_FINGER_MOTION:
-            update_touch(app, &event->tfinger);
+            update_touch(app, &event->tfinger, false);
             break;
         case SDL_EVENT_FINGER_UP:
         case SDL_EVENT_FINGER_CANCELED:

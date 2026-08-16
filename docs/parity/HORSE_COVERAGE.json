@@ -37,9 +37,9 @@
     {"id":"shot.fixed_step_7be8","group":"shot","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/scenes/scene_horse.c"],"test":"--test-physics"},
     {"id":"shot.rim_score_1ced","group":"shot","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/scenes/scene_horse.c"],"test":"--test-physics"},
 
-    {"id":"presentation.shared_court_net","group":"presentation","status":"verified","evidence":["src/scenes/scene_horse.c","src/allstar_renderer.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.shared_court_net","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c","src/allstar_renderer.c"],"test":"--dump-screenshots"},
     {"id":"presentation.saved_x_tile_7b7a","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c"],"test":"--dump-screenshots"},
-    {"id":"presentation.letter_prefixes_7ba8_7bc0","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"presentation.letter_prefixes_7ba8_7bc0","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/allstar_asset_pack.c","src/gameplay/allstar_horse.c","src/scenes/scene_horse.c"],"test":"--test-horse"},
     {"id":"audio.letter_command_07","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"],"test":"--export-horse-sfx"}
   ]
 }

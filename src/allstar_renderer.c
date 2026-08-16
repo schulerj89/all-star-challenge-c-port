@@ -360,9 +360,8 @@ void allstar_renderer_draw_court_net_1ecc(AllStarRenderer *renderer,
 }
 
 /* The rest net already occupies BG cells $9849/$984A/$9869/$986A/$9889/
-   $988A before a score.  Asset-pack court tiles and net tiles come from
-   separate VRAM streams, so native composition must draw that base frame
-   explicitly as well as the three animated replacements. */
+   $988A before a score.  $1ECC leaves it unchanged until the +20-frame
+   bend, then writes three extracted replacement arrangements. */
 void allstar_renderer_draw_net_overlay_1ecc(AllStarRenderer *renderer,
                                             uint8_t net_frame) {
     static const uint8_t net_tiles[3][6] = {
@@ -374,12 +373,16 @@ void allstar_renderer_draw_net_overlay_1ecc(AllStarRenderer *renderer,
     const uint8_t *tiles;
     int row;
     int column;
-    if (!renderer || net_frame > 3) return;
+    /* $1ECC does not touch the six cells before its first +20 countdown.
+       Leave the $04B1 court-map net ($14/$15,$1A/$1B,$23/$24) intact for
+       ALLSTAR_ROM_NET_UNCHANGED instead of prematurely substituting the
+       final $61..$66 replacement frame. */
+    if (!renderer || net_frame == 0 || net_frame > 3) return;
     pack = renderer->asset_pack;
     if (!pack || (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) == 0 ||
         pack->header.net_tile_count != ALLSTAR_NET_TILE_COUNT) return;
-    tiles = net_tiles[net_frame == 0 ? 2 : net_frame - 1];
+    tiles = net_tiles[net_frame - 1];
     for (row = 0; row < 3; row++) {
         for (column = 0; column < 2; column++) {
             allstar_renderer_draw_tile(

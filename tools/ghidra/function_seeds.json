@@ -90,10 +90,10 @@
       "note": "Both player +$0E counters initialize to five and the shared roster palette path remains asset-backed for each selected player."
     },
     "rom_b00_22c3": {
-      "status": "candidate",
-      "native_symbol": "horse_draw",
+      "status": "verified",
+      "native_symbol": "horse_draw_hud_22c3_7ba8",
       "source": "src/scenes/scene_horse.c",
-      "note": "Horse reuses the extracted One-on-One $04B1 court and exact $1ECC net overlay. Game Boy VRAM transfer timing is platform-native and excluded."
+      "note": "Exact $053C writes replace court tile $09 with blank $00 at BG coordinates (3,1) and (16,1); live BG rows and native screenshots prove the colon placeholders are absent. The shared $04B1 court and $1ECC net sequence remain asset-backed."
     },
     "rom_b01_6cab": {
       "status": "verified",
@@ -127,9 +127,9 @@
     },
     "rom_b01_7ba8": {
       "status": "verified",
-      "native_symbol": "allstar_horse_letters_7bc0",
-      "source": "src/gameplay/allstar_horse.c",
-      "note": "Both players' strings are redrawn at tile coordinates (1,1) and (14,1) after the exact remaining-letter lookup."
+      "native_symbol": "horse_draw_hud_22c3_7ba8",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Both remaining-letter prefixes are rendered at tile coordinates (1,1) and (14,1) through the exact $06C0 signed-font conversion, reusing extracted bank-1 $640F tiles $C0..$FA."
     },
     "rom_b01_7bc0": {
       "status": "verified",

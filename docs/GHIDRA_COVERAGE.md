@@ -4,7 +4,7 @@ Last audited: **2026-08-15**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **58/139 (41.73%)**. All 139 entry points have stable bank-aware symbols and decompile successfully; 43 are explicitly unmapped, 38 have candidate native analogues, and 58 mappings are verified by deterministic tests and traces. Seven new fixed-bank seeds establish the mode-2 H-O-R-S-E lifecycle. Its 45-routine dedicated/shared scope is 27 verified, 18 candidate, and 0 unmapped: **60.00% strict whole-routine coverage** and **100.00% mapped**. This is a reviewed subset, not a claim that the entire ROM contains only 139 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **59/139 (42.45%)**. All 139 entry points have stable bank-aware symbols and decompile successfully; 43 are explicitly unmapped, 37 have candidate native analogues, and 59 mappings are verified by deterministic tests and traces. Seven new fixed-bank seeds establish the mode-2 H-O-R-S-E lifecycle. Its 45-routine dedicated/shared scope is 28 verified, 17 candidate, and 0 unmapped: **62.22% strict whole-routine coverage** and **100.00% mapped**. This is a reviewed subset, not a claim that the entire ROM contains only 139 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -18,7 +18,10 @@ mode `$02` bypasses the settings tilemap,
 two roster selections, caller/matcher ownership, saved spot `$74/$88`, the
 exact tile-$76 X, a P2 5-to-4 letter decrement, and command `$07` APU writes.
 Native mode 2 uses the same court, player animation, launch, flight, and rim
-paths as the cartridge, plus the exact 50-pair `$6DB7` CPU spot table.
+paths as the cartridge, plus the exact 50-pair `$6DB7` CPU spot table. The
+same trace now proves `$22C3` clears the court's two colon placeholders,
+`$0749/$7BA8/$06C0` supplies names and the ROM font, and `$1ECC` writes the
+20/15/15/15-frame bend/deep/bend/rest net sequence.
 
 The expanded Free Throw gameplay/presentation manifest is **32/32 (100.00%)**. It follows
 `$0C8E->$17AA->$100F->$1942/$1986->$1CAA/$7C58->$7BE8->$1A31->$1C61`
@@ -80,13 +83,13 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
 | Reviewed Ghidra functions | 139 functions | 83 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
 | Generated Ghidra C export | 152 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 58 of 139 | 58 mappings have address-level C plus deterministic or emulator evidence; 38 candidates remain below whole-routine evidence threshold. |
+| Reviewed routine-to-C parity | 59 of 139 | 59 mappings have address-level C plus deterministic or emulator evidence; 37 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
 | Rows in the former detailed matrix | 43 | The former summary claimed 108 without listing 108 mappings. |
 | Former matrix identifiers found verbatim in assembly | 33 of 43 | Identifier existence still does not prove the stated meaning. |
-| Headless Mesen trace scripts | 21 | Includes deterministic One-on-One, Free Throw, and H-O-R-S-E menu-to-gameplay traces; Horse proves matching, letters, X art, and `$07` APU writes. |
+| Headless Mesen trace scripts | 21 | Includes deterministic One-on-One, Free Throw, and H-O-R-S-E menu-to-gameplay traces; Horse proves matching, letters, X art, names/font, colon clearing, net phases, and `$07` APU writes. |
 
 ### Reviewed Ghidra recovery
 
@@ -153,7 +156,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Roster selection | Yes | Scoped audio behavior | Navigation command `$0F`/program `$07` and accepted-player command `$0E`/five-step program `$12` are live-traced, extracted, and integrated; data and screen art remain hardcoded/partial. |
 | One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 60/60 presentation/audio | Lifecycle, possession, shooting/dunk phase, roster palettes, hoop-facing shots and held-ball offsets, live steals, RNG, complete `$702D` shared input control, record-boundary movement, charging/blocking/take-back presentation/audio, complete `$7170` CPU decisions, defender landing, grounded OAM, score-ball/net priority, rim recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | 32/32 gameplay/presentation | Single-player selection bypasses VS; `$0C8E` stops menu music; `$22A9/$1A25` supplies the moving reticle; aim, rating-based clean makes, rim/net score, attempts/results, exact close-up art, `$1C1D` priority, HUD, and results are playable. |
-| H-O-R-S-E | Yes | 30/30 scoped; 27/45 strict shared-routine | Two-player roster selection, caller/matcher turns, 50 CPU spots, saved X, letters, shared shooting, audio `$07`, winner, and exit are playable and traced. |
+| H-O-R-S-E | Yes | 30/30 scoped; 28/45 strict shared-routine | Two-player roster selection, caller/matcher turns, 50 CPU spots, saved X, exact names/letter font, colon clearing, shared shooting/net timing, audio `$07`, winner, and exit are playable and traced. |
 | Accuracy Shootout | No faithful implementation | No | Misidentified as a generic five-rack contest |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
@@ -161,7 +164,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | Player collision and possession rules | Partial | Focused One-on-One subset | In addition to recovery and steals, `$6A8C->$6E3C` blocking, `$2C50/$2CCA/$0AC5` charging/blocking, exact 25-count persistence, protected-shot clear, and no-recoil behavior are verified and live-integrated. |
 | CPU AI | Yes | Verified `$7170-$761A` controller | Mode dispatch/gates, `$FFD2/$FFD3` synthesis, offense routes, defense offsets, loose-ball chase, profile/skill decisions, close-drive/special timers, `$75CD` contact behavior, `$74BB` 8/4/1 hysteresis, arrival/gather, and record-gated release are native and traced. |
 | Player animation selection | Yes | Complete focused One-on-One path | `$782E/$6A8C/$6C60` records, `$6B72` movement callbacks, idle/steal/jump/shot families, and the verified absence of contact-hit/rebound-pickup actions are covered. |
-| Court/menu/player rendering | Yes | One-on-One, Free Throw, and Horse scoped | Horse correctly reuses the One-on-One court/player/ball/net streams and exact tile-$76 X. Free Throw keeps its separate close-up art. |
+| Court/menu/player rendering | Yes | One-on-One, Free Throw, and Horse scoped | Horse reuses the One-on-One court/player/ball/net streams, clears `$22C3`'s two colon cells, draws `$0749` names and `$7BA8/$06C0` letters from the extracted ROM font, and uses exact tile-$76 X and `$1ECC` net phases. Free Throw keeps its separate close-up art. |
 | ROM asset extraction | Yes | One-on-One plus Free Throw scoped | Exact One-on-One sources plus Free Throw `$640F/$6EF1/$708E/$7F69`, pose/net maps, OBJ maps, `$050F` wrap behavior, endpoint validation, and runtime loading are implemented. |
 | PCM output/mixing | Yes | Not applicable to original implementation | Native platform layer |
 | ROM music/SFX sequencing | Partial | Event-level multi-mode subset | Ten focused commands now include Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. The complete `$3014` music/sequencer engine is not ported. |
@@ -180,7 +183,7 @@ No whole subsystem should currently be labeled 100% ROM-equivalent; the
 | Complete | One-on-One scoped rules | 50/50 gameplay requirements and 50/50 remaining-focus requirements are verified, including collision/contact rules and user-ROM-derived presentation. Other modes and frame-perfect synchronization remain separate work. |
 | Complete | Free Throws scoped parity | 32/32 single-player selection, music stop, moving reticle, aim, rating-based clean makes, rim/net scoring, attempts/results, `$08/$0A` audio, mode-specific assets, and `$1C1D` priority are verified. |
 | Complete | Tournament | Seven-match winner propagation, bracket rounds, champion lock, and title return are verified; presentation remains outside this gameplay milestone. |
-| Complete | H-O-R-S-E scoped parity | 30/30 called-shot, matching, letter, CPU/human, shared shot, presentation/audio, winner, and exit requirements are verified; whole shared-routine coverage remains 60.00%. |
+| Complete | H-O-R-S-E scoped parity | 30/30 called-shot, matching, letter, CPU/human, shared shot, exact HUD/font/net presentation, audio, winner, and exit requirements are verified; whole shared-routine coverage is 62.22%. |
 | P1 | Accuracy Shootout | Identify and port the actual ROM rules, target sequence, timer, scoring, and end state. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
 | P1 | Physics | One-on-One launch/contact/bounce, `$FFD7` 2/3-point selection, and `$6A8C` timing-to-launch-index logic are covered; extend equivalent evidence to other modes. |
@@ -214,4 +217,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **58/139 routine mappings verified**. Do not use 139 as a whole-ROM function denominator until the remaining code/data review is complete. Horse behavior is checked with `python tools/check_horse_coverage.py`; Free Throw and One-on-One retain their separate scoped tools.
+The manifest now exists, so report its verified subset explicitly: **59/139 routine mappings verified**. Do not use 139 as a whole-ROM function denominator until the remaining code/data review is complete. Horse behavior is checked with `python tools/check_horse_coverage.py`; Free Throw and One-on-One retain their separate scoped tools.

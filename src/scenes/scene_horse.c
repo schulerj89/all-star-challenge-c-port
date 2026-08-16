@@ -414,6 +414,89 @@ static void horse_draw_marker_7b7a(AllStarRenderer *renderer,
     }
 }
 
+/* $06C0 maps the cartridge's high-bit-terminated ASCII-like text to the
+   signed BG font loaded at tile IDs $C0..$FA.  The same bank-1 $640F font
+   stream is already present in the ROM-derived Free Throw BG bank. */
+static uint8_t horse_font_tile_06c0(uint8_t character) {
+    uint8_t mapped;
+    if (character == 0x20) mapped = 0;
+    else if (character == 0x27) mapped = 0x27;
+    else if (character == 0x3f) mapped = 0x28;
+    else if (character == 0x2e) mapped = 0x25;
+    else if (character == 0x3a) mapped = 0x26;
+    else if (character < 0x05) mapped = (uint8_t)(character + 0x36);
+    else if (character < 0x3a) mapped = (uint8_t)(character - 0x2f);
+    else mapped = (uint8_t)(character - 0x36);
+    return (uint8_t)(mapped + 0xc0);
+}
+
+static bool horse_has_rom_font(const AllStarRenderer *renderer) {
+    return renderer && renderer->asset_pack &&
+        (renderer->asset_pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_FREE_THROW_ART) != 0;
+}
+
+static void horse_draw_rom_text_06c0(AllStarRenderer *renderer,
+                                     const char *text,
+                                     int tile_x, int tile_y) {
+    const AllStarAssetPack *pack = renderer->asset_pack;
+    while (text && *text && tile_x < 20) {
+        uint8_t tile = horse_font_tile_06c0((uint8_t)*text++);
+        allstar_renderer_draw_tile(renderer, &pack->free_throw_bg_tiles[tile],
+                                   tile_x * 8, tile_y * 8, false, false);
+        tile_x++;
+    }
+}
+
+static void horse_draw_name_0749(AllStarRenderer *renderer,
+                                 const char *last_name, int tile_x) {
+    char field[10];
+    size_t length = last_name ? strlen(last_name) : 0;
+    size_t offset;
+    if (length > 9) length = 9;
+    memset(field, ' ', 9);
+    field[9] = '\0';
+    offset = (9 - length) / 2;
+    if (length != 0) memcpy(field + offset, last_name, length);
+    horse_draw_rom_text_06c0(renderer, field, tile_x, 5);
+}
+
+static void horse_draw_hud_22c3_7ba8(AllStarRenderer *renderer,
+                                     AllStarGame *game,
+                                     const SceneHorseData *data) {
+    const AllStarPlayerStats *p1 = allstar_roster_get_player(
+        &game->roster, game->selected_player_1);
+    const AllStarPlayerStats *p2 = allstar_roster_get_player(
+        &game->roster, game->selected_player_2);
+    const char *p1_letters = allstar_horse_letters_7bc0(
+        data->mode.letters_remaining[0]);
+    const char *p2_letters = allstar_horse_letters_7bc0(
+        data->mode.letters_remaining[1]);
+    if (horse_has_rom_font(renderer) &&
+        (renderer->asset_pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART) != 0) {
+        const AllStarTile *blank = &renderer->asset_pack->court_tiles[0];
+        /* $22C3 calls $053C for exactly (column 3,row 1) and
+           (column 16,row 1), removing the two $09 colon tiles. */
+        allstar_renderer_draw_tile(renderer, blank, 3 * 8, 1 * 8,
+                                   false, false);
+        allstar_renderer_draw_tile(renderer, blank, 16 * 8, 1 * 8,
+                                   false, false);
+        /* $0749 writes the two fixed nine-tile roster last-name fields at
+           (0,5)/(11,5); $7BA8 writes letter prefixes at (1,1)/(14,1). */
+        horse_draw_name_0749(renderer, p1 ? p1->last_name : "", 0);
+        horse_draw_name_0749(renderer, p2 ? p2->last_name : "", 11);
+        horse_draw_rom_text_06c0(renderer, p1_letters, 1, 1);
+        horse_draw_rom_text_06c0(renderer, p2_letters, 14, 1);
+        return;
+    }
+    /* Source-free development fallback. */
+    allstar_renderer_draw_rect_fill(renderer, 24, 8, 8, 8, 0);
+    allstar_renderer_draw_rect_fill(renderer, 128, 8, 8, 8, 0);
+    allstar_renderer_draw_text(renderer, p1_letters, 8, 8, 3);
+    allstar_renderer_draw_text(renderer, p2_letters, 112, 8, 3);
+}
+
 static void horse_draw_result(AllStarRenderer *renderer,
                               AllStarGame *game,
                               const SceneHorseData *data) {
@@ -442,6 +525,7 @@ static void horse_draw(AllStarScene *scene, AllStarGame *game,
     bool loose_ball;
     bool ball_behind_net;
     uint8_t net_frame = 0;
+    uint16_t after_make = 0;
     int32_t visual_lift = 0;
     if (data->phase == HORSE_PHASE_RESULT) {
         horse_draw_result(renderer, game, data);
@@ -450,25 +534,22 @@ static void horse_draw(AllStarScene *scene, AllStarGame *game,
     allstar_renderer_clear(renderer, 0);
     allstar_renderer_draw_court(renderer);
     if (data->shot_made) {
-        uint16_t after_make = data->shot_frames >= data->made_frame
+        after_make = data->shot_frames >= data->made_frame
             ? (uint16_t)(data->shot_frames - data->made_frame) : 0;
         net_frame = (uint8_t)allstar_one_on_one_score_net_frame_1ecc(
             after_make);
     }
     loose_ball = data->phase == HORSE_PHASE_FLIGHT;
-    ball_behind_net = loose_ball && data->shot_made && net_frame != 0;
+    /* $1E0E seeds $C12B=$23 immediately.  $6945 therefore puts the made
+       ball behind nonzero net BG pixels for the first 35 frames, including
+       the 20 frames before $1ECC writes its first animated replacement. */
+    ball_behind_net = loose_ball && data->shot_made && after_make < 35;
     if (ball_behind_net)
         allstar_renderer_draw_ball_ex(renderer,
             (int32_t)data->ball.x, (int32_t)data->ball.y,
             (int32_t)data->ball.z, data->anim_time);
     allstar_renderer_draw_net_overlay_1ecc(renderer, net_frame);
-    /* $7BA8 calls $06C0 at tile coordinates (1,1) and (14,1). */
-    allstar_renderer_draw_text(renderer,
-        allstar_horse_letters_7bc0(data->mode.letters_remaining[0]),
-        8, 8, 3);
-    allstar_renderer_draw_text(renderer,
-        allstar_horse_letters_7bc0(data->mode.letters_remaining[1]),
-        112, 8, 3);
+    horse_draw_hud_22c3_7ba8(renderer, game, data);
     horse_draw_marker_7b7a(renderer, data);
 
     stats = allstar_roster_get_player(&game->roster,
@@ -551,5 +632,22 @@ bool allstar_scene_horse_force_test_result(AllStarScene *scene,
     data->made_frame = made ? data->shot_frames : 0;
     data->shot_frames = HORSE_SHOT_RESOLVE_FRAMES - 1;
     data->phase = HORSE_PHASE_FLIGHT;
+    return true;
+}
+
+bool allstar_scene_horse_force_test_score_frame(AllStarScene *scene,
+                                                uint16_t after_make) {
+    SceneHorseData *data;
+    if (!scene || scene->id != ALLSTAR_SCENE_HORSE || !scene->user_data)
+        return false;
+    data = (SceneHorseData*)scene->user_data;
+    data->phase = HORSE_PHASE_FLIGHT;
+    data->shot_made = true;
+    data->made_frame = 1;
+    data->shot_frames = (uint16_t)(1 + after_make);
+    data->ball.in_flight = true;
+    data->ball.x = 80.0f;
+    data->ball.y = 32.0f;
+    data->ball.z = 0.0f;
     return true;
 }

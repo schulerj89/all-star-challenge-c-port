@@ -11,7 +11,7 @@ contacts.
 
 The scoped gameplay manifest is **30/30 (100.00%)**. Under the stricter
 whole-Ghidra-function metric, the 45 dedicated and shared routines used by
-the mode are **27 verified, 18 candidate, 0 unmapped**: **60.00% verified**
+the mode are **28 verified, 17 candidate, 0 unmapped**: **62.22% verified**
 and **100.00% mapped**. Candidate means the Horse branch is implemented but
 the shared routine also owns other modes, VRAM timing, or platform-specific
 work, so whole-function credit is intentionally withheld.
@@ -30,7 +30,9 @@ fixed $0CDF mode entry
   -> $10AD/$0444 shared player/game setup
   -> $22B9: P1 +$0E = 5, P2 +$0E = 5
   -> $04B1(A=1): One-on-One court
-  -> $22C3 Horse tilemap setup
+  -> $22C3 clears the two court-map colon cells through $053C
+  -> $0749 draws both fixed-width player last-name fields
+  -> bank 1 $7BA8/$06C0 draws letter prefixes with the ROM BG font
   -> bank 1 $7A90 active-shooter initialization
 
 fixed $0D57 current-player turn
@@ -72,6 +74,7 @@ matcher miss. The decisive checkpoints are:
 | P1 launches through `$7C58` | 319 | moved shooting location |
 | `$1E0E` make | 381 | called spot becomes `$74/$88` |
 | shared net command `$08` | 401 | make +20 |
+| `$1ECC` net sequence | 401/416/431/446 | bend/deep/bend/rest at +20/+35/+50/+65 |
 | shared score command `$05` | 446 | make +65 |
 | P2 matcher begins at `$7AFD` | 691 | same `$74/$88` target |
 | P2 launches | 762 | matcher at called location |
@@ -88,6 +91,21 @@ The trace also captures exact live VRAM tile `$76`:
 
 It is already the final source tile (index 41) in the extracted 42-tile
 ball/object stream, so no procedural X or new derived graphics were added.
+
+The same capture records the first six live BG rows. `$22C3` calls `$053C`
+twice to replace tile `$09` (the base court's `:` placeholder) with blank
+tile `$00` at `(3,1)` and `(16,1)`. `$0749` then writes both nine-character
+last-name fields at `(0,5)` and `(11,5)`, while `$7BA8->$06C0` converts
+letters into the signed BG font range `$C0..$FA`. Native uses those exact
+font tiles from the extracted bank-1 `$640F` stream instead of a generic PC
+font.
+
+The net trace also resolves presentation priority precisely. `$1E0E` gives
+the made ball BG priority immediately; `$1ECC` leaves the court's original
+`$14/$15,$1A/$1B,$23/$24` net untouched for 20 frames, then writes the
+extracted bend/deep/bend/rest arrangements at +20/+35/+50/+65. Native now
+keeps the ball behind the net through +34 and preserves that base frame
+instead of substituting the final replacement before animation begins.
 
 ## Audio proof
 
@@ -119,16 +137,16 @@ Export playable proof with:
 
 | Ghidra scope | Verified | Candidate | Unmapped | Strict coverage |
 |---|---:|---:|---:|---:|
-| Dedicated Horse lifecycle/rules/presentation (14) | 9 | 5 | 0 | 64.29% |
+| Dedicated Horse lifecycle/rules/presentation (14) | 10 | 4 | 0 | 71.43% |
 | Shared selector/gameplay/render/audio dependencies (31) | 18 | 13 | 0 | 58.06% |
-| **Mode total (45)** | **27** | **18** | **0** | **60.00%** |
+| **Mode total (45)** | **28** | **17** | **0** | **62.22%** |
 
 Candidate examples are `$0CDF/$0D2B` (shared fade/VRAM lifecycle), `$7AFD`
 (native matching behavior is exact but not a register-level controller-loop
 clone), and `$7C58/$7BE8/$1CED/$3014` (the Horse path is covered while those
 routines also serve other modes or audio programs). The scoped 30/30 metric
 answers whether the playable Horse behavior requested here is present; the
-60% metric answers whether every entire shared Ghidra routine qualifies for
+62.22% metric answers whether every entire shared Ghidra routine qualifies for
 strict whole-function credit.
 
 ## Verification
@@ -146,7 +164,8 @@ Native proof frames are generated as:
 - `07_horse.bmp` — caller at mode start;
 - `07a_horse_shot_flight.bmp` — shared shot animation/ball flight;
 - `07b_horse_match_x.bmp` — CPU matching the saved X;
-- `07c_horse_letter_h.bmp` — P2 letter after the matcher miss.
+- `07c_horse_letter_h.bmp` — P2 letter after the matcher miss;
+- `07d` through `07g_horse_net_*.bmp` — exact bend/deep/bend/rest sequence.
 
 Generated screenshots, WAVs, ROMs, and asset packs remain ignored build
 artifacts and are not shipped from the user-owned ROM.

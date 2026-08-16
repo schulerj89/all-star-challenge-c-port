@@ -21,6 +21,12 @@ local makeFrame = nil
 local net08TimingSeen = false
 local score05TimingSeen = false
 local missContact0ASeen = false
+local netBendSeen = false
+local netDeepSeen = false
+local netReturnSeen = false
+local netRestSeen = false
+local lastNetCells = nil
+local horseHudSeen = false
 local letterSeen = false
 local letterDrawSeen = false
 local command7Seen = false
@@ -61,6 +67,13 @@ local function bytes(address, count)
   return table.concat(values, "")
 end
 
+local function horseBgRows(label, firstRow, rowCount)
+  for row = firstRow, firstRow + rowCount - 1 do
+    print(string.format("HORSE_BG_%s row=%02d data=%s", label, row,
+      bytes(0x9800 + row * 0x20, 20)))
+  end
+end
+
 local function onMenuLoop()
   menuReached = true
 end
@@ -98,6 +111,9 @@ local function onTurnStart()
   if firstTurnFrame == horseFrames then
     print("HORSE_TILE_24=" .. bytes(0x8240, 16))
     print("HORSE_TILE_76=" .. bytes(0x8760, 16))
+    horseBgRows("INITIAL", 0, 6)
+    horseHudSeen = read(0x9823) == 0 and read(0x9830) == 0 and
+      bytes(0x98A0, 20) == "C0C0CBD3D8D1CFC0C02627C0CCCBDCD5D6CFE3C0"
   end
 end
 
@@ -134,6 +150,12 @@ local function onMake()
   makeSeen = true
   makeFrame = horseFrames
   horseState("MAKE_1E0E")
+end
+
+local function netCells()
+  return string.format("%02X%02X/%02X%02X/%02X%02X",
+    read(0x9849), read(0x984A), read(0x9869), read(0x986A),
+    read(0x9889), read(0x988A))
 end
 
 local function onSoundSelected()
@@ -201,6 +223,26 @@ local function onInputPolled()
 end
 
 local function onEndFrame()
+  if horseReached then
+    local cells = netCells()
+    if not string.find(cells, "FF") and cells ~= lastNetCells then
+      print(string.format("HORSE_NET_1ECC frame=%d cells=%s",
+        horseFrames, cells))
+      lastNetCells = cells
+    end
+    if makeFrame ~= nil then
+      local delta = horseFrames - makeFrame
+      if delta == 20 and cells == "6162/6768/696A" then
+        netBendSeen = true
+      elseif delta == 35 and cells == "6B6C/6D6E/6F70" then
+        netDeepSeen = true
+      elseif delta == 50 and cells == "6162/6768/696A" then
+        netReturnSeen = true
+      elseif delta == 65 and cells == "6162/6364/6566" then
+        netRestSeen = true
+      end
+    end
+  end
   if horseReached and letterSeen and command7Seen and turnCount >= 3 and
       horseFrames >= 1150 and not stopping then
     stopping = true
@@ -217,6 +259,10 @@ local function onEndFrame()
     expect(matchSeen, "$7AFD matcher placement was not reached")
     expect(net08TimingSeen, "made shot did not select command $08 at +20")
     expect(score05TimingSeen, "made shot did not select command $05 at +65")
+    expect(netBendSeen and netDeepSeen and netReturnSeen and netRestSeen,
+      "$1ECC net animation did not produce bend/deep/return/rest phases")
+    expect(horseHudSeen,
+      "$22C3/$0749 HUD did not clear colons and draw ROM-font names")
     expect(missContact0ASeen, "matcher miss did not reach command $0A contact")
     expect(letterDrawSeen, "$0E26 did not call $7BA8")
     expect(read(0xFFC4) == 0x04,
@@ -227,7 +273,7 @@ local function onEndFrame()
       "00000000C3C366663C3C3C3C6666C3C3",
       "Horse X tile $76 differs from live VRAM")
     print(failures == 0 and
-      "TRACE PASSED: $22EF/$255D/$4000/$0CDF/$0D57/$0E26/$0E36/$7AFD/$7BA8 H-O-R-S-E lifecycle + $07 APU" or
+      "TRACE PASSED: $22C3/$0749/$7BA8/$06C0/$1ECC H-O-R-S-E HUD/net + lifecycle + $07 APU" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))
     emu.stop(failures == 0 and 0 or 3)
   elseif totalFrames >= 6000 and not stopping then

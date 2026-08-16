@@ -139,5 +139,7 @@ target `$50/$3B`. It independently requires the cartridge clean-shot route
 `trace_horse.lua` selects menu mode `$02`, accepts both roster players, then
 drives a P1 called make and P2 CPU matcher miss. It asserts
 `$0CDF/$0D57/$0E36/$7AFD/$0E26/$7BA8`, the stored `$74/$88` spot, P2's
-5-to-4 letter decrement, exact live tile `$76`, and command `$07` APU writes.
-Require exit code `0` and `TRACE PASSED: $4000/$0CDF/$0D57/$0E26/$0E36/$7AFD/$7BA8 H-O-R-S-E lifecycle + $07 APU`.
+5-to-4 letter decrement, exact live tile `$76`, `$22C3` colon clears,
+`$0749/$7BA8/$06C0` ROM-font HUD, `$1ECC` bend/deep/bend/rest net cells, and
+command `$07` APU writes. Require exit code `0` and
+`TRACE PASSED: $22C3/$0749/$7BA8/$06C0/$1ECC H-O-R-S-E HUD/net + lifecycle + $07 APU`.

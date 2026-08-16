@@ -182,7 +182,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!game_initialized) {
         MessageBoxA(
             hwnd,
-            "Gameplay asset pack v12 is missing or stale.\n\n"
+            "Gameplay asset pack v15 is missing or stale.\n\n"
             "Run build.ps1 -RomPath \"path\\to\\game.gb\" to rebuild it.",
             "NBA All-Star Challenge - Asset Pack Required",
             MB_OK | MB_ICONERROR);

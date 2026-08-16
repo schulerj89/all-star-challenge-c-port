@@ -145,8 +145,9 @@ typedef struct {
     AllStarRomOamPair ball_oam_pairs[ALLSTAR_BALL_OAM_PAIR_COUNT];
     AllStarTile court_tiles[ALLSTAR_COURT_TILE_COUNT];
     AllStarTile net_tiles[ALLSTAR_NET_TILE_COUNT];
-    /* Fixed $2243/$1CBD Free Throw VRAM image. BG tiles are indexed by the
-       raw signed-mode tile byte; OBJ tiles are the $1884 4x4 ball source. */
+    /* Fixed $2243/$1CBD Free Throw VRAM image. The bank-1 $640F BG range
+       ($C0..$FA) is also the shared gameplay font consumed by Horse
+       $0749/$7BA8/$06C0. OBJ tiles are the $1884 4x4 ball source. */
     AllStarTile free_throw_bg_tiles[ALLSTAR_FREE_THROW_BG_TILE_COUNT];
     AllStarTile free_throw_obj_tiles[ALLSTAR_FREE_THROW_OBJ_TILE_COUNT];
     /* Fixed-bank $22A9 tile copied by $2243 to OBJ tile $7F. */

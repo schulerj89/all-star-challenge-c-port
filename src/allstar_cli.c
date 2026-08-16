@@ -3872,6 +3872,28 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 7d-7g. $1E0E->$1ECC exact +20/+35/+50/+65 net sequence. */
+    allstar_scene_horse_force_test_score_frame(game.active_scene, 20);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\07d_horse_net_bend.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_horse_force_test_score_frame(game.active_scene, 35);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\07e_horse_net_deep.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_horse_force_test_score_frame(game.active_scene, 50);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\07f_horse_net_return.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_horse_force_test_score_frame(game.active_scene, 65);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\07g_horse_net_rest.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 8. Tournament */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_TOURNAMENT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);

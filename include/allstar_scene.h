@@ -140,5 +140,7 @@ typedef struct {
 bool allstar_scene_horse_get_debug_state(
     const AllStarScene *scene, AllStarHorseDebugState *state);
 bool allstar_scene_horse_force_test_result(AllStarScene *scene, bool made);
+bool allstar_scene_horse_force_test_score_frame(
+    AllStarScene *scene, uint16_t after_make);
 
 #endif /* ALLSTAR_SCENE_H */

@@ -47,7 +47,7 @@ It also writes and validates:
 
 - `setup_banked_rom.py` constructs and byte-verifies overlays for physical banks 1–3.
 - `recover_banked_functions.py` creates and decompiles 139 checked-in seeds: bank 0 = 83, bank 1 = 48, bank 2 = 8.
-- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (152 functions in the current run).
+- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (154 functions in the current run).
 - Stable names preserve physical bank identity, for example `rom_b02_4000`.
 - Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout.
 - Bank 3 has no reviewed function seeds; observed references currently use it as an asset-copy source.
@@ -80,7 +80,7 @@ The headless setup maps bank 0 and creates byte-verified overlays for physical b
 | Bank 0 `$22EF` | Mode-specific settings editor | High |
 | Bank 0 approximately `$3014..$36DB` | Multi-channel audio command/sequencing region | High for audio ownership; individual routines still need names |
 | Bank 1 `$6A8C` / `$6C59` / `$6C60` | Player animation record dispatcher, selector, and 24-action pointer table | High; record engine verified, movement side effects partial |
-| Bank 1 `$6CA2` | Accuracy computer/new-position selection | High for selector; full mode remains incomplete |
+| Fixed `$0E51/$0B20`, bank 1 `$6C9B/$6CA2/$6D57` | Accuracy entry, BCD score, computer/custom positions | Verified for one-player Accuracy; `$0E51` remains a whole-routine candidate because two-human state is outside scope |
 | Bank 1 approximately `$69F5..$7FFF` | Player/gameplay/rendering state region | Medium; routine-level meanings remain under audit |
 
 Generated labels such as `Call_001_447c` are not automatically trustworthy. Confirm that an address is code before assigning a semantic name.

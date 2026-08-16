@@ -7,6 +7,7 @@
 #include "allstar_ai.h"
 #include "allstar_rng.h"
 #include "allstar_free_throw.h"
+#include "allstar_accuracy.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,7 @@ static void print_usage(const char *prog_name) {
     printf("  --export-free-throw-sfx <pack> <08.wav> <0A.wav>\n");
     printf("                                        Export Free Throw net/contact cues\n");
     printf("  --export-horse-sfx <pack> <07.wav> Export ROM Horse letter cue\n");
+    printf("  --export-accuracy-sfx <pack> <02.wav> Export Accuracy result cue\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -78,6 +80,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-one-on-one-presentation     Verify One-on-One movement/roster audio\n");
     printf("  --test-free-throw                 Verify ROM Free Throw lifecycle/physics\n");
     printf("  --test-horse                      Verify ROM H-O-R-S-E rules/scene\n");
+    printf("  --test-accuracy                   Verify ROM Accuracy rules/scene\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -530,7 +533,7 @@ int allstar_cli_test_mode_routing(void) {
         { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true,  true  },
         { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false, true  },
         { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true,  false },
-        { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true,  true  },
+        { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, false, true  },
         { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true,  true  }
     };
 
@@ -2343,6 +2346,8 @@ int allstar_cli_test_settings(void) {
     AllStarGame game;
     AllStarAIController ai;
     AllStarColor reference_frame[ALLSTAR_GB_WIDTH * ALLSTAR_GB_HEIGHT];
+    AllStarAccuracyDebugState accuracy_computer;
+    AllStarAccuracyDebugState accuracy_custom;
 
     printf("[Test] Running Settings Persistence Tests...\n");
     allstar_game_settings_init(&settings);
@@ -2420,11 +2425,14 @@ int allstar_cli_test_settings(void) {
     game.settings.accuracy_computer_positions = true;
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     allstar_game_tick(&game, 0.0f);
-    memcpy(reference_frame, game.renderer->pixels, sizeof(reference_frame));
+    allstar_scene_accuracy_get_debug_state(
+        game.active_scene, &accuracy_computer);
     game.settings.accuracy_computer_positions = false;
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     allstar_game_tick(&game, 0.0f);
-    if (memcmp(reference_frame, game.renderer->pixels, sizeof(reference_frame)) == 0) {
+    allstar_scene_accuracy_get_debug_state(game.active_scene, &accuracy_custom);
+    if (accuracy_computer.phase == accuracy_custom.phase ||
+        !accuracy_computer.marker_visible || !accuracy_custom.marker_visible) {
         fprintf(stderr, "[Test] Accuracy position source did not affect the native scene\n");
         allstar_game_shutdown(&game);
         return 1;
@@ -2652,6 +2660,119 @@ int allstar_cli_export_horse_sfx(const char *pack_path,
            letter->frames[6].square1_frequency,
            letter->source_checksum);
     printf("[Horse SFX] Exported %s\n", letter_path);
+    return 0;
+}
+
+int allstar_cli_export_accuracy_sfx(const char *pack_path,
+                                    const char *result_path) {
+    AllStarAssetPack pack;
+    const AllStarRomSfxProgram *result;
+    if (!allstar_asset_pack_load_file(&pack, pack_path) ||
+        pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
+        return 1;
+    result = &pack.rom_sfx_programs[10];
+    if (!allstar_audio_export_rom_sfx_wav(&pack, 0x02, result_path)) {
+        fprintf(stderr, "[Accuracy SFX] Failed to export command $02 WAV proof\n");
+        return 1;
+    }
+    printf("[Accuracy SFX] $02 -> program $%02X priority %u "
+           "streams $%04X/$%04X, %u frames, first NR13/23 $%04X/$%04X, "
+           "source FNV-1a %08X\n",
+           result->program_id, result->priority_frames,
+           result->stream_pointer_1, result->stream_pointer_2,
+           result->frame_count, result->frames[0].square1_frequency,
+           result->frames[0].square2_frequency, result->source_checksum);
+    printf("[Accuracy SFX] Exported %s\n", result_path);
+    return 0;
+}
+
+int allstar_cli_test_accuracy(void) {
+    AllStarAccuracyState mode;
+    AllStarAccuracyDebugState debug;
+    AllStarGame game;
+    uint8_t x = 0x54, y = 0x80;
+    int i;
+    printf("[Test] Running ROM Accuracy Shootout Tests...\n");
+
+    allstar_accuracy_init_0e51_6c9b(&mode, true);
+    allstar_accuracy_next_position_6ca2(&mode, 0x00);
+    if (mode.group != 0 || mode.position_index != 1 ||
+        mode.target_x != 0x0c || mode.target_y != 0x94) {
+        fprintf(stderr, "[Test] $6C9B/$6CA2 first group/position mismatch\n");
+        return 1;
+    }
+    for (i = 1; i < 10; i++)
+        allstar_accuracy_next_position_6ca2(&mode, 0x00);
+    allstar_accuracy_next_position_6ca2(&mode, 0xba);
+    if (mode.group != 4 || mode.position_index != 1 ||
+        mode.target_x != 0xa0 || mode.target_y != 0x60) {
+        fprintf(stderr, "[Test] $6CAB ten-position reselection mismatch\n");
+        return 1;
+    }
+    allstar_accuracy_move_custom_cursor_6d57(
+        ALLSTAR_BTN_LEFT | ALLSTAR_BTN_UP, &x, &y);
+    if (x != 0x50 || y != 0x7c) {
+        fprintf(stderr, "[Test] $6D57 four-pixel cursor movement mismatch\n");
+        return 1;
+    }
+    allstar_accuracy_init_0e51_6c9b(&mode, false);
+    for (i = 0; i < 10; i++)
+        allstar_accuracy_record_custom_position_6d57(
+            &mode, (uint8_t)(0x20 + i * 4), (uint8_t)(0x64 + i * 4));
+    mode.position_index = 0;
+    allstar_accuracy_next_position_6ca2(&mode, 0);
+    if (mode.target_x != 0x20 || mode.target_y != 0x64 ||
+        mode.custom_count != 10) {
+        fprintf(stderr, "[Test] $6D57 custom table playback mismatch\n");
+        return 1;
+    }
+    for (i = 0; i < 101; i++)
+        allstar_accuracy_bcd_increment_0b20(mode.attempts_bcd);
+    if (mode.attempts_bcd[0] != 0x01 || mode.attempts_bcd[1] != 0x01 ||
+        allstar_accuracy_bcd_value(mode.attempts_bcd) != 101) {
+        fprintf(stderr, "[Test] $0B20 packed-BCD increment mismatch\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) return 1;
+    game.selected_mode = ALLSTAR_MODE_ACCURACY;
+    game.settings.accuracy_computer_positions = true;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
+    if (!allstar_scene_accuracy_get_debug_state(game.active_scene, &debug) ||
+        !debug.marker_visible || debug.attempts != 0 || debug.makes != 0 ||
+        allstar_game_mode_requires_opponent(ALLSTAR_MODE_ACCURACY)) {
+        fprintf(stderr, "[Test] $4000/$4034/$7AFD one-player approach mismatch\n");
+        allstar_game_shutdown(&game); return 1;
+    }
+    allstar_scene_accuracy_snap_to_target(game.active_scene);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_accuracy_get_debug_state(game.active_scene, &debug);
+    if (debug.attempts != 1 || !debug.ball_in_flight) {
+        fprintf(stderr, "[Test] $0EE7 attempt/release path did not launch\n");
+        allstar_game_shutdown(&game); return 1;
+    }
+    allstar_scene_accuracy_force_test_score_frame(game.active_scene, 20);
+    allstar_game_tick(&game, 0.0f);
+    allstar_scene_accuracy_force_test_result(game.active_scene);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (game.audio.last_sfx != ALLSTAR_SFX_ACCURACY_RESULT) {
+        fprintf(stderr, "[Test] $0FDE command-$02 result dispatch mismatch\n");
+        allstar_game_shutdown(&game); return 1;
+    }
+    for (i = 1; i < 240; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (!game.active_scene || game.active_scene->id != ALLSTAR_SCENE_INTRO) {
+        fprintf(stderr, "[Test] $0FDE 240-frame result hold did not exit\n");
+        allstar_game_shutdown(&game); return 1;
+    }
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: one-player route, 50 spots, marker, shot, BCD, result cue\n");
     return 0;
 }
 
@@ -3768,10 +3889,58 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     save_bmp_file(path, game.renderer->pixels,
                   ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
-    /* 5. Three Point */
+    /* 5a. Menu path to ROM selector $FF8F=$03 (Accuracy Shootout). */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_MENU);
+    for (int i = 0; i < 3; i++) {
+        allstar_input_update(&game.input, ALLSTAR_BTN_DOWN);
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        allstar_input_update(&game.input, 0);
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path), "%s\\05a_accuracy_menu.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 5b. $22EF mode-3 settings: complementary position source + timer. */
+    game.selected_mode = ALLSTAR_MODE_ACCURACY;
+    game.settings.accuracy_computer_positions = true;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_SETTINGS);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\05b_accuracy_settings.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 5c. Bank 2 $4000->$4034 selects P1 only: no opponent and no VS. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
+    for (int i = 0; i < 50; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\05c_accuracy_player_select.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 5d-5g. $0E51->$6C9B->$6CA2->$7AFD gameplay, shared shot/net,
+       and $0FDE TIME'S UP result. */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_THREE_POINT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
-    snprintf(path, sizeof(path), "%s\\05_three_point.bmp", out_dir);
+    snprintf(path, sizeof(path), "%s\\05d_accuracy_target_marker.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_accuracy_snap_to_target(game.active_scene);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 12; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 18; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\05e_accuracy_shot_flight.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_accuracy_force_test_score_frame(game.active_scene, 20);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\05f_accuracy_net.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_accuracy_force_test_result(game.active_scene);
+    allstar_game_tick(&game, 0.0f);
+    snprintf(path, sizeof(path), "%s\\05g_accuracy_result.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     /* 6. Free Throw */
@@ -3916,6 +4085,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_one_on_one_presentation();
     failed += allstar_cli_test_free_throw();
     failed += allstar_cli_test_horse();
+    failed += allstar_cli_test_accuracy();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -3978,6 +4148,13 @@ int allstar_cli_main(int argc, char **argv) {
             return 1;
         }
         return allstar_cli_export_horse_sfx(argv[2], argv[3]);
+    } else if (strcmp(cmd, "--export-accuracy-sfx") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "Error: --export-accuracy-sfx requires "
+                    "<pack> and <02.wav>\n");
+            return 1;
+        }
+        return allstar_cli_export_accuracy_sfx(argv[2], argv[3]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");
@@ -4002,6 +4179,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_free_throw();
     } else if (strcmp(cmd, "--test-horse") == 0) {
         return allstar_cli_test_horse();
+    } else if (strcmp(cmd, "--test-accuracy") == 0) {
+        return allstar_cli_test_accuracy();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

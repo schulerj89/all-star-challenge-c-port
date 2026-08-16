@@ -20,6 +20,7 @@ typedef enum {
     ALLSTAR_SFX_FREE_THROW_NET,
     ALLSTAR_SFX_FREE_THROW_CONTACT,
     ALLSTAR_SFX_HORSE_LETTER,
+    ALLSTAR_SFX_ACCURACY_RESULT,
     ALLSTAR_SFX_COUNT
 } AllStarSfxId;
 
@@ -47,7 +48,7 @@ typedef struct {
 /* Native PCM platform layer. The cartridge command/APU sequencer begins in
    the reviewed fixed-bank $3014 region and is not yet ported whole. */
 void allstar_audio_init(AllStarAudioEngine *audio);
-/* Synthesize focused $04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F commands from decoded ROM programs
+/* Synthesize focused $02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F commands from decoded ROM programs
    stored in a user-built asset pack. These replace native fallbacks. */
 bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
                                 const AllStarAssetPack *pack);

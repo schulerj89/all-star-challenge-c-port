@@ -1,6 +1,6 @@
 # Mode Routing Parity Evidence
 
-Last verified: **2026-08-14**
+Last verified: **2026-08-15**
 
 ## Scope
 
@@ -21,11 +21,14 @@ The ROM-derived menu image displays the choices in this order:
 |---:|---|---|---|:---:|
 | 0 | One On One | `ALLSTAR_MODE_ONE_ON_ONE` | `ALLSTAR_SCENE_ONE_ON_ONE` | Yes |
 | 1 | Free Throws | `ALLSTAR_MODE_FREE_THROW` | `ALLSTAR_SCENE_FREE_THROW` | No |
-| 2 | Horse | `ALLSTAR_MODE_HORSE` | `ALLSTAR_SCENE_HORSE` | No |
-| 3 | Accuracy Shootout | `ALLSTAR_MODE_ACCURACY` | `ALLSTAR_SCENE_THREE_POINT` | Yes |
+| 2 | Horse | `ALLSTAR_MODE_HORSE` | `ALLSTAR_SCENE_HORSE` | Yes |
+| 3 | Accuracy Shootout | `ALLSTAR_MODE_ACCURACY` | `ALLSTAR_SCENE_THREE_POINT` | No |
 | 4 | Tournament | `ALLSTAR_MODE_TOURNAMENT` | `ALLSTAR_SCENE_TOURNAMENT` | Yes |
 
-`ALLSTAR_SCENE_THREE_POINT` retains its old internal name, but it is the native scene currently assigned to the ROM's Accuracy Shootout menu entry. Its rules remain unverified and are tracked separately.
+`ALLSTAR_SCENE_THREE_POINT` retains its old ABI-facing enum name, but now
+contains the traced Accuracy Shootout controller. Bank 2
+`$4000:$4014-$401D->$4034` proves that modes `$01` and `$03` accept P1 and
+jump directly to gameplay: Accuracy has no opponent card or VS screen.
 
 ## Former defect
 

@@ -516,7 +516,7 @@ static bool decode_rom_noise_stream(const AllStarRom *rom,
 static bool extract_gameplay_audio(AllStarAssetPack *pack,
                                    const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04, 0x08, 0x0a, 0x07};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04, 0x08, 0x0a, 0x07, 0x02};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -539,7 +539,7 @@ static bool extract_gameplay_audio(AllStarAssetPack *pack,
         } else if (!decode_rom_square_stream(
                        rom, stream, command == 0x0c ? 2 : 1,
                        program, &next_stream)) return false;
-        if (command == 0x05 || command == 0x04) {
+        if (command == 0x05 || command == 0x04 || command == 0x02) {
             program->stream_pointer_2 = (uint16_t)next_stream;
             if (!decode_rom_square_stream(
                     rom, next_stream, 2, program, &next_stream)) return false;
@@ -648,7 +648,20 @@ static bool extract_gameplay_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[9].square1_duty_length != 0x40 ||
         pack->rom_sfx_programs[9].square1_envelope != 0xf2 ||
         pack->rom_sfx_programs[9].frames[0].square1_frequency != 0x0783 ||
-        pack->rom_sfx_programs[9].frames[6].square1_frequency != 0x079d)
+        pack->rom_sfx_programs[9].frames[6].square1_frequency != 0x079d ||
+        pack->rom_sfx_programs[10].command != 0x02 ||
+        pack->rom_sfx_programs[10].program_id != 0x08 ||
+        pack->rom_sfx_programs[10].priority_frames != 0xaa ||
+        pack->rom_sfx_programs[10].stream_pointer_1 != 0x3ec0 ||
+        pack->rom_sfx_programs[10].stream_pointer_2 != 0x3ec4 ||
+        pack->rom_sfx_programs[10].frame_count != 144 ||
+        pack->rom_sfx_programs[10].square1_sweep != 0x88 ||
+        pack->rom_sfx_programs[10].square1_duty_length != 0x00 ||
+        pack->rom_sfx_programs[10].square1_envelope != 0xff ||
+        pack->rom_sfx_programs[10].square2_duty_length != 0x3f ||
+        pack->rom_sfx_programs[10].square2_envelope != 0x6f ||
+        pack->rom_sfx_programs[10].frames[0].square1_frequency != 0x065b ||
+        pack->rom_sfx_programs[10].frames[0].square2_frequency != 0x0641)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -667,6 +680,7 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *free_throw_net;
     const AllStarRomSfxProgram *free_throw_contact;
     const AllStarRomSfxProgram *horse_letter;
+    const AllStarRomSfxProgram *accuracy_result;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
@@ -679,6 +693,7 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     free_throw_net = &pack->rom_sfx_programs[7];
     free_throw_contact = &pack->rom_sfx_programs[8];
     horse_letter = &pack->rom_sfx_programs[9];
+    accuracy_result = &pack->rom_sfx_programs[10];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -775,7 +790,21 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
         horse_letter->square1_envelope == 0xf2 &&
         horse_letter->frames[0].square1_frequency == 0x0783 &&
         horse_letter->frames[6].square1_frequency == 0x079d &&
-        movement->source_checksum == horse_letter->source_checksum;
+        movement->source_checksum == horse_letter->source_checksum &&
+        accuracy_result->command == 0x02 &&
+        accuracy_result->program_id == 0x08 &&
+        accuracy_result->priority_frames == 0xaa &&
+        accuracy_result->stream_pointer_1 == 0x3ec0 &&
+        accuracy_result->stream_pointer_2 == 0x3ec4 &&
+        accuracy_result->frame_count == 144 &&
+        accuracy_result->square1_sweep == 0x88 &&
+        accuracy_result->square1_duty_length == 0x00 &&
+        accuracy_result->square1_envelope == 0xff &&
+        accuracy_result->square2_duty_length == 0x3f &&
+        accuracy_result->square2_envelope == 0x6f &&
+        accuracy_result->frames[0].square1_frequency == 0x065b &&
+        accuracy_result->frames[0].square2_frequency == 0x0641 &&
+        movement->source_checksum == accuracy_result->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {

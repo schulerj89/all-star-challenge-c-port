@@ -568,6 +568,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *free_throw_net;
     const AllStarRomSfxProgram *free_throw_contact;
     const AllStarRomSfxProgram *horse_letter;
+    const AllStarRomSfxProgram *accuracy_result;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) == 0 ||
@@ -583,6 +584,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     free_throw_net = &pack->rom_sfx_programs[7];
     free_throw_contact = &pack->rom_sfx_programs[8];
     horse_letter = &pack->rom_sfx_programs[9];
+    accuracy_result = &pack->rom_sfx_programs[10];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -630,6 +632,12 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         horse_letter->priority_frames != 0x2a ||
         horse_letter->frame_count != 42 ||
         horse_letter->stream_pointer_1 != 0x3eb6 ||
+        accuracy_result->command != 0x02 ||
+        accuracy_result->program_id != 0x08 ||
+        accuracy_result->priority_frames != 0xaa ||
+        accuracy_result->frame_count != 144 ||
+        accuracy_result->stream_pointer_1 != 0x3ec0 ||
+        accuracy_result->stream_pointer_2 != 0x3ec4 ||
         movement->source_checksum == 0 ||
         movement->source_checksum != score->source_checksum ||
         movement->source_checksum != dribble->source_checksum ||
@@ -639,7 +647,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         movement->source_checksum != foul->source_checksum ||
         movement->source_checksum != free_throw_net->source_checksum ||
         movement->source_checksum != free_throw_contact->source_checksum ||
-        movement->source_checksum != horse_letter->source_checksum)
+        movement->source_checksum != horse_letter->source_checksum ||
+        movement->source_checksum != accuracy_result->source_checksum)
         return false;
 #ifdef _WIN32
     {
@@ -653,6 +662,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         PcmSound free_throw_net_pcm = {0};
         PcmSound free_throw_contact_pcm = {0};
         PcmSound horse_letter_pcm = {0};
+        PcmSound accuracy_result_pcm = {0};
         if (!generate_rom_program(&movement_pcm, movement) ||
             !generate_rom_program(&score_pcm, score) ||
             !generate_rom_program(&dribble_pcm, dribble) ||
@@ -663,7 +673,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             !generate_rom_program(&free_throw_net_pcm, free_throw_net) ||
             !generate_rom_program(&free_throw_contact_pcm,
                                   free_throw_contact) ||
-            !generate_rom_program(&horse_letter_pcm, horse_letter)) {
+            !generate_rom_program(&horse_letter_pcm, horse_letter) ||
+            !generate_rom_program(&accuracy_result_pcm, accuracy_result)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
@@ -674,6 +685,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             free_pcm_sound(&free_throw_net_pcm);
             free_pcm_sound(&free_throw_contact_pcm);
             free_pcm_sound(&horse_letter_pcm);
+            free_pcm_sound(&accuracy_result_pcm);
             return false;
         }
         EnterCriticalSection(&g_audio_lock);
@@ -687,6 +699,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_FREE_THROW_NET]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_HORSE_LETTER]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_ACCURACY_RESULT]);
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
@@ -697,6 +710,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         g_sfx[ALLSTAR_SFX_FREE_THROW_NET] = free_throw_net_pcm;
         g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT] = free_throw_contact_pcm;
         g_sfx[ALLSTAR_SFX_HORSE_LETTER] = horse_letter_pcm;
+        g_sfx[ALLSTAR_SFX_ACCURACY_RESULT] = accuracy_result_pcm;
         LeaveCriticalSection(&g_audio_lock);
     }
 #endif

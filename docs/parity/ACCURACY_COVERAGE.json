@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "metric": {"name":"accuracy_one_player_requirements","total":24},
+  "requirements": [
+    {"id":"route.mode_03","group":"route","status":"verified","evidence":["src/allstar_game.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"route.one_player","group":"route","status":"verified","evidence":["src/scenes/scene_roster_select.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"route.no_vs","group":"route","status":"verified","evidence":["docs/parity/MODE_ROUTING.md","tools/emulator/trace_accuracy.lua"]},
+    {"id":"setup.music_stop","group":"setup","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"setup.timer","group":"setup","status":"verified","evidence":["src/scenes/scene_three_point.c","src/allstar_cli.c"]},
+    {"id":"positions.init_ten","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/allstar_cli.c"]},
+    {"id":"positions.rng_thresholds","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/allstar_cli.c"]},
+    {"id":"positions.five_groups","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"positions.ten_cycle","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/allstar_cli.c"]},
+    {"id":"positions.custom_cursor","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/allstar_cli.c"]},
+    {"id":"positions.custom_ten","group":"positions","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/allstar_cli.c"]},
+    {"id":"approach.tile_76","group":"approach","status":"verified","evidence":["src/scenes/scene_three_point.c","include/allstar_asset_pack.h"]},
+    {"id":"approach.blink","group":"approach","status":"verified","evidence":["src/scenes/scene_three_point.c"]},
+    {"id":"approach.center_ground","group":"approach","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"shot.gather_move","group":"shot","status":"verified","evidence":["src/scenes/scene_three_point.c","src/gameplay/allstar_one_on_one.c"]},
+    {"id":"shot.release_physics","group":"shot","status":"verified","evidence":["src/scenes/scene_three_point.c","src/gameplay/allstar_physics.c"]},
+    {"id":"score.attempt_bcd","group":"score","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"score.make_bcd","group":"score","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"score.miss_advance","group":"score","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"score.make_plus_80","group":"score","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"presentation.shared_assets","group":"presentation","status":"verified","evidence":["src/scenes/scene_three_point.c","src/allstar_asset_pack.c"]},
+    {"id":"presentation.net_priority","group":"presentation","status":"verified","evidence":["src/scenes/scene_three_point.c","src/allstar_renderer.c"]},
+    {"id":"result.time_up_hold","group":"result","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
+    {"id":"result.command_02","group":"result","status":"verified","evidence":["src/allstar_asset_pack.c","src/audio/allstar_audio.c","tools/emulator/trace_accuracy.lua"]}
+  ]
+}

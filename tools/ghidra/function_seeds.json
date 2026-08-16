@@ -14,7 +14,7 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
-        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "0c8e", "0cdf", "0d2b", "0d57", "0e26", "0e36", "100f", "10a5",
+        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b20", "0b35", "0b80", "0b9a", "0c8e", "0cdf", "0d2b", "0d57", "0e26", "0e36", "0e51", "100f", "10a5",
         "10ad", "10fa", "1638", "17aa", "17e2", "1884", "18e7", "1942", "1986", "1a25", "1a31", "1c1d", "1c61", "1caa", "1cbd", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "21fa", "2219", "2243", "22b9", "22c3", "22ef", "2639", "2729", "276d", "27c7", "27ea",
         "28e1", "2933", "293d", "2945", "2a2b", "2ab5", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
@@ -53,6 +53,18 @@
     }
   ],
   "native_mappings": {
+    "rom_b00_0b20": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_bcd_increment_0b20",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "Exact two-byte packed-BCD increment used by Accuracy attempts and makes is boundary-tested and observed at $0EE7/$0F1E in Mesen."
+    },
+    "rom_b00_0e51": {
+      "status": "candidate",
+      "native_symbol": "accuracy_init",
+      "source": "src/scenes/scene_three_point.c",
+      "note": "The requested one-player entry is mapped through music stop, setup, timer, $6C9B/$6CA2 position loop, result and exit. Whole-routine credit is withheld for unrequested two-human paths."
+    },
     "rom_b00_0cdf": {
       "status": "candidate",
       "native_symbol": "horse_init",
@@ -527,11 +539,29 @@
       "source": "src/gameplay/allstar_one_on_one.c",
       "note": "Exact $077D planar and eight-pixel vertical catch band is ported with the shared $2B88 $FFF8 lock; Mesen proves live shots are rejected and identical post-contact jump recoveries are awarded."
     },
+    "rom_b01_6c9b": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_init_0e51_6c9b",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "Exact position-index seed of ten and position-source state are deterministic-tested and reached by the mode-$03 Mesen trace."
+    },
     "rom_b01_6ca2": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_next_position_6ca2",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "Both computer and custom branches, ten-entry rollover, four RNG thresholds, and all 50 $6DB7 pairs are ported; Mesen proves first target $0C,$94."
+    },
+    "rom_b01_6d57": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_move_custom_cursor_6d57",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "Four-pixel D-pad cursor movement, court clamps, and the ten-position custom record table are native and boundary-tested."
+    },
+    "rom_b01_6e1b": {
       "status": "candidate",
-      "native_symbol": "three_point_init",
+      "native_symbol": "finish_attempt",
       "source": "src/scenes/scene_three_point.c",
-      "note": "Accuracy scene consumes the recovered computer-position selector; the complete Accuracy mode remains unverified."
+      "note": "One-player make/miss cleanup, shooter reset and next-position transition are present; unrelated callers and every low-level WRAM clear are not claimed."
     },
     "rom_b01_7170": {
       "status": "verified",
@@ -609,13 +639,13 @@
       "status": "candidate",
       "native_symbol": "roster_select_update",
       "source": "src/scenes/scene_roster_select.c",
-      "note": "Focused mode-$01/$02 mapping: mode 1 jumps directly through $4034 after P1, while mode 2 deliberately continues through the $4023 opponent path and accepts a distinct P2 roster record. Both routes are Mesen-observed; complete roster presentation remains outside this mapping."
+      "note": "Focused mode-$01/$02/$03 mapping: modes 1 and 3 jump directly through $4034 after P1, while mode 2 deliberately continues through the $4023 opponent path. All three routes are Mesen-observed; complete roster presentation remains outside this mapping."
     },
     "rom_b02_4034": {
       "status": "candidate",
       "native_symbol": "roster_select_update",
       "source": "src/scenes/scene_roster_select.c",
-      "note": "Native stores the accepted P1 and dispatches command $0E; mode 1 enters gameplay directly, while mode 2 continues to the opponent selector. Exact bank-2 roster screen art remains outside this mapping."
+      "note": "Native stores accepted P1 and dispatches command $0E; modes 1 and 3 enter gameplay directly, while mode 2 continues to the opponent selector. Exact bank-2 roster screen art remains outside this mapping."
     },
     "rom_b02_40f4": {
       "status": "candidate",

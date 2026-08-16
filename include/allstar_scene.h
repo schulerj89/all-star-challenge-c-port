@@ -143,4 +143,19 @@ bool allstar_scene_horse_force_test_result(AllStarScene *scene, bool made);
 bool allstar_scene_horse_force_test_score_frame(
     AllStarScene *scene, uint16_t after_make);
 
+typedef struct {
+    uint8_t phase, group, position_index, target_x, target_y;
+    uint8_t player_x, player_y, custom_count, attempts, makes;
+    uint16_t shot_frames;
+    uint32_t frames_remaining;
+    bool marker_visible, ball_in_flight, shot_made;
+} AllStarAccuracyDebugState;
+
+bool allstar_scene_accuracy_get_debug_state(
+    const AllStarScene *scene, AllStarAccuracyDebugState *state);
+bool allstar_scene_accuracy_snap_to_target(AllStarScene *scene);
+bool allstar_scene_accuracy_force_test_score_frame(
+    AllStarScene *scene, uint16_t after_make);
+bool allstar_scene_accuracy_force_test_result(AllStarScene *scene);
+
 #endif /* ALLSTAR_SCENE_H */

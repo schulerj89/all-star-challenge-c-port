@@ -143,3 +143,10 @@ drives a P1 called make and P2 CPU matcher miss. It asserts
 `$0749/$7BA8/$06C0` ROM-font HUD, `$1ECC` bend/deep/bend/rest net cells, and
 command `$07` APU writes. Require exit code `0` and
 `TRACE PASSED: $22C3/$0749/$7BA8/$06C0/$1ECC H-O-R-S-E HUD/net + lifecycle + $07 APU`.
+
+`trace_accuracy.lua` selects menu mode `$03`, passes `$22EF`, and proves the
+bank-2 `$4000->$4034` one-player/no-VS route before entering fixed `$0E51`.
+It forces the first `$6CA2/$6CAB` RNG group and asserts target `$0C,$94`,
+drives `$7AFD` to three releases, observes `$0EE7` attempts and `$0F1E`
+makes, then expires the clock at `$0FDE`. Command `$02` must write
+`NR10..14=$88/$00/$FF/$5B/$BE` and `NR21..24=$3F/$6F/$41/$BE`.

@@ -4,7 +4,7 @@ Last verified: **2026-08-14**
 
 ## Scope
 
-This checkpoint covers the ROM's configurable values, their session lifetime, their menu cycles, and downstream native consumers. The cartridge has no RAM, so "persistence" means settings survive scene changes for the running session; starting a new process resets them to the ROM defaults. This checkpoint does not claim that the still-incomplete Free Throw or Accuracy modes are otherwise ROM-equivalent.
+This checkpoint covers the ROM's configurable values, their session lifetime, their menu cycles, and downstream native consumers. The cartridge has no RAM, so "persistence" means settings survive scene changes for the running session; starting a new process resets them to the ROM defaults. Mode-level parity is documented separately for Free Throw and Accuracy.
 
 ## ROM behavior
 
@@ -25,7 +25,10 @@ The Accuracy values are one binary choice, not two independent flags. `$24C4` to
 
 `AllStarGameSettings` is owned by `AllStarGame`, initialized once, and no longer recreated by `scene_settings.c`. Revisiting Settings therefore preserves earlier choices. One-on-One consumes play-to, time, winners-outs, and skill; Free Throw consumes its attempt count; and the current Accuracy scene consumes time and the position-source choice.
 
-Accuracy gameplay itself remains below parity: the native scene uses a simplified five-position contest, while the ROM uses a longer target-position flow and supports recording new positions. This known mode-level gap remains tracked by `behavior.accuracy`; it does not change the verified fact that the setting persists and selects a distinct native gameplay path.
+Accuracy consumes the choice directly: computer positions use
+`$6CA2/$6CAB`'s five groups of ten ROM pairs, while new positions enter
+`$6D57`'s four-pixel marker editor and record ten pairs before play. The
+native regression checks the two controller states directly.
 
 ## Deterministic verification
 

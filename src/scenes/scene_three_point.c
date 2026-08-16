@@ -1,200 +1,414 @@
 #include "allstar_scene.h"
 #include "allstar_game.h"
+#include "allstar_accuracy.h"
 #include "allstar_physics.h"
+#include "allstar_rng.h"
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#define RACK_COUNT 5
-#define BALLS_PER_RACK 5
+#define ACCURACY_MOVE_PERIOD 6
+#define ACCURACY_MISS_FRAMES 64
+#define ACCURACY_MAKE_FRAMES 80
 
-/* ROM $6CA2 chooses computer-generated positions when $FF9A is set. */
-static const AllStarVec2 COMPUTER_POSITIONS[RACK_COUNT] = {
-    {30.0f, 60.0f},  /* Left corner */
-    {45.0f, 90.0f},  /* Left wing */
-    {80.0f, 105.0f}, /* Top of the key */
-    {115.0f, 90.0f}, /* Right wing */
-    {130.0f, 60.0f}  /* Right corner */
-};
-
-static const AllStarVec2 NEW_POSITION_TEMPLATE[RACK_COUNT] = {
-    {24.0f, 82.0f},
-    {52.0f, 112.0f},
-    {80.0f, 88.0f},
-    {108.0f, 112.0f},
-    {136.0f, 82.0f}
-};
+typedef enum {
+    ACCURACY_DEFINE = 0, ACCURACY_APPROACH, ACCURACY_CONTROL,
+    ACCURACY_GATHER, ACCURACY_FLIGHT, ACCURACY_RESULT
+} AccuracyPhase;
 
 typedef struct {
-    int current_rack;
-    int ball_in_rack;
-    int score;
-    float time_remaining;
-    float meter_val;
-    float meter_dir;
-    bool meter_active;
-    bool computer_positions;
-    AllStarVec2 positions[RACK_COUNT];
-    AllStarBall active_ball;
-} SceneThreePointData;
+    AllStarAccuracyState mode;
+    AllStarRomRng rng;
+    AllStarPlayerState player;
+    AllStarBall ball;
+    AllStarRomAnimationState animation;
+    AllStarOneOnOneShotAttempt shot;
+    AccuracyPhase phase;
+    float fixed_accumulator, anim_time, shot_animation_clock;
+    uint32_t frames_remaining;
+    uint16_t phase_frames, shot_frames, made_frame, result_frames;
+    uint8_t shot_action, input_direction, previous_direction;
+    uint8_t marker_x, marker_y;
+    bool horizontal_flip, shot_made;
+    bool rim_audio, contact_audio, net_audio, score_audio, result_audio;
+} AccuracyData;
 
-static void three_point_init(AllStarScene *scene, AllStarGame *game) {
-    SceneThreePointData *data = (SceneThreePointData*)scene->user_data;
-    data->current_rack = 0;
-    data->ball_in_rack = 0;
-    data->score = 0;
-    data->time_remaining = allstar_game_settings_time_seconds(&game->settings);
-    data->meter_val = 0.0f;
-    data->meter_dir = 1.0f;
-    data->meter_active = true;
-    data->computer_positions = game->settings.accuracy_computer_positions;
-    memcpy(data->positions,
-           data->computer_positions ? COMPUTER_POSITIONS : NEW_POSITION_TEMPLATE,
-           sizeof(data->positions));
-    allstar_physics_init_ball(&data->active_ball);
+static uint8_t direction(uint8_t held) {
+    return held & (ALLSTAR_BTN_RIGHT | ALLSTAR_BTN_LEFT |
+                   ALLSTAR_BTN_UP | ALLSTAR_BTN_DOWN);
 }
 
-static void three_point_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
-    SceneThreePointData *data = (SceneThreePointData*)scene->user_data;
-    data->time_remaining -= dt;
-
-    if (data->time_remaining <= 0.0f) {
-        data->time_remaining = 0.0f;
-        data->meter_active = false;
-        return;
-    }
-
-    /* Shot gauge oscillation */
-    if (data->meter_active) {
-        data->meter_val += data->meter_dir * 120.0f * dt;
-        if (data->meter_val >= 100.0f) {
-            data->meter_val = 100.0f;
-            data->meter_dir = -1.0f;
-        } else if (data->meter_val <= 0.0f) {
-            data->meter_val = 0.0f;
-            data->meter_dir = 1.0f;
-        }
-
-        if (allstar_input_is_pressed(input, ALLSTAR_BTN_A)) {
-            AllStarVec2 rack = data->positions[data->current_rack];
-            int pts = (data->ball_in_rack == 4) ? 2 : 1; /* Money ball = 2 pts */
-
-            allstar_physics_shoot_ball(&data->active_ball, rack.x, rack.y,
-                                       80.0f, 24.0f,
-                                       ALLSTAR_HOOP_HEIGHT, 1, pts);
-            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
-
-            /* Timing window accuracy */
-            if (data->meter_val >= 40.0f && data->meter_val <= 60.0f) {
-                data->score += pts;
-                allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SWISH);
-            }
-
-            data->ball_in_rack++;
-            if (data->ball_in_rack >= BALLS_PER_RACK) {
-                data->ball_in_rack = 0;
-                data->current_rack++;
-                if (data->current_rack >= RACK_COUNT) {
-                    data->meter_active = false;
-                }
-            }
-        }
-    }
-
-    allstar_physics_update_ball(&data->active_ball, dt);
+static void reset_player(AccuracyData *d) {
+    memset(&d->player, 0, sizeof(d->player));
+    d->player.x = 0x50; d->player.y = 0x60; d->player.has_ball = true;
+    d->previous_direction = ALLSTAR_BTN_UP;
+    d->horizontal_flip = allstar_one_on_one_rom_shot_horizontal_flip_7138(
+        d->player.x);
+    allstar_one_on_one_rom_animation_init_6a8c(&d->animation, 0x0b);
+    allstar_one_on_one_shot_reset(&d->shot);
+    allstar_physics_init_ball(&d->ball);
 }
 
-static void three_point_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
-    (void)game;
-    SceneThreePointData *data = (SceneThreePointData*)scene->user_data;
-    allstar_renderer_clear(renderer, 0);
-
-    /* Top HUD Bar */
-    allstar_renderer_draw_rect_fill(renderer, 0, 0, 160, 16, 3);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "ACC   PTS:%02d  TIME:%02d", data->score, (int)data->time_remaining);
-    allstar_renderer_draw_text(renderer, buf, 6, 4, 0);
-
-    /* Court Key & 3-Point Arc */
-    allstar_renderer_draw_rect_fill(renderer, 64, 18, 32, 40, 1);
-    allstar_renderer_draw_rect_outline(renderer, 64, 18, 32, 40, 2);
-
-    /* 3-Point Arc */
-    for (int deg = 0; deg < 180; deg += 4) {
-        float rad = (float)deg * 3.14159f / 180.0f;
-        int cx = 80 + (int)(cosf(rad) * 55.0f);
-        int cy = 20 + (int)(sinf(rad) * 50.0f);
-        if (cx >= 12 && cx <= 148 && cy <= 110) {
-            allstar_renderer_set_pixel(renderer, cx, cy, 2);
-        }
-    }
-
-    /* Hoop & Backboard */
-    allstar_renderer_draw_line(renderer, 72, 20, 88, 20, 3);
-    allstar_renderer_draw_line(renderer, 76, 24, 84, 24, 3);
-    allstar_renderer_draw_line(renderer, 78, 25, 82, 28, 2);
-
-    /* 5 Ball Racks */
-    for (int r = 0; r < RACK_COUNT; r++) {
-        AllStarVec2 pos = data->positions[r];
-        int rx = (int)pos.x;
-        int ry = (int)pos.y;
-
-        /* Rack Box */
-        allstar_renderer_draw_rect_fill(renderer, rx - 6, ry - 3, 12, 6, 1);
-        allstar_renderer_draw_rect_outline(renderer, rx - 6, ry - 3, 12, 6, 3);
-
-        /* Balls in Rack */
-        int balls_left = (r == data->current_rack) ? (BALLS_PER_RACK - data->ball_in_rack) : (r > data->current_rack ? 5 : 0);
-        for (int b = 0; b < balls_left && b < 4; b++) {
-            allstar_renderer_set_pixel(renderer, rx - 4 + b * 2, ry - 1, (b == 4 || (r == data->current_rack && data->ball_in_rack == 4)) ? 3 : 2);
-        }
-    }
-
-    /* Active Shooter */
-    if (data->current_rack < RACK_COUNT) {
-        AllStarVec2 cur_pos = data->positions[data->current_rack];
-        allstar_renderer_draw_player(renderer, (int)cur_pos.x + 8, (int)cur_pos.y + 4, true, data->meter_active, false, 0.0f);
-    }
-
-    /* Active Ball in flight */
-    if (data->active_ball.in_flight) {
-        allstar_renderer_draw_ball(renderer, (int)data->active_ball.x, (int)data->active_ball.y, (int)data->active_ball.z);
-    }
-
-    /* Timing Meter Box */
-    allstar_renderer_draw_rect_fill(renderer, 0, 116, 160, 28, 1);
-    allstar_renderer_draw_line(renderer, 0, 116, 160, 116, 3);
-    allstar_renderer_draw_text(renderer, "SHOT TIMING", 8, 120, 3);
-
-    /* Meter Track */
-    allstar_renderer_draw_rect_fill(renderer, 10, 130, 140, 8, 0);
-    allstar_renderer_draw_rect_outline(renderer, 10, 130, 140, 8, 3);
-
-    /* Sweet Spot (Green Target Zone) */
-    allstar_renderer_draw_rect_fill(renderer, 66, 131, 28, 6, 2);
-
-    /* Moving Needle */
-    int needle_x = 10 + (int)(data->meter_val * 1.36f);
-    allstar_renderer_draw_line(renderer, needle_x, 128, needle_x, 139, 3);
-    allstar_renderer_draw_line(renderer, needle_x - 1, 130, needle_x + 1, 130, 3);
+static void next_position(AccuracyData *d) {
+    allstar_accuracy_next_position_6ca2(
+        &d->mode, allstar_rom_rng_current(&d->rng));
+    reset_player(d);
+    d->phase = ACCURACY_APPROACH; d->phase_frames = 0;
+    d->shot_frames = d->made_frame = 0; d->shot_made = false;
+    d->rim_audio = d->contact_audio = d->net_audio = d->score_audio = false;
 }
 
-static void three_point_destroy(AllStarScene *scene) {
-    if (scene) {
-        if (scene->user_data) free(scene->user_data);
-        free(scene);
+static void accuracy_init(AllStarScene *scene, AllStarGame *game) {
+    AccuracyData *d = (AccuracyData*)scene->user_data;
+    memset(d, 0, sizeof(*d));
+    allstar_accuracy_init_0e51_6c9b(
+        &d->mode, game->settings.accuracy_computer_positions);
+    allstar_rom_rng_init(&d->rng, 0xe018);
+    d->frames_remaining = (uint32_t)(
+        allstar_game_settings_time_seconds(&game->settings) * 60.0f);
+    reset_player(d);
+    if (d->mode.computer_positions) next_position(d);
+    else {
+        d->marker_x = 0x54; d->marker_y = 0x80; d->phase = ACCURACY_DEFINE;
     }
+    /* Fixed $0E51 clears music state $DD73. */
+    allstar_audio_stop_bgm(&game->audio);
+}
+
+static void begin_gather(AccuracyData *d) {
+    uint8_t variant = allstar_one_on_one_rom_shot_variant(
+        d->player.x, d->player.y);
+    d->shot_action = variant == 1 ? ALLSTAR_ROM_SHOT_ACTION_A
+                                  : ALLSTAR_ROM_SHOT_ACTION_B;
+    d->horizontal_flip = allstar_one_on_one_rom_shot_horizontal_flip_7138(
+        d->player.x);
+    d->player.is_shooting = d->player.is_jumping = true;
+    allstar_one_on_one_shot_reset(&d->shot);
+    allstar_one_on_one_shot_press(&d->shot, 1);
+    allstar_one_on_one_rom_animation_set_action_6a8c(
+        &d->animation, d->shot_action);
+    d->shot_animation_clock = ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS;
+    d->phase = ACCURACY_GATHER; d->phase_frames = 0;
+}
+
+static void launch(AccuracyData *d, AllStarGame *game) {
+    uint8_t variant = allstar_one_on_one_rom_shot_variant(
+        d->player.x, d->player.y);
+    uint8_t distance = allstar_one_on_one_rom_shot_distance_class(
+        d->player.x, d->player.y);
+    uint8_t index = allstar_one_on_one_rom_shot_record_index(
+        d->shot.rom_elapsed_frames);
+    float x = d->player.x, y = d->player.y;
+    float z = (float)allstar_one_on_one_rom_shot_release_height(index);
+    AllStarOneOnOneReleaseOffset offset;
+    if (allstar_one_on_one_rom_release_offset(
+            d->shot_action, d->shot.rom_phase, variant,
+            d->horizontal_flip, &offset)) {
+        x += (float)offset.x_offset - ALLSTAR_ROM_PLAYER_X_TO_CENTER;
+        y += (float)offset.ground_y_offset;
+    }
+    d->player.has_ball = d->player.is_jumping = false;
+    allstar_physics_shoot_ball_rom_7c58(
+        &d->ball, x, y, z, ALLSTAR_ONE_ON_ONE_HOOP_X,
+        ALLSTAR_ONE_ON_ONE_HOOP_Y, distance,
+        allstar_one_on_one_rom_shot_vertical_velocity(
+            (uint8_t)game->selected_player_1, distance, index),
+        d->shot.rom_phase, 1, 0);
+    d->ball.rom_player_shot_phase_active = d->player.is_shooting;
+    /* $0EE7->$0B20 increments attempts on release. */
+    allstar_accuracy_bcd_increment_0b20(d->mode.attempts_bcd);
+    d->phase = ACCURACY_FLIGHT; d->phase_frames = d->shot_frames = 0;
+    allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOOT);
+}
+
+static void move_player(AccuracyData *d, uint8_t held) {
+    bool blocked = false;
+    d->input_direction = direction(held);
+    if (d->input_direction && d->phase_frames % ACCURACY_MOVE_PERIOD == 0)
+        allstar_one_on_one_rom_player_move_6b72(
+            d->input_direction, 0x02, &d->player.x, &d->player.y,
+            0.0f, 0.0f, &blocked);
+    (void)blocked;
+}
+
+static void finish_attempt(AccuracyData *d) {
+    d->player.is_shooting = false;
+    if (d->shot_made) allstar_accuracy_bcd_increment_0b20(d->mode.makes_bcd);
+    if (d->frames_remaining == 0) {
+        d->phase = ACCURACY_RESULT; d->result_frames = 0;
+    } else next_position(d);
+}
+
+static void tick_animation(AccuracyData *d, AllStarGame *game) {
+    if (d->phase == ACCURACY_APPROACH || d->phase == ACCURACY_CONTROL) {
+        if (allstar_one_on_one_rom_select_movement_action_782e(
+                &d->animation, d->input_direction, 0, d->previous_direction,
+                false, false, &d->horizontal_flip))
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
+    }
+    if (allstar_one_on_one_rom_animation_tick_6a8c(
+            game->asset_pack, &d->animation)) {
+        d->player.anim_frame = d->animation.display_frame;
+        if (d->player.has_ball && d->animation.record_index == 6)
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_DRIBBLE);
+    }
+    if (d->shot_animation_clock > 0.0f) {
+        uint16_t elapsed;
+        d->shot_animation_clock -= ALLSTAR_PHYSICS_STEP_SECONDS;
+        if (d->shot_animation_clock < 0.0f) d->shot_animation_clock = 0.0f;
+        elapsed = (uint16_t)lroundf(
+            (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS -
+             d->shot_animation_clock) * 60.0f);
+        allstar_one_on_one_rom_shot_animation_frame(
+            d->shot_action, d->shot.rom_phase, elapsed, &d->player.anim_frame);
+    }
+}
+
+static void tick_fixed(AccuracyData *d, AllStarGame *game,
+                       uint8_t held, uint8_t pressed) {
+    d->phase_frames++;
+    allstar_rom_rng_end_frame_0714(&d->rng, 0, 0);
+    if (d->phase != ACCURACY_DEFINE && d->phase != ACCURACY_RESULT &&
+        d->frames_remaining) d->frames_remaining--;
+    if (d->phase == ACCURACY_DEFINE) {
+        if (d->phase_frames % ACCURACY_MOVE_PERIOD == 0)
+            allstar_accuracy_move_custom_cursor_6d57(
+                held, &d->marker_x, &d->marker_y);
+        if (pressed & ALLSTAR_BTN_A) {
+            bool done = allstar_accuracy_record_custom_position_6d57(
+                &d->mode, d->marker_x, d->marker_y);
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_MENU_SELECT);
+            if (done) { d->mode.position_index = 0; next_position(d); }
+        }
+    } else if (d->phase == ACCURACY_APPROACH) {
+        move_player(d, held);
+        if (fabsf(d->player.x - d->mode.target_x) <= 4.0f &&
+            fabsf(d->player.y - d->mode.target_y) <= 4.0f) {
+            d->player.x = d->mode.target_x; d->player.y = d->mode.target_y;
+            d->phase = ACCURACY_CONTROL; d->phase_frames = 0;
+            d->input_direction = 0;
+        }
+    } else if (d->phase == ACCURACY_CONTROL) {
+        d->input_direction = 0;
+        if (pressed & ALLSTAR_BTN_A) begin_gather(d);
+        else if (!d->frames_remaining) { d->phase = ACCURACY_RESULT; d->result_frames = 0; }
+    } else if (d->phase == ACCURACY_GATHER) {
+        uint32_t events;
+        move_player(d, held); /* $702D remains active during gather. */
+        events = allstar_one_on_one_shot_input(
+            &d->shot, 1, (pressed & ALLSTAR_BTN_A) != 0,
+            (held & ALLSTAR_BTN_B) != 0);
+        if (!(events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE))
+            events = allstar_one_on_one_shot_tick(
+                &d->shot, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (events & ALLSTAR_ONE_ON_ONE_SHOT_EVENT_RELEASE) launch(d, game);
+    } else if (d->phase == ACCURACY_FLIGHT) {
+        uint32_t contacts;
+        d->shot_frames++;
+        allstar_physics_update_ball(&d->ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+        contacts = allstar_physics_apply_rom_court_contacts(&d->ball);
+        if ((contacts & ALLSTAR_BALL_CONTACT_RIM_BACKBOARD) && !d->rim_audio) {
+            d->rim_audio = true;
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_RIM_CLANK);
+        }
+        if ((contacts & ALLSTAR_BALL_CONTACT_BACK_COURT) && !d->contact_audio) {
+            d->contact_audio = true;
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_FREE_THROW_CONTACT);
+        }
+        if ((contacts & ALLSTAR_BALL_CONTACT_SCORE) && !d->shot_made) {
+            d->shot_made = true; d->made_frame = d->shot_frames;
+        }
+        if (d->shot_made && !d->net_audio &&
+            d->shot_frames == d->made_frame + 20) {
+            d->net_audio = true;
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_FREE_THROW_NET);
+        }
+        if (d->shot_made && !d->score_audio &&
+            d->shot_frames == d->made_frame + 65) {
+            d->score_audio = true;
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_SCORE_CHIME);
+        }
+        if ((d->shot_made && d->shot_frames >= d->made_frame + ACCURACY_MAKE_FRAMES) ||
+            (!d->shot_made && d->shot_frames >= ACCURACY_MISS_FRAMES &&
+             (d->contact_audio || !d->ball.in_flight))) finish_attempt(d);
+    } else if (d->phase == ACCURACY_RESULT) {
+        d->result_frames++;
+        if (!d->result_audio) {
+            d->result_audio = true;
+            allstar_audio_play_sfx(&game->audio, ALLSTAR_SFX_ACCURACY_RESULT);
+        }
+        if (d->result_frames >= 240) {
+            allstar_game_change_scene(game, ALLSTAR_SCENE_INTRO);
+            return;
+        }
+    }
+    tick_animation(d, game);
+    if (d->input_direction) d->previous_direction = d->input_direction;
+}
+
+static void accuracy_update(AllStarScene *scene, AllStarGame *game,
+                            const AllStarInput *input, float dt) {
+    AccuracyData *d = (AccuracyData*)scene->user_data;
+    AllStarInput repeated = *input;
+    d->fixed_accumulator += dt; d->anim_time += dt;
+    while (d->fixed_accumulator + 0.000001f >= ALLSTAR_PHYSICS_STEP_SECONDS) {
+        tick_fixed(d, game, repeated.buttons_held, repeated.buttons_pressed);
+        if (game->active_scene != scene) return;
+        d->fixed_accumulator -= ALLSTAR_PHYSICS_STEP_SECONDS;
+        repeated.buttons_pressed = repeated.buttons_released = 0;
+    }
+}
+
+static uint8_t font_tile(uint8_t c) {
+    uint8_t m;
+    if (c == 0x20) m = 0; else if (c == 0x27) m = 0x27;
+    else if (c == 0x3f) m = 0x28; else if (c == 0x2e) m = 0x25;
+    else if (c == 0x3a) m = 0x26; else if (c < 0x05) m = c + 0x36;
+    else if (c < 0x3a) m = c - 0x2f; else m = c - 0x36;
+    return (uint8_t)(m + 0xc0);
+}
+
+static void rom_text(AllStarRenderer *r, const char *text, int x, int y) {
+    while (text && *text && x < 20) {
+        uint8_t tile = font_tile((uint8_t)*text++);
+        allstar_renderer_draw_tile(r, &r->asset_pack->free_throw_bg_tiles[tile],
+                                   x++ * 8, y * 8, false, false);
+    }
+}
+
+static void draw_marker(AllStarRenderer *r, const AccuracyData *d) {
+    uint8_t x, y;
+    int px, py, tx, ty;
+    if (d->phase != ACCURACY_DEFINE && d->phase != ACCURACY_APPROACH) return;
+    if (((d->phase_frames / 8u) & 1u) == 0) return;
+    x = d->phase == ACCURACY_DEFINE ? d->marker_x : d->mode.target_x;
+    y = d->phase == ACCURACY_DEFINE ? d->marker_y : d->mode.target_y;
+    px = x - 8; py = y - 16;
+    if (r->asset_pack && (r->asset_pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART)) {
+        const AllStarTile *tile = &r->asset_pack->ball_source_tiles[41];
+        for (ty = 0; ty < 8; ty++) for (tx = 0; tx < 8; tx++) {
+            uint8_t shade = tile->pixels[ty * 8 + tx];
+            if (shade) allstar_renderer_set_pixel(r, px + tx, py + ty, shade);
+        }
+    }
+}
+
+static void draw_hud(AllStarRenderer *r, AllStarGame *game,
+                     const AccuracyData *d) {
+    const AllStarPlayerStats *p = allstar_roster_get_player(
+        &game->roster, game->selected_player_1);
+    char line[20], name[10];
+    uint32_t sec = d->frames_remaining / 60;
+    if (r->asset_pack && (r->asset_pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_FREE_THROW_ART)) {
+        size_t n = p ? strlen(p->last_name) : 0, off;
+        if (n > 9) n = 9; memset(name, ' ', 9); name[9] = 0;
+        off = (9 - n) / 2; if (n) memcpy(name + off, p->last_name, n);
+        rom_text(r, name, 0, 5);
+        snprintf(line, sizeof(line), "%02u %02u:%02u",
+            allstar_accuracy_bcd_value(d->mode.makes_bcd),
+            sec / 60, sec % 60);
+        rom_text(r, line, 11, 5);
+    }
+}
+
+static void accuracy_draw(AllStarScene *scene, AllStarGame *game,
+                          AllStarRenderer *r) {
+    AccuracyData *d = (AccuracyData*)scene->user_data;
+    const AllStarPlayerStats *stats;
+    uint8_t skin, net = 0; uint16_t after = 0; int32_t lift = 0;
+    bool loose, behind;
+    if (d->phase == ACCURACY_RESULT) {
+        char line[32];
+        allstar_renderer_clear(r, 0);
+        allstar_renderer_draw_text(r, "TIME'S UP", 44, 40, 3);
+        snprintf(line, sizeof(line), "MADE %u OF %u",
+            allstar_accuracy_bcd_value(d->mode.makes_bcd),
+            allstar_accuracy_bcd_value(d->mode.attempts_bcd));
+        allstar_renderer_draw_text(r, line, 24, 72, 3); return;
+    }
+    allstar_renderer_clear(r, 0); allstar_renderer_draw_court(r);
+    if (d->shot_made) {
+        after = d->shot_frames >= d->made_frame ? d->shot_frames - d->made_frame : 0;
+        net = (uint8_t)allstar_one_on_one_score_net_frame_1ecc(after);
+    }
+    loose = d->phase == ACCURACY_FLIGHT;
+    behind = loose && d->shot_made && after < 35;
+    if (behind) allstar_renderer_draw_ball_ex(r, (int)d->ball.x,
+        (int)d->ball.y, (int)d->ball.z, d->anim_time);
+    allstar_renderer_draw_net_overlay_1ecc(r, net);
+    draw_hud(r, game, d); draw_marker(r, d);
+    stats = allstar_roster_get_player(&game->roster, game->selected_player_1);
+    skin = stats ? stats->skin_tone : 0x90;
+    if (d->shot_animation_clock > 0.0f) {
+        uint16_t elapsed = (uint16_t)lroundf(
+            (ALLSTAR_ONE_ON_ONE_SHOT_ANIMATION_SECONDS - d->shot_animation_clock) * 60.0f);
+        lift = (int32_t)allstar_one_on_one_rom_shot_jump_height_6c4d(elapsed);
+    }
+    allstar_renderer_draw_player_lifted_ex(r, (int)d->player.x,
+        (int)d->player.y, lift, true, skin, d->player.has_ball,
+        d->player.is_shooting, false,
+        d->player.is_shooting ? d->shot_action : d->animation.action,
+        d->player.anim_frame, d->animation.record_index, d->anim_time,
+        d->horizontal_flip);
+    if (loose && !behind) allstar_renderer_draw_ball_ex(r, (int)d->ball.x,
+        (int)d->ball.y, (int)d->ball.z, d->anim_time);
+}
+
+static void accuracy_destroy(AllStarScene *scene) {
+    if (scene) { free(scene->user_data); free(scene); }
 }
 
 AllStarScene* allstar_scene_create_three_point(void) {
-    AllStarScene *scene = (AllStarScene*)calloc(1, sizeof(AllStarScene));
-    if (!scene) return NULL;
-    scene->id = ALLSTAR_SCENE_THREE_POINT;
-    scene->user_data = calloc(1, sizeof(SceneThreePointData));
-    scene->init = three_point_init;
-    scene->update = three_point_update;
-    scene->draw = three_point_draw;
-    scene->destroy = three_point_destroy;
-    return scene;
+    AllStarScene *s = (AllStarScene*)calloc(1, sizeof(AllStarScene));
+    if (!s) return NULL; s->id = ALLSTAR_SCENE_THREE_POINT;
+    s->user_data = calloc(1, sizeof(AccuracyData));
+    if (!s->user_data) { free(s); return NULL; }
+    s->init = accuracy_init; s->update = accuracy_update;
+    s->draw = accuracy_draw; s->destroy = accuracy_destroy; return s;
+}
+
+bool allstar_scene_accuracy_get_debug_state(
+    const AllStarScene *scene, AllStarAccuracyDebugState *out) {
+    const AccuracyData *d;
+    if (!scene || scene->id != ALLSTAR_SCENE_THREE_POINT || !out) return false;
+    d = (const AccuracyData*)scene->user_data; memset(out, 0, sizeof(*out));
+    out->phase = d->phase; out->group = d->mode.group;
+    out->position_index = d->mode.position_index;
+    out->target_x = d->mode.target_x; out->target_y = d->mode.target_y;
+    out->player_x = (uint8_t)d->player.x; out->player_y = (uint8_t)d->player.y;
+    out->custom_count = d->mode.custom_count;
+    out->attempts = (uint8_t)allstar_accuracy_bcd_value(d->mode.attempts_bcd);
+    out->makes = (uint8_t)allstar_accuracy_bcd_value(d->mode.makes_bcd);
+    out->shot_frames = d->shot_frames; out->frames_remaining = d->frames_remaining;
+    out->marker_visible = d->phase == ACCURACY_DEFINE || d->phase == ACCURACY_APPROACH;
+    out->ball_in_flight = d->ball.in_flight; out->shot_made = d->shot_made;
+    return true;
+}
+
+bool allstar_scene_accuracy_snap_to_target(AllStarScene *scene) {
+    AccuracyData *d;
+    if (!scene || scene->id != ALLSTAR_SCENE_THREE_POINT) return false;
+    d = (AccuracyData*)scene->user_data; d->player.x = d->mode.target_x;
+    d->player.y = d->mode.target_y; d->phase = ACCURACY_CONTROL;
+    d->phase_frames = 0; return true;
+}
+
+bool allstar_scene_accuracy_force_test_score_frame(
+    AllStarScene *scene, uint16_t after) {
+    AccuracyData *d;
+    if (!scene || scene->id != ALLSTAR_SCENE_THREE_POINT) return false;
+    d = (AccuracyData*)scene->user_data; d->phase = ACCURACY_FLIGHT;
+    d->shot_made = true; d->made_frame = 1; d->shot_frames = 1 + after;
+    d->ball.in_flight = true; d->ball.x = ALLSTAR_ONE_ON_ONE_HOOP_X;
+    d->ball.y = ALLSTAR_ONE_ON_ONE_HOOP_Y; d->ball.z = 8; return true;
+}
+
+bool allstar_scene_accuracy_force_test_result(AllStarScene *scene) {
+    AccuracyData *d;
+    if (!scene || scene->id != ALLSTAR_SCENE_THREE_POINT) return false;
+    d = (AccuracyData*)scene->user_data; d->phase = ACCURACY_RESULT;
+    d->frames_remaining = d->result_frames = 0; return true;
 }

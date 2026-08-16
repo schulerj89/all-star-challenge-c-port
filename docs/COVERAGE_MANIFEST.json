@@ -119,8 +119,10 @@
     {
       "id": "behavior.accuracy",
       "group": "gameplay",
-      "description": "Accuracy Shootout targets, timing, scoring, and completion match the ROM.",
-      "status": "unmapped"
+      "description": "One-player Accuracy Shootout selection, exact target groups, custom positions, approach marker, timer, scoring, presentation, result, and command-$02 audio match the ROM.",
+      "status": "verified",
+      "evidence": ["docs/parity/ACCURACY.md", "docs/parity/ACCURACY_COVERAGE.json", "include/allstar_accuracy.h", "src/gameplay/allstar_accuracy.c", "src/scenes/scene_three_point.c", "tools/emulator/trace_accuracy.lua"],
+      "verification_command": ".\\build\\allstar_port.exe --test-accuracy"
     },
     {
       "id": "behavior.two_player",
@@ -248,6 +250,13 @@
       "total": 25,
       "percent": 52.0,
       "note": "Replaced the procedural Horse prototype with the traced mode-2 caller/matcher state machine, two-player roster selection, exact 50-position CPU table, saved X marker, H-O-R-S-E counters, shared shot physics/animation, command-$07 audio, result flow, and emulator/native proof."
+    },
+    {
+      "date": "2026-08-15",
+      "verified": 14,
+      "total": 25,
+      "percent": 56.0,
+      "note": "Replaced the invented five-rack Accuracy prototype with the traced one-player mode: direct selector, five exact ten-position groups, custom position editor, tile-$76 approach, shared shot/net flow, BCD attempts/makes, timer result, and decoded command-$02 audio."
     }
   ]
 }

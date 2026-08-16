@@ -208,7 +208,7 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     if ((game->asset_pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) != 0 &&
         !allstar_audio_bind_rom_sfx(&game->audio, game->asset_pack)) {
-        fprintf(stderr, "[Game] Invalid decoded One-on-One ROM audio\n");
+        fprintf(stderr, "[Game] Invalid decoded ROM audio or title music\n");
         return false;
     }
     allstar_input_init(&game->input);
@@ -228,6 +228,8 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
 
 void allstar_game_shutdown(AllStarGame *game) {
     if (!game) return;
+
+    allstar_audio_shutdown(&game->audio);
 
     if (game->active_scene) {
         if (game->active_scene->destroy) game->active_scene->destroy(game->active_scene);

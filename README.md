@@ -2,13 +2,13 @@
 
 Work-in-progress native C99 port of **NBA All-Star Challenge** for Game Boy (Beam Software / LJN).
 
-The project is a native reimplementation, not an emulator wrapper. The current build has a working Win32 shell, software renderer, scene prototypes, roster presentation, basic projectile physics, simple CPU behavior, and PCM playback. It is **not yet a gameplay-complete or frame-accurate port**.
+The project is a native reimplementation, not an emulator wrapper. The current build has a cross-platform SDL 3 host, software renderer, scene prototypes, roster presentation, native game logic, and PCM playback. The original Win32 host remains available as an optional reference during the transition. It is **not yet a gameplay-complete or frame-accurate port**.
 
 ## Current Status
 
 | Area | Status | Notes |
 |---|---|---|
-| Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
+| SDL runtime and 160×144 framebuffer | Implemented | Builds on macOS and uses the same SDL host on Windows and Linux. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
 | One-on-One | 100% of both fixed manifests | All 50 gameplay requirements and all 50 RNG/animation-asset/contact requirements are verified. This is Ghidra/manual-grounded mode coverage, not a claim of frame-perfect timing. |
 | Free Throws | 32/32 gameplay/presentation | Bank-2 single-player selection without VS, `$0C8E/$100F` lifecycle and music stop, exact `$22A9/$1A25` moving reticle, 8.8 aim/launch, `$1A7E` rating-based clean makes, rim/net scoring, attempts/results, separate close-up assets, and `$1C1D` priority are native. |
@@ -16,8 +16,8 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Accuracy Shootout | 25/25 one-player scope | Single-player selection, exact 50 positions/custom editor, marker approach, shared shot/net, exact `$76A7` court-panel HUD, scoring, timer/result, and `$02` audio are traced and playable. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
-| Audio | Partial project-wide | Win32 PCM mixer works; eleven focused programs now include Accuracy `$02`, Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. The complete music/APU sequencer is not ported. |
-| ROM asset pack | Partial project-wide | Version 16 contains One-on-One art, Free Throw art/maps, all 24 `$6C60` lists, shared Horse/Accuracy assets, and eleven decoded audio programs; portraits, music, and remaining sound programs still need migration. |
+| Audio | Partial project-wide | SDL and Win32 PCM output work; the ROM-derived four-channel title/menu song loops natively, and eleven focused programs include Accuracy `$02`, Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. Other songs and the complete APU sequencer remain. |
+| ROM asset pack | Partial project-wide | Version 17 contains One-on-One art, Free Throw art/maps, all 24 `$6C60` lists, shared Horse/Accuracy assets, eleven decoded audio programs, and the decoded title/menu song; portraits, other songs, and remaining sound programs still need migration. |
 | Ghidra-to-C routine coverage | 67/145 verified | All 145 reviewed bank-aware functions recover/decompile; 38 mappings are candidates and 40 are unmapped. Accuracy's expanded eleven-routine scope is 8 verified/3 candidate. |
 | Verified project milestones | 56.00% | 14 of 25 strict milestones; analysis is 6/7 and gameplay parity is 8/11. |
 | Scoped Free Throw gameplay/presentation | 100.00% | 32 of 32 requirements, including exact mode-specific assets, result layout, prior-OAM priority, and the made-ball gravity hold. |
@@ -64,6 +64,39 @@ Banks 1–3 all execute in the Game Boy switchable CPU window at `$4000..$7FFF`.
 
 ## Building
 
+### macOS with CMake and SDL 3
+
+CMake fetches the pinned SDL 3 source and builds it statically, so a separate
+SDL installation is not required.
+
+```sh
+cmake -S . -B build/macos -DCMAKE_BUILD_TYPE=Release
+cmake --build build/macos --parallel
+build/macos/allstar_port --build-assetpack \
+  "/path/to/NBA All-Star Challenge (USA, Europe).gb" \
+  build/macos/allstar.assetpack
+cmake -E copy_if_different build/macos/allstar.assetpack \
+  build/macos/allstar_port_game.app/Contents/Resources/allstar.assetpack
+open build/macos/allstar_port_game.app
+```
+
+The generated asset pack is local and ignored by Git; the ROM is never copied
+or embedded. Linux and Windows can use the same CMake flow. On those platforms,
+place `allstar.assetpack` beside the `allstar_port_game` executable.
+
+### Controls
+
+| Game Boy input | Keyboard | Gamepad |
+|---|---|---|
+| D-pad | Arrow keys | D-pad |
+| A | `Z` or `J` | South / bottom face button |
+| B | `X` or `K` | East / right face button |
+| Start | Return | Start |
+| Select | Space or Shift | Back |
+
+Press `1`, `2`, or `3` to select the original green, grayscale, or modern
+palette. Press `P` to cycle palettes.
+
 ### Windows with MSVC
 
 ```powershell
@@ -99,9 +132,9 @@ The current MSVC build succeeds without warnings.
 .\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
-Version 16 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, and decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Portraits, music, and remaining sound programs are outside the pack.
+Version 17 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs, and the original four-channel title/menu song. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Portraits, other songs, and remaining sound programs are outside the pack.
 
-The Win32 game requires a valid version-15 `build\allstar.assetpack` and now
+The game requires a valid version-17 `allstar.assetpack` and
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 

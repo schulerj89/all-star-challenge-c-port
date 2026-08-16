@@ -4,31 +4,39 @@
 #include <string.h>
 #include <math.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
 #include <windows.h>
 #include <mmsystem.h>
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+#include <SDL3/SDL.h>
+#endif
 
 #define MIX_BUFFER_SAMPLES 2048
 #define MIX_CHANNELS 2
 #define MIX_SAMPLE_RATE 48000
+#define MAX_SFX_VOICES 4
+
+#if defined(_WIN32) || defined(ALLSTAR_USE_SDL_AUDIO)
+#define ALLSTAR_AUDIO_OUTPUT 1
+#else
+#define ALLSTAR_AUDIO_OUTPUT 0
+#endif
 
 typedef struct {
     int16_t *samples;
     uint32_t sample_count; /* in 16-bit stereo frame units */
+    uint32_t loop_start;
     bool loaded;
 } PcmSound;
 
+#if ALLSTAR_AUDIO_OUTPUT
 static PcmSound g_bgm[ALLSTAR_BGM_COUNT];
 static PcmSound g_sfx[ALLSTAR_SFX_COUNT];
-
-static HANDLE g_mixer_thread = NULL;
-static volatile bool g_mixer_running = false;
 static volatile AllStarBgmId g_requested_bgm = ALLSTAR_BGM_NONE;
 static volatile AllStarBgmId g_current_bgm = ALLSTAR_BGM_NONE;
 static uint32_t g_bgm_playhead = 0;
 
 /* Active SFX voice slots */
-#define MAX_SFX_VOICES 4
 typedef struct {
     AllStarSfxId sfx_id;
     uint32_t playhead;
@@ -36,28 +44,86 @@ typedef struct {
 } SfxVoice;
 
 static SfxVoice g_sfx_voices[MAX_SFX_VOICES];
+
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
+static HANDLE g_mixer_thread = NULL;
+static volatile bool g_mixer_running = false;
 static CRITICAL_SECTION g_audio_lock;
 static bool g_lock_initialized = false;
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+static SDL_Mutex *g_audio_lock = NULL;
+static SDL_AudioStream *g_audio_stream = NULL;
+#endif
+
+static void lock_audio(void) {
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_lock_initialized) EnterCriticalSection(&g_audio_lock);
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_audio_lock) SDL_LockMutex(g_audio_lock);
+#endif
+}
+
+static void unlock_audio(void) {
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_lock_initialized) LeaveCriticalSection(&g_audio_lock);
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_audio_lock) SDL_UnlockMutex(g_audio_lock);
+#endif
+}
+#endif
+
+static FILE *open_binary_file(const char *path, const char *mode) {
+#ifdef _MSC_VER
+    FILE *file = NULL;
+    fopen_s(&file, path, mode);
+    return file;
+#else
+    return fopen(path, mode);
+#endif
+}
+
+#if ALLSTAR_AUDIO_OUTPUT
+static uint16_t read_le16(const uint8_t *bytes) {
+    return (uint16_t)((uint16_t)bytes[0] |
+                      ((uint16_t)bytes[1] << 8));
+}
+
+static uint32_t read_le32(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] |
+           ((uint32_t)bytes[1] << 8) |
+           ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
+}
 
 static bool load_pcm_wav(const char *filename, PcmSound *out) {
+    const char *base_path = NULL;
+    FILE *f = NULL;
+    char path[1024];
     if (!out) return false;
     memset(out, 0, sizeof(PcmSound));
 
-    char path[MAX_PATH];
-    snprintf(path, sizeof(path), "assets\\audio\\%s", filename);
-    FILE *f = NULL;
-    fopen_s(&f, path, "rb");
+    snprintf(path, sizeof(path), "assets/audio/%s", filename);
+    f = open_binary_file(path, "rb");
     if (!f) {
-        snprintf(path, sizeof(path), "build\\assets\\audio\\%s", filename);
-        fopen_s(&f, path, "rb");
+        snprintf(path, sizeof(path), "build/assets/audio/%s", filename);
+        f = open_binary_file(path, "rb");
     }
     if (!f) {
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
         char exe_dir[MAX_PATH];
         GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
         char *last_slash = strrchr(exe_dir, '\\');
         if (last_slash) *last_slash = '\0';
         snprintf(path, sizeof(path), "%s\\assets\\audio\\%s", exe_dir, filename);
-        fopen_s(&f, path, "rb");
+        f = open_binary_file(path, "rb");
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+        base_path = SDL_GetBasePath();
+        if (base_path) {
+            snprintf(path, sizeof(path), "%s../Resources/audio/%s",
+                     base_path, filename);
+            f = open_binary_file(path, "rb");
+        }
+#endif
     }
     if (!f) return false;
 
@@ -77,13 +143,13 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
     /* Parse RIFF chunks */
     uint8_t chunk_hdr[8];
     while (fread(chunk_hdr, 1, 8, f) == 8) {
-        uint32_t chunk_size = *(uint32_t*)(chunk_hdr + 4);
+        uint32_t chunk_size = read_le32(chunk_hdr + 4);
         if (memcmp(chunk_hdr, "fmt ", 4) == 0) {
             uint8_t fmt_data[16];
             if (fread(fmt_data, 1, 16, f) == 16) {
-                channels = *(uint16_t*)(fmt_data + 2);
-                sample_rate = *(uint32_t*)(fmt_data + 4);
-                bits_per_sample = *(uint16_t*)(fmt_data + 14);
+                channels = read_le16(fmt_data + 2);
+                sample_rate = read_le32(fmt_data + 4);
+                bits_per_sample = read_le16(fmt_data + 14);
                 if (chunk_size > 16) fseek(f, (long)(chunk_size - 16), SEEK_CUR);
             }
         } else if (memcmp(chunk_hdr, "data", 4) == 0) {
@@ -99,7 +165,10 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
     }
     fclose(f);
 
-    if (!raw_buf || data_size == 0) {
+    /* The native mixer preserves the Win32 host's fixed 48 kHz behavior. */
+    (void)sample_rate;
+    if (!raw_buf || data_size == 0 ||
+        (channels != 1 && channels != 2) || bits_per_sample != 16) {
         if (raw_buf) free(raw_buf);
         return false;
     }
@@ -128,6 +197,7 @@ static bool load_pcm_wav(const char *filename, PcmSound *out) {
     out->loaded = true;
     return true;
 }
+#endif
 
 /* The cartridge's made-basket path reaches sound command $05 at $1F23.
    Until the complete $3014 command-stream interpreter is shared by every
@@ -351,12 +421,217 @@ static bool generate_rom_program(PcmSound *out,
     return true;
 }
 
+static float dmg_wave_hz(uint16_t frequency) {
+    if (frequency >= 2048) return 0.0f;
+    return 65536.0f / (float)(2048u - frequency);
+}
+
+static void step_envelope(uint8_t envelope, uint8_t *volume,
+                          double time, double *next_time) {
+    uint8_t pace = envelope & 7u;
+    if (!volume || !next_time || pace == 0) return;
+    while (time >= *next_time) {
+        if ((envelope & 0x08) != 0) {
+            if (*volume < 15) (*volume)++;
+        } else if (*volume > 0) {
+            (*volume)--;
+        }
+        *next_time += (double)pace / 64.0;
+    }
+}
+
+static bool generate_rom_music(PcmSound *out,
+                               const AllStarRomMusicProgram *program) {
+    const double frame_seconds = 70224.0 / 4194304.0;
+    uint32_t total_samples;
+    uint32_t sample;
+    uint32_t previous_frame = UINT32_MAX;
+    uint16_t frequency1 = 0;
+    uint16_t frequency2 = 0;
+    uint16_t wave_frequency = 0;
+    uint16_t sweep_shadow = 0;
+    uint8_t square1_sweep = 0;
+    uint8_t square1_envelope = 0;
+    uint8_t square2_envelope = 0;
+    uint8_t noise_envelope = 0;
+    uint8_t volume1 = 0;
+    uint8_t volume2 = 0;
+    uint8_t noise_volume = 0;
+    uint8_t wave_level = 0;
+    uint8_t wave_table = 0;
+    uint8_t noise_polynomial = 0;
+    float duty1 = 0.5f;
+    float duty2 = 0.5f;
+    float phase1 = 0.0f;
+    float phase2 = 0.0f;
+    float wave_phase = 0.0f;
+    float noise_phase = 0.0f;
+    uint16_t noise_lfsr = 0x7fff;
+    double next_envelope1 = 1.0e30;
+    double next_envelope2 = 1.0e30;
+    double next_noise_envelope = 1.0e30;
+    double next_sweep_time = 1.0e30;
+    if (!out || !program || program->frame_count == 0 ||
+        program->frame_count > ALLSTAR_ROM_MUSIC_MAX_FRAMES ||
+        program->loop_frame >= program->frame_count) return false;
+    total_samples = (uint32_t)ceil(
+        program->frame_count * frame_seconds * MIX_SAMPLE_RATE);
+    out->samples = (int16_t *)malloc(
+        (size_t)total_samples * MIX_CHANNELS * sizeof(int16_t));
+    if (!out->samples) return false;
+    out->loop_start = (uint32_t)ceil(
+        program->loop_frame * frame_seconds * MIX_SAMPLE_RATE);
+
+    for (sample = 0; sample < total_samples; sample++) {
+        double time = (double)sample / MIX_SAMPLE_RATE;
+        uint32_t frame_index = (uint32_t)(time / frame_seconds);
+        const AllStarRomMusicFrame *frame;
+        float mixed = 0.0f;
+        if (frame_index >= program->frame_count)
+            frame_index = program->frame_count - 1;
+        frame = &program->frames[frame_index];
+        if (frame_index != previous_frame) {
+            if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
+                frequency1 = frame->square1_frequency;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER1) != 0) {
+                    uint8_t pace;
+                    phase1 = 0.0f;
+                    square1_sweep = frame->square1_sweep;
+                    square1_envelope = frame->square1_envelope;
+                    duty1 = dmg_square_duty(frame->square1_duty_length);
+                    volume1 = square1_envelope >> 4;
+                    pace = square1_envelope & 7u;
+                    next_envelope1 = pace != 0
+                        ? time + (double)pace / 64.0 : 1.0e30;
+                    sweep_shadow = frequency1;
+                    pace = (square1_sweep >> 4) & 7u;
+                    next_sweep_time = pace != 0
+                        ? time + (double)pace / 128.0 : 1.0e30;
+                }
+            }
+            if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
+                frequency2 = frame->square2_frequency;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER2) != 0) {
+                    uint8_t pace;
+                    phase2 = 0.0f;
+                    square2_envelope = frame->square2_envelope;
+                    duty2 = dmg_square_duty(frame->square2_duty_length);
+                    volume2 = square2_envelope >> 4;
+                    pace = square2_envelope & 7u;
+                    next_envelope2 = pace != 0
+                        ? time + (double)pace / 64.0 : 1.0e30;
+                }
+            }
+            if ((frame->flags & ALLSTAR_ROM_MUSIC_WAVE) != 0) {
+                wave_frequency = frame->wave_frequency;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER_WAVE) != 0)
+                    wave_phase = 0.0f;
+                wave_level = frame->wave_output_level;
+                wave_table = frame->wave_table & 0x0f;
+            }
+            if ((frame->flags & ALLSTAR_ROM_MUSIC_NOISE) != 0) {
+                noise_polynomial = frame->noise_polynomial;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER_NOISE) != 0) {
+                    uint8_t pace;
+                    noise_lfsr = 0x7fff;
+                    noise_phase = 0.0f;
+                    noise_envelope = frame->noise_envelope;
+                    noise_volume = noise_envelope >> 4;
+                    pace = noise_envelope & 7u;
+                    next_noise_envelope = pace != 0
+                        ? time + (double)pace / 64.0 : 1.0e30;
+                }
+            }
+            previous_frame = frame_index;
+        }
+
+        step_envelope(square1_envelope, &volume1,
+                      time, &next_envelope1);
+        step_envelope(square2_envelope, &volume2,
+                      time, &next_envelope2);
+        step_envelope(noise_envelope, &noise_volume,
+                      time, &next_noise_envelope);
+        if ((square1_sweep & 0x70) != 0) {
+            uint8_t pace = (square1_sweep >> 4) & 7u;
+            uint8_t shift = square1_sweep & 7u;
+            while (pace != 0 && shift != 0 && time >= next_sweep_time) {
+                uint16_t delta = (uint16_t)(sweep_shadow >> shift);
+                if ((square1_sweep & 0x08) != 0)
+                    sweep_shadow = (uint16_t)(sweep_shadow - delta);
+                else
+                    sweep_shadow = (uint16_t)(sweep_shadow + delta);
+                if (sweep_shadow < 2048) frequency1 = sweep_shadow;
+                next_sweep_time += pace / 128.0;
+            }
+        }
+
+        if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
+            mixed += (phase1 < duty1 ? 1.0f : -1.0f) *
+                ((float)volume1 / 15.0f);
+            phase1 += dmg_square_hz(frequency1) / MIX_SAMPLE_RATE;
+            if (phase1 >= 1.0f) phase1 -= floorf(phase1);
+        }
+        if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
+            mixed += (phase2 < duty2 ? 1.0f : -1.0f) *
+                ((float)volume2 / 15.0f);
+            phase2 += dmg_square_hz(frequency2) / MIX_SAMPLE_RATE;
+            if (phase2 >= 1.0f) phase2 -= floorf(phase2);
+        }
+        if ((frame->flags & ALLSTAR_ROM_MUSIC_WAVE) != 0) {
+            uint8_t level_code = (wave_level >> 5) & 3u;
+            float scale = level_code == 1 ? 1.0f :
+                (level_code == 2 ? 0.5f :
+                 (level_code == 3 ? 0.25f : 0.0f));
+            unsigned wave_sample = (unsigned)(wave_phase * 32.0f) & 31u;
+            uint8_t packed = program->wave_tables[wave_table][wave_sample >> 1];
+            uint8_t nibble = (wave_sample & 1u) != 0
+                ? packed & 0x0f : packed >> 4;
+            mixed += (((float)nibble - 7.5f) / 7.5f) * scale;
+            wave_phase += dmg_wave_hz(wave_frequency) / MIX_SAMPLE_RATE;
+            if (wave_phase >= 1.0f) wave_phase -= floorf(wave_phase);
+        }
+        if ((frame->flags & ALLSTAR_ROM_MUSIC_NOISE) != 0) {
+            uint8_t divisor_code = noise_polynomial & 7u;
+            uint8_t shift = noise_polynomial >> 4;
+            float divisor = divisor_code == 0
+                ? 0.5f : (float)divisor_code;
+            float noise_hz = 262144.0f /
+                (divisor * (float)(1u << shift));
+            noise_phase += noise_hz / MIX_SAMPLE_RATE;
+            while (noise_phase >= 1.0f) {
+                uint16_t feedback = (uint16_t)(
+                    (noise_lfsr ^ (noise_lfsr >> 1)) & 1u);
+                noise_lfsr = (uint16_t)((noise_lfsr >> 1) |
+                                        (feedback << 14));
+                if ((noise_polynomial & 0x08) != 0) {
+                    noise_lfsr = (uint16_t)(
+                        (noise_lfsr & ~(1u << 6)) | (feedback << 6));
+                }
+                noise_phase -= 1.0f;
+            }
+            mixed += (noise_lfsr & 1u ? 1.0f : -1.0f) *
+                ((float)noise_volume / 15.0f);
+        }
+        if (mixed > 3.4f) mixed = 3.4f;
+        if (mixed < -3.4f) mixed = -3.4f;
+        {
+            int16_t value = (int16_t)(mixed * 4800.0f);
+            out->samples[sample * 2] = value;
+            out->samples[sample * 2 + 1] = value;
+        }
+    }
+    out->sample_count = total_samples;
+    out->loaded = true;
+    return true;
+}
+
 static void free_pcm_sound(PcmSound *sound) {
     if (!sound) return;
     free(sound->samples);
     memset(sound, 0, sizeof(*sound));
 }
 
+#if ALLSTAR_AUDIO_OUTPUT
 static void generate_gameplay_sfx_fallbacks(void) {
     static const float dribble_f[] = {110.0f};
     static const float dribble_d[] = {0.055f};
@@ -414,6 +689,68 @@ static void generate_gameplay_sfx_fallbacks(void) {
             horse_letter_f, horse_letter_d, 2, 7500.0f);
 }
 
+static void mix_audio_frames(int16_t *buffer, uint32_t frame_count) {
+    AllStarBgmId requested;
+    uint32_t sample;
+    int voice;
+    if (!buffer || frame_count == 0) return;
+    memset(buffer, 0,
+           (size_t)frame_count * MIX_CHANNELS * sizeof(int16_t));
+
+    requested = g_requested_bgm;
+    if (requested != g_current_bgm) {
+        g_current_bgm = requested;
+        g_bgm_playhead = 0;
+    }
+
+    if (g_current_bgm != ALLSTAR_BGM_NONE &&
+        g_current_bgm < ALLSTAR_BGM_COUNT &&
+        g_bgm[g_current_bgm].loaded) {
+        PcmSound *track = &g_bgm[g_current_bgm];
+        for (sample = 0; sample < frame_count; sample++) {
+            if (g_bgm_playhead >= track->sample_count)
+                g_bgm_playhead = track->loop_start;
+            buffer[sample * 2] = track->samples[g_bgm_playhead * 2];
+            buffer[sample * 2 + 1] =
+                track->samples[g_bgm_playhead * 2 + 1];
+            g_bgm_playhead++;
+        }
+    }
+
+    for (voice = 0; voice < MAX_SFX_VOICES; voice++) {
+        if (g_sfx_voices[voice].active) {
+            AllStarSfxId sfx_id = g_sfx_voices[voice].sfx_id;
+            if (sfx_id < ALLSTAR_SFX_COUNT && g_sfx[sfx_id].loaded) {
+                PcmSound *sfx = &g_sfx[sfx_id];
+                for (sample = 0; sample < frame_count; sample++) {
+                    if (g_sfx_voices[voice].playhead < sfx->sample_count) {
+                        int32_t left = (int32_t)buffer[sample * 2] +
+                            (int32_t)sfx->samples[
+                                g_sfx_voices[voice].playhead * 2];
+                        int32_t right = (int32_t)buffer[sample * 2 + 1] +
+                            (int32_t)sfx->samples[
+                                g_sfx_voices[voice].playhead * 2 + 1];
+                        if (left > 32767) left = 32767;
+                        else if (left < -32768) left = -32768;
+                        if (right > 32767) right = 32767;
+                        else if (right < -32768) right = -32768;
+                        buffer[sample * 2] = (int16_t)left;
+                        buffer[sample * 2 + 1] = (int16_t)right;
+                        g_sfx_voices[voice].playhead++;
+                    } else {
+                        g_sfx_voices[voice].active = false;
+                        break;
+                    }
+                }
+            } else {
+                g_sfx_voices[voice].active = false;
+            }
+        }
+    }
+}
+#endif
+
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
 static DWORD WINAPI audio_mixer_thread(LPVOID param) {
     (void)param;
     WAVEFORMATEX wfx;
@@ -451,63 +788,9 @@ static DWORD WINAPI audio_mixer_thread(LPVOID param) {
             continue;
         }
 
-        EnterCriticalSection(&g_audio_lock);
-
-        /* Handle BGM track switch */
-        AllStarBgmId req = g_requested_bgm;
-        if (req != g_current_bgm) {
-            g_current_bgm = req;
-            g_bgm_playhead = 0;
-        }
-
-        int16_t *buf = mix_buffers[buf_idx];
-        memset(buf, 0, sizeof(mix_buffers[buf_idx]));
-
-        /* Mix BGM stream */
-        if (g_current_bgm != ALLSTAR_BGM_NONE && g_bgm[g_current_bgm].loaded) {
-            PcmSound *track = &g_bgm[g_current_bgm];
-            for (uint32_t s = 0; s < MIX_BUFFER_SAMPLES; s++) {
-                if (g_bgm_playhead >= track->sample_count) {
-                    g_bgm_playhead = 0; /* Seamless infinite loop */
-                }
-                buf[s * 2 + 0] = track->samples[g_bgm_playhead * 2 + 0];
-                buf[s * 2 + 1] = track->samples[g_bgm_playhead * 2 + 1];
-                g_bgm_playhead++;
-            }
-        }
-
-        /* Mix active SFX voices */
-        for (int v = 0; v < MAX_SFX_VOICES; v++) {
-            if (g_sfx_voices[v].active) {
-                AllStarSfxId sfx_id = g_sfx_voices[v].sfx_id;
-                if (sfx_id < ALLSTAR_SFX_COUNT && g_sfx[sfx_id].loaded) {
-                    PcmSound *sfx = &g_sfx[sfx_id];
-                    for (uint32_t s = 0; s < MIX_BUFFER_SAMPLES; s++) {
-                        if (g_sfx_voices[v].playhead < sfx->sample_count) {
-                            int32_t left = (int32_t)buf[s * 2 + 0] + (int32_t)sfx->samples[g_sfx_voices[v].playhead * 2 + 0];
-                            int32_t right = (int32_t)buf[s * 2 + 1] + (int32_t)sfx->samples[g_sfx_voices[v].playhead * 2 + 1];
-
-                            /* Saturation clip */
-                            if (left > 32767) left = 32767;
-                            else if (left < -32768) left = -32768;
-                            if (right > 32767) right = 32767;
-                            else if (right < -32768) right = -32768;
-
-                            buf[s * 2 + 0] = (int16_t)left;
-                            buf[s * 2 + 1] = (int16_t)right;
-                            g_sfx_voices[v].playhead++;
-                        } else {
-                            g_sfx_voices[v].active = false;
-                            break;
-                        }
-                    }
-                } else {
-                    g_sfx_voices[v].active = false;
-                }
-            }
-        }
-
-        LeaveCriticalSection(&g_audio_lock);
+        lock_audio();
+        mix_audio_frames(mix_buffers[buf_idx], MIX_BUFFER_SAMPLES);
+        unlock_audio();
 
         waveOutWrite(hWave, hdr, sizeof(WAVEHDR));
         buf_idx = (buf_idx + 1) % NUM_BUFFERS;
@@ -520,6 +803,28 @@ static DWORD WINAPI audio_mixer_thread(LPVOID param) {
     waveOutClose(hWave);
     return 0;
 }
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+static void SDLCALL sdl_audio_callback(void *userdata,
+                                       SDL_AudioStream *stream,
+                                       int additional_amount,
+                                       int total_amount) {
+    int16_t buffer[MIX_BUFFER_SAMPLES * MIX_CHANNELS];
+    int bytes_remaining = additional_amount;
+    (void)userdata;
+    (void)total_amount;
+    while (bytes_remaining >= (int)(MIX_CHANNELS * sizeof(int16_t))) {
+        uint32_t frames = (uint32_t)bytes_remaining /
+            (MIX_CHANNELS * sizeof(int16_t));
+        int byte_count;
+        if (frames > MIX_BUFFER_SAMPLES) frames = MIX_BUFFER_SAMPLES;
+        byte_count = (int)(frames * MIX_CHANNELS * sizeof(int16_t));
+        lock_audio();
+        mix_audio_frames(buffer, frames);
+        unlock_audio();
+        if (!SDL_PutAudioStreamData(stream, buffer, byte_count)) break;
+        bytes_remaining -= byte_count;
+    }
+}
 #endif
 
 void allstar_audio_init(AllStarAudioEngine *audio) {
@@ -529,11 +834,15 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
     audio->volume = 1.0f;
     audio->current_bgm = ALLSTAR_BGM_NONE;
 
-#ifdef _WIN32
+#if ALLSTAR_AUDIO_OUTPUT
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
     if (!g_lock_initialized) {
         InitializeCriticalSection(&g_audio_lock);
         g_lock_initialized = true;
     }
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (!g_audio_lock) g_audio_lock = SDL_CreateMutex();
+#endif
 
     /* Pre-cache audio tracks into RAM */
     load_pcm_wav("bgm_title.wav", &g_bgm[ALLSTAR_BGM_TITLE]);
@@ -546,14 +855,85 @@ void allstar_audio_init(AllStarAudioEngine *audio) {
     generate_gameplay_sfx_fallbacks();
 
     memset(g_sfx_voices, 0, sizeof(g_sfx_voices));
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
     g_mixer_running = true;
+#endif
     g_requested_bgm = ALLSTAR_BGM_NONE;
     g_current_bgm = ALLSTAR_BGM_NONE;
 
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
     if (!g_mixer_thread) {
         g_mixer_thread = CreateThread(NULL, 0, audio_mixer_thread, NULL, 0, NULL);
     }
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_audio_lock && !g_audio_stream) {
+        SDL_AudioSpec spec;
+        SDL_zero(spec);
+        spec.format = SDL_AUDIO_S16LE;
+        spec.channels = MIX_CHANNELS;
+        spec.freq = MIX_SAMPLE_RATE;
+        g_audio_stream = SDL_OpenAudioDeviceStream(
+            SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
+            sdl_audio_callback, NULL);
+        if (g_audio_stream) {
+            SDL_AudioDeviceID device =
+                SDL_GetAudioStreamDevice(g_audio_stream);
+            const char *device_name = SDL_GetAudioDeviceName(device);
+            if (!SDL_ResumeAudioStreamDevice(g_audio_stream)) {
+                SDL_Log("Could not start audio output: %s", SDL_GetError());
+            } else {
+                SDL_Log("Audio output started: %s, %d Hz, stereo S16",
+                        device_name ? device_name : "default device",
+                        MIX_SAMPLE_RATE);
+            }
+        } else {
+            SDL_Log("Audio output disabled: %s", SDL_GetError());
+        }
+    }
 #endif
+#endif
+}
+
+void allstar_audio_shutdown(AllStarAudioEngine *audio) {
+#if ALLSTAR_AUDIO_OUTPUT
+    size_t index;
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
+    g_mixer_running = false;
+    if (g_mixer_thread) {
+        WaitForSingleObject(g_mixer_thread, INFINITE);
+        CloseHandle(g_mixer_thread);
+        g_mixer_thread = NULL;
+    }
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_audio_stream) {
+        SDL_PauseAudioStreamDevice(g_audio_stream);
+        SDL_DestroyAudioStream(g_audio_stream);
+        g_audio_stream = NULL;
+    }
+#endif
+    lock_audio();
+    for (index = 0; index < ALLSTAR_BGM_COUNT; index++)
+        free_pcm_sound(&g_bgm[index]);
+    for (index = 0; index < ALLSTAR_SFX_COUNT; index++)
+        free_pcm_sound(&g_sfx[index]);
+    memset(g_sfx_voices, 0, sizeof(g_sfx_voices));
+    unlock_audio();
+#if defined(_WIN32) && !defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_lock_initialized) {
+        DeleteCriticalSection(&g_audio_lock);
+        g_lock_initialized = false;
+    }
+#elif defined(ALLSTAR_USE_SDL_AUDIO)
+    if (g_audio_lock) {
+        SDL_DestroyMutex(g_audio_lock);
+        g_audio_lock = NULL;
+    }
+#endif
+#endif
+    if (audio) {
+        audio->enabled = false;
+        audio->current_bgm = ALLSTAR_BGM_NONE;
+    }
 }
 
 bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
@@ -569,11 +949,16 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *free_throw_contact;
     const AllStarRomSfxProgram *horse_letter;
     const AllStarRomSfxProgram *accuracy_result;
+    const AllStarRomMusicProgram *title_music;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) == 0 ||
+        (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_MUSIC) == 0 ||
         pack->header.rom_sfx_program_count !=
-            ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
+            ALLSTAR_ROM_SFX_PROGRAM_COUNT ||
+        pack->header.rom_music_program_count !=
+            ALLSTAR_ROM_MUSIC_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
     score = &pack->rom_sfx_programs[1];
     dribble = &pack->rom_sfx_programs[2];
@@ -585,6 +970,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     free_throw_contact = &pack->rom_sfx_programs[8];
     horse_letter = &pack->rom_sfx_programs[9];
     accuracy_result = &pack->rom_sfx_programs[10];
+    title_music = &pack->rom_music_programs[0];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -648,9 +1034,19 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         movement->source_checksum != free_throw_net->source_checksum ||
         movement->source_checksum != free_throw_contact->source_checksum ||
         movement->source_checksum != horse_letter->source_checksum ||
-        movement->source_checksum != accuracy_result->source_checksum)
+        movement->source_checksum != accuracy_result->source_checksum ||
+        title_music->song_id != 1 || title_music->update_skip != 7 ||
+        title_music->frame_count != 3360 ||
+        title_music->loop_frame != 1568 ||
+        title_music->program_pointer != 0x3b25 ||
+        title_music->offset_pointer != 0x3aab ||
+        title_music->source_checksum != 0x7ae8b9d0u ||
+        title_music->frames[0].square1_frequency != 0x069e ||
+        title_music->frames[0].square2_frequency != 0x0627 ||
+        title_music->frames[0].wave_frequency != 0x053b ||
+        title_music->frames[0].flags != 0xff)
         return false;
-#ifdef _WIN32
+#if ALLSTAR_AUDIO_OUTPUT
     {
         PcmSound movement_pcm = {0};
         PcmSound score_pcm = {0};
@@ -663,6 +1059,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         PcmSound free_throw_contact_pcm = {0};
         PcmSound horse_letter_pcm = {0};
         PcmSound accuracy_result_pcm = {0};
+        PcmSound title_music_pcm = {0};
         if (!generate_rom_program(&movement_pcm, movement) ||
             !generate_rom_program(&score_pcm, score) ||
             !generate_rom_program(&dribble_pcm, dribble) ||
@@ -674,7 +1071,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             !generate_rom_program(&free_throw_contact_pcm,
                                   free_throw_contact) ||
             !generate_rom_program(&horse_letter_pcm, horse_letter) ||
-            !generate_rom_program(&accuracy_result_pcm, accuracy_result)) {
+            !generate_rom_program(&accuracy_result_pcm, accuracy_result) ||
+            !generate_rom_music(&title_music_pcm, title_music)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
@@ -686,9 +1084,11 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             free_pcm_sound(&free_throw_contact_pcm);
             free_pcm_sound(&horse_letter_pcm);
             free_pcm_sound(&accuracy_result_pcm);
+            free_pcm_sound(&title_music_pcm);
             return false;
         }
-        EnterCriticalSection(&g_audio_lock);
+        lock_audio();
+        free_pcm_sound(&g_bgm[ALLSTAR_BGM_TITLE]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_SHOE_SQUEAK]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_SCORE_CHIME]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_DRIBBLE]);
@@ -700,6 +1100,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_HORSE_LETTER]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_ACCURACY_RESULT]);
+        g_bgm[ALLSTAR_BGM_TITLE] = title_music_pcm;
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
@@ -711,7 +1112,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT] = free_throw_contact_pcm;
         g_sfx[ALLSTAR_SFX_HORSE_LETTER] = horse_letter_pcm;
         g_sfx[ALLSTAR_SFX_ACCURACY_RESULT] = accuracy_result_pcm;
-        LeaveCriticalSection(&g_audio_lock);
+        unlock_audio();
     }
 #endif
     audio->rom_sfx_bound = true;
@@ -722,7 +1123,6 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
 bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
                                       uint8_t command,
                                       const char *filepath) {
-#ifdef _WIN32
     const AllStarRomSfxProgram *program = NULL;
     PcmSound sound = {0};
     FILE *file;
@@ -744,8 +1144,7 @@ bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
         }
     }
     if (!program || !generate_rom_program(&sound, program)) return false;
-    file = NULL;
-    fopen_s(&file, filepath, "wb");
+    file = open_binary_file(filepath, "wb");
     if (!file) {
         free_pcm_sound(&sound);
         return false;
@@ -774,12 +1173,6 @@ bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
     fclose(file);
     free_pcm_sound(&sound);
     return true;
-#else
-    (void)pack;
-    (void)command;
-    (void)filepath;
-    return false;
-#endif
 }
 
 void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
@@ -787,9 +1180,8 @@ void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
         sfx >= ALLSTAR_SFX_COUNT) return;
     audio->last_sfx = sfx;
     audio->sfx_play_count++;
-#ifdef _WIN32
-    if (!g_lock_initialized) return;
-    EnterCriticalSection(&g_audio_lock);
+#if ALLSTAR_AUDIO_OUTPUT
+    lock_audio();
     /* The DMG command driver owns one voice per effect. Re-selecting command
        $0C on each record-6 update restarts that voice instead of stacking six
        simultaneous copies in the native PCM mixer. */
@@ -811,7 +1203,7 @@ void allstar_audio_play_sfx(AllStarAudioEngine *audio, AllStarSfxId sfx) {
     g_sfx_voices[slot].sfx_id = sfx;
     g_sfx_voices[slot].playhead = 0;
     g_sfx_voices[slot].active = true;
-    LeaveCriticalSection(&g_audio_lock);
+    unlock_audio();
 #endif
 }
 
@@ -828,8 +1220,10 @@ void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
     if (audio->current_bgm == bgm) return;
     audio->current_bgm = bgm;
 
-#ifdef _WIN32
+#if ALLSTAR_AUDIO_OUTPUT
+    lock_audio();
     g_requested_bgm = bgm;
+    unlock_audio();
 #endif
 }
 
@@ -837,8 +1231,10 @@ void allstar_audio_play_bgm(AllStarAudioEngine *audio, AllStarBgmId bgm) {
 void allstar_audio_stop_bgm(AllStarAudioEngine *audio) {
     if (!audio) return;
     audio->current_bgm = ALLSTAR_BGM_NONE;
-#ifdef _WIN32
+#if ALLSTAR_AUDIO_OUTPUT
+    lock_audio();
     g_requested_bgm = ALLSTAR_BGM_NONE;
+    unlock_audio();
 #endif
 }
 

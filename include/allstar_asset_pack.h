@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 16
+#define ALLSTAR_ASSET_VERSION 17
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -28,9 +28,12 @@
 #define ALLSTAR_FREE_THROW_BALL_MAP_SIZE 16
 #define ALLSTAR_ROM_SFX_PROGRAM_COUNT 11
 #define ALLSTAR_ROM_SFX_MAX_FRAMES 144
+#define ALLSTAR_ROM_MUSIC_PROGRAM_COUNT 1
+#define ALLSTAR_ROM_MUSIC_MAX_FRAMES 4096
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
 #define ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO (1u << 1)
 #define ALLSTAR_ASSET_FEATURE_FREE_THROW_ART (1u << 2)
+#define ALLSTAR_ASSET_FEATURE_ROM_MUSIC (1u << 3)
 
 #define ALLSTAR_ROM_SFX_CHANNEL_1 (1u << 0)
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
@@ -38,6 +41,15 @@
 #define ALLSTAR_ROM_SFX_TRIGGER_2 (1u << 3)
 #define ALLSTAR_ROM_SFX_CHANNEL_4 (1u << 4)
 #define ALLSTAR_ROM_SFX_TRIGGER_4 (1u << 5)
+
+#define ALLSTAR_ROM_MUSIC_SQUARE1 (1u << 0)
+#define ALLSTAR_ROM_MUSIC_TRIGGER1 (1u << 1)
+#define ALLSTAR_ROM_MUSIC_SQUARE2 (1u << 2)
+#define ALLSTAR_ROM_MUSIC_TRIGGER2 (1u << 3)
+#define ALLSTAR_ROM_MUSIC_WAVE (1u << 4)
+#define ALLSTAR_ROM_MUSIC_TRIGGER_WAVE (1u << 5)
+#define ALLSTAR_ROM_MUSIC_NOISE (1u << 6)
+#define ALLSTAR_ROM_MUSIC_TRIGGER_NOISE (1u << 7)
 
 /* Bank 1 $6A8C consumes the lists selected by the pointer table at $6C60.
    Normal records use all three bytes. Loop records use only control; action
@@ -95,6 +107,39 @@ typedef struct {
     AllStarRomSfxFrame frames[ALLSTAR_ROM_SFX_MAX_FRAMES];
 } AllStarRomSfxProgram;
 
+/* Per-59.7 Hz APU state decoded from the title song's native control and
+   note streams. Instrument parameters are retained per frame because songs
+   switch descriptors while running. */
+typedef struct {
+    uint16_t square1_frequency;
+    uint16_t square2_frequency;
+    uint16_t wave_frequency;
+    uint8_t flags;
+    uint8_t square1_sweep;
+    uint8_t square1_duty_length;
+    uint8_t square1_envelope;
+    uint8_t square2_duty_length;
+    uint8_t square2_envelope;
+    uint8_t wave_output_level;
+    uint8_t wave_table;
+    uint8_t noise_length;
+    uint8_t noise_envelope;
+    uint8_t noise_polynomial;
+    uint8_t noise_control;
+} AllStarRomMusicFrame;
+
+typedef struct {
+    uint8_t song_id;
+    uint8_t update_skip;
+    uint16_t frame_count;
+    uint16_t loop_frame;
+    uint16_t program_pointer;
+    uint16_t offset_pointer;
+    uint32_t source_checksum;
+    uint8_t wave_tables[16][16];
+    AllStarRomMusicFrame frames[ALLSTAR_ROM_MUSIC_MAX_FRAMES];
+} AllStarRomMusicProgram;
+
 typedef struct {
     char name[24];
     char first_name[16];
@@ -127,6 +172,7 @@ typedef struct {
     uint32_t court_tile_count;
     uint32_t net_tile_count;
     uint32_t rom_sfx_program_count;
+    uint32_t rom_music_program_count;
     uint32_t feature_flags;
     uint32_t checksum;
 } AllStarAssetHeader;
@@ -160,6 +206,8 @@ typedef struct {
     uint8_t free_throw_ball_maps[ALLSTAR_FREE_THROW_BALL_MAP_COUNT]
                                 [ALLSTAR_FREE_THROW_BALL_MAP_SIZE];
     AllStarRomSfxProgram rom_sfx_programs[ALLSTAR_ROM_SFX_PROGRAM_COUNT];
+    AllStarRomMusicProgram
+        rom_music_programs[ALLSTAR_ROM_MUSIC_PROGRAM_COUNT];
     bool is_loaded;
 } AllStarAssetPack;
 

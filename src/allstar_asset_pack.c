@@ -669,6 +669,338 @@ static bool extract_gameplay_audio(AllStarAssetPack *pack,
     return true;
 }
 
+typedef struct {
+    uint16_t control_base;
+    uint16_t control_position;
+    uint16_t stream_base;
+    uint16_t stream_position;
+    uint16_t descriptor;
+    uint8_t duration;
+    uint8_t note;
+    uint8_t previous_tie;
+    uint8_t loop_target;
+    uint8_t loop_count;
+    uint8_t modulation_phase;
+    uint8_t active;
+    uint8_t triggered;
+} RomMusicTrackState;
+
+typedef struct {
+    RomMusicTrackState tracks[4];
+    uint8_t countdown;
+} RomMusicSequencerState;
+
+static bool music_state_equal(const RomMusicSequencerState *left,
+                              const RomMusicSequencerState *right) {
+    size_t channel;
+    if (!left || !right || left->countdown != right->countdown) return false;
+    for (channel = 0; channel < 4; channel++) {
+        const RomMusicTrackState *a = &left->tracks[channel];
+        const RomMusicTrackState *b = &right->tracks[channel];
+        if (a->control_base != b->control_base ||
+            a->control_position != b->control_position ||
+            a->stream_base != b->stream_base ||
+            a->stream_position != b->stream_position ||
+            a->descriptor != b->descriptor ||
+            a->duration != b->duration || a->note != b->note ||
+            a->previous_tie != b->previous_tie ||
+            a->loop_target != b->loop_target ||
+            a->loop_count != b->loop_count ||
+            a->modulation_phase != b->modulation_phase ||
+            a->active != b->active || a->triggered != b->triggered)
+            return false;
+    }
+    return true;
+}
+
+static bool music_start_stream(const AllStarRom *rom,
+                               RomMusicTrackState *track,
+                               uint16_t program_pointer,
+                               uint16_t offset_pointer,
+                               uint8_t stream_index) {
+    size_t offset_address =
+        (size_t)offset_pointer + (size_t)stream_index * 2u;
+    uint16_t relative;
+    if (!rom || !track || offset_address + 1 >= rom->size) return false;
+    relative = rom_word(rom, offset_address);
+    if ((size_t)program_pointer + relative >= rom->size) return false;
+    track->stream_base = (uint16_t)(program_pointer + relative);
+    track->stream_position = 0;
+    return true;
+}
+
+static bool music_next_note(const AllStarRom *rom,
+                            RomMusicTrackState *track,
+                            uint16_t program_pointer,
+                            uint16_t offset_pointer) {
+    unsigned guard = 0;
+    if (!rom || !track) return false;
+    while (track->active && guard++ < 1024u) {
+        if (track->stream_base != 0) {
+            size_t cursor = (size_t)track->stream_base +
+                track->stream_position;
+            uint8_t value;
+            uint8_t duration_flags;
+            uint8_t duration;
+            if (cursor >= rom->size) return false;
+            value = rom->data[cursor];
+            if (value == 0xff) {
+                track->stream_base = 0;
+                track->stream_position = 0;
+                continue;
+            }
+            if ((value & 0x80) != 0) {
+                size_t descriptor =
+                    0x3888u + (size_t)(value & 0x7f) * 8u;
+                if (descriptor + 7 >= rom->size) return false;
+                track->descriptor = (uint16_t)descriptor;
+                track->stream_position++;
+                continue;
+            }
+            if (cursor + 1 >= rom->size || track->descriptor == 0)
+                return false;
+            duration_flags = rom->data[cursor + 1];
+            if (0x312bu + (duration_flags & 0x1fu) >= rom->size)
+                return false;
+            duration = rom->data[0x312b + (duration_flags & 0x1f)];
+            if (duration == 0) return false;
+            track->stream_position += 2;
+            track->note = value == 0 ? 0 : (uint8_t)(
+                value + rom->data[track->descriptor + 1]);
+            track->triggered =
+                value != 0 && track->previous_tie == 0;
+            if (track->triggered) track->modulation_phase = 0;
+            track->previous_tie = duration_flags & 0x40;
+            track->duration = (uint8_t)(duration - 1u);
+            return true;
+        } else {
+            size_t cursor = (size_t)track->control_base +
+                track->control_position;
+            uint8_t command;
+            if (cursor >= rom->size) return false;
+            command = rom->data[cursor];
+            if (command == 0) {
+                track->active = 0;
+                track->note = 0;
+                return true;
+            }
+            if (command == 1) {
+                if (cursor + 1 >= rom->size) return false;
+                track->control_position += 2;
+                if (!music_start_stream(
+                        rom, track, program_pointer, offset_pointer,
+                        rom->data[cursor + 1])) return false;
+                continue;
+            }
+            if (command == 2) {
+                if (cursor + 1 >= rom->size) return false;
+                track->control_position = rom->data[cursor + 1];
+                continue;
+            }
+            if (command == 3) {
+                if (cursor + 2 >= rom->size) return false;
+                if (track->loop_count == 0) {
+                    track->loop_target = rom->data[cursor + 1];
+                    track->loop_count = rom->data[cursor + 2];
+                    track->control_position = track->loop_target;
+                } else if (track->loop_count == 1) {
+                    track->loop_count = 0;
+                    track->control_position += 3;
+                } else {
+                    track->loop_count--;
+                    track->control_position = track->loop_target;
+                }
+                continue;
+            }
+            return false;
+        }
+    }
+    return guard < 1024u;
+}
+
+static bool music_update_track(const AllStarRom *rom,
+                               RomMusicTrackState *track,
+                               uint16_t program_pointer,
+                               uint16_t offset_pointer) {
+    if (!track || !track->active) return true;
+    if (track->duration != 0) {
+        track->duration--;
+        if (track->descriptor != 0 &&
+            (rom->data[track->descriptor + 7] & 0x80) != 0)
+            track->modulation_phase =
+                (uint8_t)((track->modulation_phase + 1u) & 0x0fu);
+        return true;
+    }
+    return music_next_note(
+        rom, track, program_pointer, offset_pointer);
+}
+
+static uint16_t music_track_frequency(const AllStarRom *rom,
+                                      const RomMusicTrackState *track) {
+    int frequency;
+    if (!rom || !track || track->note == 0 || track->descriptor == 0 ||
+        0x31c6u + track->note >= rom->size ||
+        0x3159u + track->note >= rom->size) return 0;
+    frequency = rom->data[0x31c6 + track->note] |
+        ((int)rom->data[0x3159 + track->note] << 8);
+    if ((rom->data[track->descriptor + 7] & 0x80) != 0)
+        frequency += (int8_t)rom->data[
+            0x3244 + track->modulation_phase];
+    return (uint16_t)frequency & 0x07ffu;
+}
+
+static bool music_snapshot(const AllStarRom *rom,
+                           const RomMusicSequencerState *state,
+                           AllStarRomMusicFrame *frame) {
+    const RomMusicTrackState *square1 = &state->tracks[0];
+    const RomMusicTrackState *square2 = &state->tracks[1];
+    const RomMusicTrackState *wave = &state->tracks[2];
+    const RomMusicTrackState *noise = &state->tracks[3];
+    if (!rom || !state || !frame) return false;
+    memset(frame, 0, sizeof(*frame));
+    if (square1->active && square1->note != 0) {
+        frame->flags |= ALLSTAR_ROM_MUSIC_SQUARE1;
+        if (square1->triggered)
+            frame->flags |= ALLSTAR_ROM_MUSIC_TRIGGER1;
+        frame->square1_frequency = music_track_frequency(rom, square1);
+        frame->square1_sweep = rom->data[square1->descriptor + 2];
+        frame->square1_duty_length = rom->data[square1->descriptor + 3];
+        frame->square1_envelope = rom->data[square1->descriptor + 4];
+    }
+    if (square2->active && square2->note != 0) {
+        frame->flags |= ALLSTAR_ROM_MUSIC_SQUARE2;
+        if (square2->triggered)
+            frame->flags |= ALLSTAR_ROM_MUSIC_TRIGGER2;
+        frame->square2_frequency = music_track_frequency(rom, square2);
+        frame->square2_duty_length = rom->data[square2->descriptor + 3];
+        frame->square2_envelope = rom->data[square2->descriptor + 4];
+    }
+    if (wave->active && wave->note != 0) {
+        frame->flags |= ALLSTAR_ROM_MUSIC_WAVE;
+        if (wave->triggered)
+            frame->flags |= ALLSTAR_ROM_MUSIC_TRIGGER_WAVE;
+        frame->wave_frequency = music_track_frequency(rom, wave);
+        frame->wave_table = rom->data[wave->descriptor + 2] & 0x0f;
+        frame->wave_output_level = rom->data[wave->descriptor + 4];
+    }
+    if (noise->active && noise->note != 0) {
+        size_t polynomial = 0x3233u + noise->note;
+        if (polynomial >= rom->size) return false;
+        frame->flags |= ALLSTAR_ROM_MUSIC_NOISE;
+        if (noise->triggered)
+            frame->flags |= ALLSTAR_ROM_MUSIC_TRIGGER_NOISE;
+        frame->noise_length = rom->data[noise->descriptor + 3];
+        frame->noise_envelope = rom->data[noise->descriptor + 4];
+        frame->noise_polynomial = (uint8_t)(
+            (rom->data[noise->descriptor + 5] & 0x0f) |
+            rom->data[polynomial]);
+        frame->noise_control = rom->data[noise->descriptor + 6];
+    }
+    return true;
+}
+
+static bool extract_title_music(AllStarAssetPack *pack,
+                                const AllStarRom *rom) {
+    static const uint16_t channel_tables[4] = {
+        0x378b, 0x37b1, 0x37d7, 0x37fd
+    };
+    AllStarRomMusicProgram *program;
+    RomMusicSequencerState state;
+    RomMusicSequencerState *history;
+    size_t frame;
+    size_t channel;
+    size_t loop_frame = ALLSTAR_ROM_MUSIC_MAX_FRAMES;
+    if (!pack || !rom || rom->size <= 0x3fc1) return false;
+    program = &pack->rom_music_programs[0];
+    memset(program, 0, sizeof(*program));
+    memset(&state, 0, sizeof(state));
+    program->song_id = 1;
+    program->program_pointer = rom_word(rom, 0x3849 + 2);
+    program->offset_pointer = rom_word(rom, 0x3823 + 2);
+    program->update_skip = rom->data[0x386f + 1];
+    program->source_checksum = fnv1a_bytes(
+        rom->data + 0x3111, 0x3fc2 - 0x3111);
+    memcpy(program->wave_tables, rom->data + 0x3fb2,
+           sizeof(program->wave_tables));
+    state.countdown = 1;
+    for (channel = 0; channel < 4; channel++) {
+        RomMusicTrackState *track = &state.tracks[channel];
+        track->control_base = rom_word(
+            rom, channel_tables[channel] + 2);
+        track->active = 1;
+        if (!music_next_note(rom, track, program->program_pointer,
+                             program->offset_pointer)) return false;
+    }
+    history = (RomMusicSequencerState *)calloc(
+        ALLSTAR_ROM_MUSIC_MAX_FRAMES + 1u, sizeof(*history));
+    if (!history) return false;
+    history[0] = state;
+    if (!music_snapshot(rom, &state, &program->frames[0])) {
+        free(history);
+        return false;
+    }
+    for (frame = 1; frame < ALLSTAR_ROM_MUSIC_MAX_FRAMES; frame++) {
+        for (channel = 0; channel < 4; channel++)
+            state.tracks[channel].triggered = 0;
+        if (program->update_skip == 0) {
+            for (channel = 0; channel < 4; channel++) {
+                if (!music_update_track(
+                        rom, &state.tracks[channel],
+                        program->program_pointer, program->offset_pointer)) {
+                    free(history);
+                    return false;
+                }
+            }
+        } else {
+            state.countdown--;
+            if (state.countdown == 0) {
+                state.countdown = program->update_skip;
+            } else {
+                for (channel = 0; channel < 4; channel++) {
+                    if (!music_update_track(
+                            rom, &state.tracks[channel],
+                            program->program_pointer,
+                            program->offset_pointer)) {
+                        free(history);
+                        return false;
+                    }
+                }
+            }
+        }
+        if (!music_snapshot(rom, &state, &program->frames[frame])) {
+            free(history);
+            return false;
+        }
+        for (loop_frame = 0; loop_frame < frame; loop_frame++) {
+            if (music_state_equal(&state, &history[loop_frame])) break;
+        }
+        if (loop_frame < frame) {
+            program->frame_count = (uint16_t)frame;
+            program->loop_frame = (uint16_t)loop_frame;
+            break;
+        }
+        history[frame] = state;
+    }
+    free(history);
+    if (program->song_id != 1 || program->program_pointer != 0x3b25 ||
+        program->offset_pointer != 0x3aab || program->update_skip != 7 ||
+        program->frame_count != 3360 || program->loop_frame != 1568 ||
+        program->source_checksum != 0x7ae8b9d0u ||
+        program->frames[0].square1_frequency != 0x069e ||
+        program->frames[0].square2_frequency != 0x0627 ||
+        program->frames[0].wave_frequency != 0x053b ||
+        (program->frames[0].flags &
+            (ALLSTAR_ROM_MUSIC_SQUARE1 | ALLSTAR_ROM_MUSIC_TRIGGER1 |
+             ALLSTAR_ROM_MUSIC_SQUARE2 | ALLSTAR_ROM_MUSIC_TRIGGER2 |
+             ALLSTAR_ROM_MUSIC_WAVE | ALLSTAR_ROM_MUSIC_TRIGGER_WAVE |
+             ALLSTAR_ROM_MUSIC_NOISE | ALLSTAR_ROM_MUSIC_TRIGGER_NOISE)) !=
+            0xff) return false;
+    pack->header.rom_music_program_count =
+        ALLSTAR_ROM_MUSIC_PROGRAM_COUNT;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ROM_MUSIC;
+    return true;
+}
+
 static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *movement;
     const AllStarRomSfxProgram *score;
@@ -807,6 +1139,22 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
         movement->source_checksum == accuracy_result->source_checksum;
 }
 
+static bool validate_title_music(const AllStarAssetPack *pack) {
+    const AllStarRomMusicProgram *program;
+    if (!pack || pack->header.rom_music_program_count !=
+            ALLSTAR_ROM_MUSIC_PROGRAM_COUNT) return false;
+    program = &pack->rom_music_programs[0];
+    return program->song_id == 1 && program->update_skip == 7 &&
+        program->frame_count == 3360 && program->loop_frame == 1568 &&
+        program->program_pointer == 0x3b25 &&
+        program->offset_pointer == 0x3aab &&
+        program->source_checksum == 0x7ae8b9d0u &&
+        program->frames[0].square1_frequency == 0x069e &&
+        program->frames[0].square2_frequency == 0x0627 &&
+        program->frames[0].wave_frequency == 0x053b &&
+        program->frames[0].flags == 0xff;
+}
+
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
     if (!pack) return;
     memset(pack, 0, sizeof(AllStarAssetPack));
@@ -882,6 +1230,10 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid One-on-One $3014 audio streams\n");
         return false;
     }
+    if (!extract_title_music(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid title music stream\n");
+        return false;
+    }
 
     /* Verify and retain authentic 27-player roster */
     AllStarRoster temp_roster;
@@ -893,10 +1245,11 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
 
     printf("[AssetPack] Built asset pack from ROM: '%s' "
            "(%u tiles, %u players, %u animation actions, One-on-One/Free Throw art, "
-           "%u ROM audio programs)\n",
+           "%u ROM sound programs, %u ROM songs)\n",
            rom->header.title, pack->header.tile_count,
            pack->header.player_count, pack->header.animation_action_count,
-           pack->header.rom_sfx_program_count);
+           pack->header.rom_sfx_program_count,
+           pack->header.rom_music_program_count);
 
     return true;
 }
@@ -957,7 +1310,10 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
                sizeof(pack->free_throw_ball_maps) ||
         fwrite(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
                pack->header.rom_sfx_program_count, f) !=
-               pack->header.rom_sfx_program_count) {
+               pack->header.rom_sfx_program_count ||
+        fwrite(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
+               pack->header.rom_music_program_count, f) !=
+               pack->header.rom_music_program_count) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -1032,7 +1388,14 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
               ALLSTAR_ROM_SFX_PROGRAM_COUNT)) ||
         ((pack->header.feature_flags &
              ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) == 0 &&
-         pack->header.rom_sfx_program_count != 0)) {
+         pack->header.rom_sfx_program_count != 0) ||
+        ((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ROM_MUSIC) != 0 &&
+         pack->header.rom_music_program_count !=
+             ALLSTAR_ROM_MUSIC_PROGRAM_COUNT) ||
+        ((pack->header.feature_flags &
+             ALLSTAR_ASSET_FEATURE_ROM_MUSIC) == 0 &&
+         pack->header.rom_music_program_count != 0)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One asset counts\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);
@@ -1089,7 +1452,10 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
               sizeof(pack->free_throw_ball_maps) ||
         fread(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
               pack->header.rom_sfx_program_count, f) !=
-              pack->header.rom_sfx_program_count) {
+              pack->header.rom_sfx_program_count ||
+        fread(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
+              pack->header.rom_music_program_count, f) !=
+              pack->header.rom_music_program_count) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);
@@ -1104,13 +1470,22 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
         allstar_asset_pack_init_default(pack);
         return false;
     }
+    if ((pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_MUSIC) != 0 &&
+        !validate_title_music(pack)) {
+        fprintf(stderr, "[AssetPack] Invalid decoded title music\n");
+        fclose(f);
+        allstar_asset_pack_init_default(pack);
+        return false;
+    }
 
     fclose(f);
     pack->is_loaded = true;
     printf("[AssetPack] Loaded asset pack: %u tiles, %u players, "
-           "%u animation actions, %u ROM audio programs\n",
+           "%u animation actions, %u ROM sound programs, %u ROM songs\n",
            pack->header.tile_count, pack->header.player_count,
            pack->header.animation_action_count,
-           pack->header.rom_sfx_program_count);
+           pack->header.rom_sfx_program_count,
+           pack->header.rom_music_program_count);
     return true;
 }

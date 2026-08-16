@@ -54,10 +54,6 @@ static bool one_on_one_action_uses_dribble_ball_6f2a(uint8_t action) {
            action == 0x0b || action == 0x10 || action == 0x13;
 }
 
-static bool one_on_one_action_is_defense_jump_70fd(uint8_t action) {
-    return action == 0x05 || action == 0x0c || action == 0x14;
-}
-
 static AllStarRomContactEvent one_on_one_tick_rom_animations(
     SceneOneOnOneData *data,
     AllStarGame *game,

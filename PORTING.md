@@ -17,8 +17,8 @@ This guide separates the intended architecture from the implementation that exis
      .\build\allstar_port.exe --build-assetpack <ROM_PATH.gb> build\allstar.assetpack
      ```
 
-   - Version 15 extracts the complete One-on-One court/player/ball data, Free Throw close-up shooter/background/OBJ data, all 24 animation-control lists, and ten focused ROM audio programs, including Horse `$07` and Free Throw `$08/$0A`.
-   - The runtime no longer requires its former compiled derived-art header. Portraits, remaining-mode background graphics, roster records, music, and remaining audio still need migration behind the same boundary.
+   - Version 17 extracts the complete One-on-One court/player/ball data, Free Throw close-up shooter/background/OBJ data, all 24 animation-control lists, eleven focused ROM audio programs, and the original title/menu song.
+   - The runtime no longer requires its former compiled derived-art header. Portraits, remaining-mode background graphics, roster records, other songs, and remaining audio still need migration behind the same boundary.
 
 3. **No decompilation dependency at runtime**
    - Ghidra pseudocode, assembly, symbols, and traces are reference evidence only.
@@ -42,7 +42,7 @@ The checked USA/Europe ROM header reports the following:
 | Display | 160×144, four DMG shades | 32-bit software framebuffer with selectable palettes. |
 | Tiles | 2bpp planar, 16 bytes per 8×8 tile | One-on-One layout-specific extraction and composition are verified; other modes remain incomplete. |
 | Sprites | Up to 40 OAM entries | Rendered as native sprite/player concepts rather than hardware OAM. |
-| Audio | Two pulse, wave, and noise channels | Current port uses PCM mixing and decodes ten focused ROM command programs; the whole music/sequencer engine is not implemented. |
+| Audio | Two pulse, wave, and noise channels | Current port uses PCM mixing, decodes eleven focused ROM command programs, and renders the title/menu song's four channels; the whole music/sequencer engine is not implemented. |
 
 ### Bank mapping
 
@@ -108,8 +108,9 @@ One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE
 | `src/gameplay/allstar_free_throw.c` | `$0C8E/$100F` Free Throw attempts, aim, launch, fixed-point flight, rim/make, net, and scoring | Expanded gameplay/presentation is 32/32 and Mesen/native traced, including single-player selection, `$0C8E` music stop, `$22A9/$1A25` reticle, `$1A7E` rating make tables, `$1C1D` priority, and `$C12B` gravity hold. |
 | `src/gameplay/allstar_horse.c` | `$0CDF/$0D57/$0E26/$0E36/$6CAB/$7BC0` Horse rules and CPU spots | 30/30 scoped requirements are native and traced; 27/45 full shared Ghidra routines have strict verified credit. |
 | `src/allstar_renderer.c` | Software pixels and ROM-derived court/player/ball composition | One-on-One `$2945/$2A2B` player and `$6945/$69F5` ball/shadow paths consume the user-built pack; Free Throw's separate renderer is in `scene_free_throw.c`. |
-| `src/audio/allstar_audio.c` | Win32 PCM WAV mixer | Ten focused ROM commands are decoded, including Horse `$07` and Free Throw `$08/$0A`; the complete sequencer/music engine remains partial. |
-| `src/allstar_asset_pack.c` | Versioned container, graphics/animation extraction, and focused audio decoding | Version 15 validates One-on-One art, exact Free Throw `$2243/$1CBD` art/maps, Horse X reuse, and ten ROM audio programs; portraits and music remain partial. |
+| `src/sdl_game_main.c` | SDL 3 video, keyboard/gamepad input, frame pacing, and app lifecycle | Shared host builds on macOS, Windows, and Linux; iOS packaging and touch controls remain. |
+| `src/audio/allstar_audio.c` | Shared PCM mixer with SDL and Win32 output backends | Eleven focused ROM commands plus the title/menu song are decoded, including Accuracy `$02`, Horse `$07`, and Free Throw `$08/$0A`; the complete sequencer/music engine remains partial. |
+| `src/allstar_asset_pack.c` | Versioned container, graphics/animation extraction, and focused audio decoding | Version 17 validates One-on-One art, exact Free Throw `$2243/$1CBD` art/maps, Horse X reuse, eleven ROM audio programs, and the title/menu song; portraits and other songs remain partial. |
 
 The actual frame tick is:
 
@@ -122,7 +123,8 @@ void allstar_game_tick(AllStarGame *game, float dt) {
 }
 ```
 
-Input is updated by the Win32 host before this call.
+Input is updated by the SDL host (or the optional Win32 reference host) before
+this call.
 
 ## 5. Game-Mode Status
 
@@ -140,9 +142,9 @@ Input is updated by the Win32 host before this call.
 
 ## 6. Audio Status
 
-The ROM contains a multi-channel command/sequencing engine in bank 0, with confirmed APU-writing code in the approximate `$3014..$36DB` region. Nine focused commands are decoded through the command/program/instrument tables, including Free Throw net `$08` and contact `$0A`; the complete parser, song data, and remaining event map still require reverse engineering.
+The ROM contains a multi-channel command/sequencing engine in bank 0, with confirmed APU-writing code in the approximate `$3014..$36DB` region. Eleven focused commands are decoded through the command/program/instrument tables, including Free Throw net `$08` and contact `$0A`. The title/menu song is decoded from its control, note, instrument, wave-table, and loop data into version 17 of the user-built asset pack. Other songs, the general-purpose sequencer, and the remaining event map still require reverse engineering.
 
-The native port currently loads three BGM WAV files and two menu SFX WAV files. Tone generation and per-frame audio sequencing functions are no-ops, so gameplay sound events without loaded samples are silent.
+The native mixer renders the packed title/menu song through two pulse channels, the wave channel, and noise at Game Boy frame timing, then loops from the state-derived loop point. Optional WAV files can still supply other tracks; decoded ROM cues replace native fallback effects when the pack is loaded.
 
 ## 7. Verification
 

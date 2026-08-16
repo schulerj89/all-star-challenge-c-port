@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "metric": {"name":"accuracy_one_player_requirements","total":24},
+  "metric": {"name":"accuracy_one_player_requirements","total":25},
   "requirements": [
     {"id":"route.mode_03","group":"route","status":"verified","evidence":["src/allstar_game.c","tools/emulator/trace_accuracy.lua"]},
     {"id":"route.one_player","group":"route","status":"verified","evidence":["src/scenes/scene_roster_select.c","tools/emulator/trace_accuracy.lua"]},
@@ -23,6 +23,7 @@
     {"id":"score.miss_advance","group":"score","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
     {"id":"score.make_plus_80","group":"score","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
     {"id":"presentation.shared_assets","group":"presentation","status":"verified","evidence":["src/scenes/scene_three_point.c","src/allstar_asset_pack.c"]},
+    {"id":"presentation.scoreboard_76a7","group":"presentation","status":"verified","evidence":["src/gameplay/allstar_accuracy.c","src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
     {"id":"presentation.net_priority","group":"presentation","status":"verified","evidence":["src/scenes/scene_three_point.c","src/allstar_renderer.c"]},
     {"id":"result.time_up_hold","group":"result","status":"verified","evidence":["src/scenes/scene_three_point.c","tools/emulator/trace_accuracy.lua"]},
     {"id":"result.command_02","group":"result","status":"verified","evidence":["src/allstar_asset_pack.c","src/audio/allstar_audio.c","tools/emulator/trace_accuracy.lua"]}

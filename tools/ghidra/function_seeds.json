@@ -30,6 +30,7 @@
         "6c90", "6c9b", "6ca2", "6cab", "6d57", "6e1b", "6e3c",
         "6ec0", "6eea", "6f2a", "6ff3", "7015", "702d", "714d", "7170",
         "74bb", "75cd", "761b", "7712", "7721", "772d",
+        "7749", "7765", "7790", "77a1",
         "780a", "782e", "78e9", "7914", "791d", "794b", "79ee",
         "7a71", "7a90", "7aea", "7afd", "7b7a", "7ba8", "7bc0",
         "7be8", "7c58", "7ea9", "7ec4", "7f37"
@@ -556,6 +557,30 @@
       "native_symbol": "allstar_accuracy_move_custom_cursor_6d57",
       "source": "src/gameplay/allstar_accuracy.c",
       "note": "Four-pixel D-pad cursor movement, court clamps, and the ten-position custom record table are native and boundary-tested."
+    },
+    "rom_b01_7749": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_hud_76a7",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "The active BCD clock is formatted as MM:SS and drawn at the exact $9821 tile destination; the live mode-$03 trace checks the resulting five tiles."
+    },
+    "rom_b01_7765": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_hud_76a7",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "The inactive one-player clock is preserved as 00:00 at the exact $982E tile destination, verified against the original live tile map."
+    },
+    "rom_b01_7790": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_hud_76a7",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "The active score's low three BCD digits are rendered at $9862; native points use the recovered $798B/$FFD6 two/three-point value and the trace proves 002 after the deterministic make."
+    },
+    "rom_b01_77a1": {
+      "status": "verified",
+      "native_symbol": "allstar_accuracy_hud_76a7",
+      "source": "src/gameplay/allstar_accuracy.c",
+      "note": "The inactive one-player score is rendered as 000 at $986F, verified against the original live tile map."
     },
     "rom_b01_6e1b": {
       "status": "candidate",

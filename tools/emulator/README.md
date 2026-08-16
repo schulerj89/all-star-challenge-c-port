@@ -148,5 +148,8 @@ command `$07` APU writes. Require exit code `0` and
 bank-2 `$4000->$4034` one-player/no-VS route before entering fixed `$0E51`.
 It forces the first `$6CA2/$6CAB` RNG group and asserts target `$0C,$94`,
 drives `$7AFD` to three releases, observes `$0EE7` attempts and `$0F1E`
-makes, then expires the clock at `$0FDE`. Command `$02` must write
+makes, and follows `$76A7->$7739` through `$7749/$7765/$7790/$77A1/$780A`.
+It verifies the original `$9821/$982E` clock and `$9862/$986F` score tile
+destinations after both a miss and a make, then expires the clock at `$0FDE`.
+Command `$02` must write
 `NR10..14=$88/$00/$FF/$5B/$BE` and `NR21..24=$3F/$6F/$41/$BE`.

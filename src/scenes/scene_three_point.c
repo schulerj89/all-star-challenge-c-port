@@ -28,6 +28,7 @@ typedef struct {
     float fixed_accumulator, anim_time, shot_animation_clock;
     uint32_t frames_remaining;
     uint16_t phase_frames, shot_frames, made_frame, result_frames;
+    uint16_t points;
     uint8_t shot_action, input_direction, previous_direction;
     uint8_t marker_x, marker_y;
     bool horizontal_flip, shot_made;
@@ -101,6 +102,7 @@ static void launch(AccuracyData *d, AllStarGame *game) {
         d->shot.rom_elapsed_frames);
     float x = d->player.x, y = d->player.y;
     float z = (float)allstar_one_on_one_rom_shot_release_height(index);
+    int point_value;
     AllStarOneOnOneReleaseOffset offset;
     if (allstar_one_on_one_rom_release_offset(
             d->shot_action, d->shot.rom_phase, variant,
@@ -109,12 +111,13 @@ static void launch(AccuracyData *d, AllStarGame *game) {
         y += (float)offset.ground_y_offset;
     }
     d->player.has_ball = d->player.is_jumping = false;
+    point_value = allstar_one_on_one_rom_point_value(x, y);
     allstar_physics_shoot_ball_rom_7c58(
         &d->ball, x, y, z, ALLSTAR_ONE_ON_ONE_HOOP_X,
         ALLSTAR_ONE_ON_ONE_HOOP_Y, distance,
         allstar_one_on_one_rom_shot_vertical_velocity(
             (uint8_t)game->selected_player_1, distance, index),
-        d->shot.rom_phase, 1, 0);
+        d->shot.rom_phase, 1, point_value);
     d->ball.rom_player_shot_phase_active = d->player.is_shooting;
     /* $0EE7->$0B20 increments attempts on release. */
     allstar_accuracy_bcd_increment_0b20(d->mode.attempts_bcd);
@@ -134,7 +137,10 @@ static void move_player(AccuracyData *d, uint8_t held) {
 
 static void finish_attempt(AccuracyData *d) {
     d->player.is_shooting = false;
-    if (d->shot_made) allstar_accuracy_bcd_increment_0b20(d->mode.makes_bcd);
+    if (d->shot_made) {
+        allstar_accuracy_bcd_increment_0b20(d->mode.makes_bcd);
+        d->points = (uint16_t)(d->points + d->ball.point_value);
+    }
     if (d->frames_remaining == 0) {
         d->phase = ACCURACY_RESULT; d->result_frames = 0;
     } else next_position(d);
@@ -299,18 +305,23 @@ static void draw_hud(AllStarRenderer *r, AllStarGame *game,
                      const AccuracyData *d) {
     const AllStarPlayerStats *p = allstar_roster_get_player(
         &game->roster, game->selected_player_1);
-    char line[20], name[10];
-    uint32_t sec = d->frames_remaining / 60;
+    AllStarAccuracyHud hud;
+    char name[10];
     if (r->asset_pack && (r->asset_pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_FREE_THROW_ART)) {
         size_t n = p ? strlen(p->last_name) : 0, off;
         if (n > 9) n = 9; memset(name, ' ', 9); name[9] = 0;
         off = (9 - n) / 2; if (n) memcpy(name + off, p->last_name, n);
         rom_text(r, name, 0, 5);
-        snprintf(line, sizeof(line), "%02u %02u:%02u",
-            allstar_accuracy_bcd_value(d->mode.makes_bcd),
-            sec / 60, sec % 60);
-        rom_text(r, line, 11, 5);
+        allstar_accuracy_hud_76a7(d->frames_remaining, d->points, &hud);
+        rom_text(r, hud.left_timer, ALLSTAR_ACCURACY_TIMER_LEFT_X,
+                 ALLSTAR_ACCURACY_TIMER_Y);
+        rom_text(r, hud.right_timer, ALLSTAR_ACCURACY_TIMER_RIGHT_X,
+                 ALLSTAR_ACCURACY_TIMER_Y);
+        rom_text(r, hud.left_points, ALLSTAR_ACCURACY_POINTS_LEFT_X,
+                 ALLSTAR_ACCURACY_POINTS_Y);
+        rom_text(r, hud.right_points, ALLSTAR_ACCURACY_POINTS_RIGHT_X,
+                 ALLSTAR_ACCURACY_POINTS_Y);
     }
 }
 

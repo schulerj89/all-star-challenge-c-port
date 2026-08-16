@@ -1,10 +1,10 @@
 # NBA All-Star Challenge — Ghidra-to-C Coverage Audit
 
-Last audited: **2026-08-15**
+Last audited: **2026-08-16**
 
 ## Executive Result
 
-For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **63/141 (44.68%)**. All 141 entry points have stable bank-aware symbols and decompile successfully; 40 are explicitly unmapped, 38 have candidate native analogues, and 63 mappings are verified by deterministic tests and traces. Accuracy adds fixed `$0B20/$0E51` to the reviewed inventory and promotes its exact `$6C9B/$6CA2/$6D57` controller helpers. This is a reviewed subset, not a claim that the entire ROM contains only 141 functions.
+For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **67/145 (46.21%)**. All 145 entry points have stable bank-aware symbols and decompile successfully; 40 are explicitly unmapped, 38 have candidate native analogues, and 67 mappings are verified by deterministic tests and traces. Accuracy now includes the independently recovered `$7749/$7765/$7790/$77A1` HUD writers in addition to fixed `$0B20/$0E51` and its `$6C9B/$6CA2/$6D57` controller helpers. This is a reviewed subset, not a claim that the entire ROM contains only 145 functions.
 
 The previous `108/108 (100%)` figure was produced from a hand-written table and a token-presence checker; it did not establish that the ROM routines were identified correctly or reproduced in C.
 
@@ -12,14 +12,15 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **14/25 (56.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **8/11 (72.73%)** verified.
 
-The one-player Accuracy Shootout manifest is **24/24 (100.00%)**. Its
+The one-player Accuracy Shootout manifest is **25/25 (100.00%)**. Its
 Ghidra route is `$4000->$4034->$0E51->$6C9B->$6CA2/$6D57->$7AFD->$702D
-->$7C58->$0EE7/$0F1E->$0FDE`. The strict seven-routine Accuracy-specific
-inventory is 4 verified and 3 candidate (**57.14% whole-routine coverage,
+->$7C58->$0EE7/$0F1E->$0FDE`, with `$76A7->$7739->$7749/$7765/$7790/$77A1
+->$780A` maintaining the live court-panel HUD. The strict eleven-routine
+Accuracy-specific inventory is 8 verified and 3 candidate (**72.73% whole-routine coverage,
 100.00% mapped**); candidate credit remains conservative where the same ROM
 routine has other callers or unrequested two-human state. Mesen proves the
-single-selector route, exact first target, attempts/makes, +80-frame make
-commit, and command `$02` APU output.
+single-selector route, exact first target, four exact HUD tile destinations,
+attempts/makes, +80-frame make commit, and command `$02` APU output.
 
 The H-O-R-S-E gameplay manifest is **30/30 (100.00%)**. The original trace
 follows `$22EF->$255D->$4000->$0CDF->$0D57->$7AEA/$7AFD->$7C58->$0E26->$7BA8`, proving
@@ -90,9 +91,9 @@ Game rules, two-player state synchronization after transport, audio command sequ
 | ROM size | 65,536 bytes | Four 16 KiB banks, not a 32 KiB flat ROM. |
 | Cartridge type | `0x01` — MBC1 | Banks 1–3 share the CPU window `$4000..$7FFF`. |
 | MBC1 bank mapping | 4 of 4 physical banks | Bank 0 is fixed; banks 1–3 are byte-verified overlays at `$4000..$7FFF`. |
-| Reviewed Ghidra functions | 141 functions | 85 in bank 0, 48 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
-| Generated Ghidra C export | 154 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
-| Reviewed routine-to-C parity | 63 of 141 | 63 mappings have address-level C plus deterministic or emulator evidence; 38 candidates remain below whole-routine evidence threshold. |
+| Reviewed Ghidra functions | 145 functions | 85 in bank 0, 52 in bank 1, and 8 in bank 2; every seed creates and decompiles successfully. |
+| Generated Ghidra C export | 158 functions | Reviewed functions plus reset/interrupt vectors and thunks. |
+| Reviewed routine-to-C parity | 67 of 145 | 67 mappings have address-level C plus deterministic or emulator evidence; 38 candidates remain below whole-routine evidence threshold. |
 | `mgbdis` `Call_*` labels | 246 | Candidate entry points; some may be false code. |
 | `mgbdis` `Jump_*` labels | 116 | Branch targets, not necessarily standalone functions. |
 | Unique direct `call` targets | 251 | Analysis queue, not a verified function denominator. |
@@ -107,11 +108,11 @@ Game rules, two-player state synchronization after transport, audio command sequ
 The current conservative boundaries are:
 
 - bank 0: 85 boot, RNG, One-on-One, Free Throw, H-O-R-S-E, Accuracy lifecycle/rules, score-presentation, asset-load, player-composition, steal, recovery, and roster-audio routines;
-- bank 1: 48 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher and `$6F2A` final dribble placement; generated labels before that region remain excluded as likely data false positives;
+- bank 1: 52 functions in coherent code beginning at `$6945`, including the `$6A8C` animation dispatcher, `$6F2A` final dribble placement, and four recovered Accuracy HUD writers; generated labels before that region remain excluded as likely data false positives;
 - bank 2: code at `$4000..$42A1`, followed by a visible data boundary at `$42A2`;
 - bank 3: no reviewed functions yet; observed uses are asset-copy sources.
 
-Bank 1 `$76A7` is a confirmed call target but remains deferred because Ghidra follows unresolved flows into an oversized invalid function and times out. It receives no recovered-function or coverage credit.
+Bank 1 `$76A7` is a confirmed call target but remains deferred because Ghidra follows its indirect table into an oversized invalid function and times out. It receives no whole-function credit; the four Accuracy dispatch targets `$7749/$7765/$7790/$77A1` are separately boundary-reviewed, recovered, decompiled, ported, and live-traced.
 
 ### Percentage tracker
 
@@ -167,7 +168,7 @@ Some corresponding addresses may still contain real code or data. The point is t
 | One-on-One | Yes | 50/50 gameplay; 50/50 remaining focus; 60/60 presentation/audio | Lifecycle, possession, shooting/dunk phase, roster palettes, hoop-facing shots and held-ball offsets, live steals, RNG, complete `$702D` shared input control, record-boundary movement, charging/blocking/take-back presentation/audio, complete `$7170` CPU decisions, defender landing, grounded OAM, score-ball/net priority, rim recovery, animation records, and dynamically extracted One-on-One art/OAM are covered. This is not a frame-perfect claim. |
 | Free Throws | Yes | 32/32 gameplay/presentation | Single-player selection bypasses VS; `$0C8E` stops menu music; `$22A9/$1A25` supplies the moving reticle; aim, rating-based clean makes, rim/net score, attempts/results, exact close-up art, `$1C1D` priority, HUD, and results are playable. |
 | H-O-R-S-E | Yes | 30/30 scoped; 28/45 strict shared-routine | Two-player roster selection, caller/matcher turns, 50 CPU spots, saved X, exact names/letter font, colon clearing, shared shooting/net timing, audio `$07`, winner, and exit are playable and traced. |
-| Accuracy Shootout | Yes | 24/24 one-player scope; 4/7 strict dedicated routines | Single-player selector, exact 50 positions, custom editor, marker approach, shared shot/net, attempts/makes, timer/result, and command `$02` are traced and playable. |
+| Accuracy Shootout | Yes | 25/25 one-player scope; 8/11 strict dedicated routines | Single-player selector, exact 50 positions, custom editor, marker approach, shared shot/net, exact court-panel clocks/scores, attempts/makes, timer/result, and command `$02` are traced and playable. |
 | Tournament | Yes | Scoped gameplay flow | Four quarterfinals, two semifinals, final, champion lock, and exit are covered; presentation remains partial. |
 | Two-player gameplay | No | No | Missing |
 | Ball physics | Yes | Scoped One-on-One flight/contact | Exact 60 Hz 8.8 flight, live animation-record arc selection, record-coupled release height, 32/64-frame vectors, `$1CED` score/rim/backboard cells, `$1E77` bounce loss, outer/back-court response, and `$1F4D` stop are deterministic; other modes remain incomplete. |
@@ -187,14 +188,14 @@ No whole subsystem should currently be labeled 100% ROM-equivalent; the
 
 | Priority | Area | Required work for verified coverage |
 |---|---|---|
-| P0 | Four-bank Ghidra function recovery | 139 stable reviewed functions are recovered; finish remaining bank 0/1 boundaries, resolve `$76A7`, review bank 3, and export call graphs/memory references. |
+| P0 | Four-bank Ghidra function recovery | 145 stable reviewed functions are recovered; finish remaining bank 0/1 boundaries, resolve the whole `$76A7` dispatcher, review bank 3, and export call graphs/memory references. |
 | P0 | Coverage tooling | Milestone and routine inventories exist; add deterministic trace/test evidence before promoting any candidate mapping to verified. |
 | Complete | Settings | Session persistence, ROM value cycles, and downstream consumption are verified; Accuracy mode parity remains tracked separately. |
 | Complete | One-on-One scoped rules | 50/50 gameplay requirements and 50/50 remaining-focus requirements are verified, including collision/contact rules and user-ROM-derived presentation. Other modes and frame-perfect synchronization remain separate work. |
 | Complete | Free Throws scoped parity | 32/32 single-player selection, music stop, moving reticle, aim, rating-based clean makes, rim/net scoring, attempts/results, `$08/$0A` audio, mode-specific assets, and `$1C1D` priority are verified. |
 | Complete | Tournament | Seven-match winner propagation, bracket rounds, champion lock, and title return are verified; presentation remains outside this gameplay milestone. |
 | Complete | H-O-R-S-E scoped parity | 30/30 called-shot, matching, letter, CPU/human, shared shot, exact HUD/font/net presentation, audio, winner, and exit requirements are verified; whole shared-routine coverage is 62.22%. |
-| Complete | Accuracy Shootout one-player scope | `$4000/$4034` selection, `$0E51` lifecycle, `$6CA2/$6D57` positions, `$7AFD` approach, scoring, timer/result, shared assets/net, and `$02` audio are traced, ported, and tested. |
+| Complete | Accuracy Shootout one-player scope | `$4000/$4034` selection, `$0E51` lifecycle, `$6CA2/$6D57` positions, `$7AFD` approach, `$76A7` HUD targets, scoring, timer/result, shared assets/net, and `$02` audio are traced, ported, and tested. |
 | P1 | Two-player game logic | Preserve the 1P/2P selection and add a second native input stream and two-human state flow. Serial hardware transport remains excluded. |
 | P1 | Physics | One-on-One launch/contact/bounce, `$FFD7` 2/3-point selection, and `$6A8C` timing-to-launch-index logic are covered; extend equivalent evidence to other modes. |
 | Complete | `$702D/$7170` controllers | Shared human/CPU player input, full CPU decision state, synthetic input handoff, direction hysteresis, contact response, mode dispatch, and record-gated shooting are verified. |
@@ -227,4 +228,4 @@ Each verified mapping should record:
 7. automated test identifier;
 8. known deviations.
 
-The manifest now exists, so report its verified subset explicitly: **63/141 routine mappings verified**. Do not use 141 as a whole-ROM function denominator until the remaining code/data review is complete. Accuracy behavior is checked with `python tools/check_accuracy_coverage.py`; Horse, Free Throw, and One-on-One retain their separate scoped tools.
+The manifest now exists, so report its verified subset explicitly: **67/145 routine mappings verified**. Do not use 145 as a whole-ROM function denominator until the remaining code/data review is complete. Accuracy behavior is checked with `python tools/check_accuracy_coverage.py`; Horse, Free Throw, and One-on-One retain their separate scoped tools.

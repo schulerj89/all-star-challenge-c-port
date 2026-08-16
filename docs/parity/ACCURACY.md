@@ -1,10 +1,10 @@
 # Accuracy Shootout Parity Evidence
 
-Last verified: **2026-08-15**
+Last verified: **2026-08-16**
 
 ## Result
 
-The one-player Accuracy Shootout scope is **24/24 (100.00%)**. This replaces
+The one-player Accuracy Shootout scope is **25/25 (100.00%)**. This replaces
 the invented five-rack/money-ball scene; the cartridge contains no racks,
 money balls, or timing meter in this mode.
 
@@ -20,6 +20,7 @@ money balls, or timing meter in this mode.
 | bank 1 `$702D->$714D->$6A8C->$7C58` | Shared gather, movable jump, release animation and ball launch | `begin_gather`, `launch`, shared One-on-One helpers |
 | fixed `$0EE7->$0B20` | Increment attempts on every release | `allstar_accuracy_bcd_increment_0b20` |
 | fixed `$1E0E->$0F1E->$6E1B` | Net/score presentation, increment makes at +80, reset for next target | `finish_attempt`, shared net/contact helpers |
+| bank 1 `$76A7->$7739->$7749/$7765/$7790/$77A1->$780A` | Four-way HUD writer: active `MM:SS` at `$9821`, inactive `00:00` at `$982E`, active three-digit basketball score at `$9862`, inactive `000` at `$986F` | `allstar_accuracy_hud_76a7`, `draw_hud`; exact court tile coordinates `(1,1)`, `(14,1)`, `(2,3)`, `(15,3)` |
 | fixed `$0FDE->$2F9E` | `TIME'S UP`, command `$02`, 240-frame result hold | Accuracy result phase and `ALLSTAR_SFX_ACCURACY_RESULT` |
 
 ## Emulator proof
@@ -28,7 +29,10 @@ money balls, or timing meter in this mode.
 `$03`, settings, and the selector. Its passing trace proves one `$4000` and
 one `$4034` visit with `$FF91=1`, first target `$0C,$94`, three releases,
 three attempts, one make, and four position calls. The observed make commits
-at make +80 frames. On expiry, command `$02` produces:
+at make +80 frames. It also executes all four indirect HUD writers and checks
+the original tile map after a miss and a make: `01:58`/`000`, then
+`01:49`/`002`, with the inactive panel held at `00:00`/`000`. On expiry,
+command `$02` produces:
 
 - square 1: `NR10/11/12/13/14 = 88/00/FF/5B/BE`;
 - square 2: `NR21/22/23/24 = 3F/6F/41/BE`.

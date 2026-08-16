@@ -1,5 +1,6 @@
 #include "allstar_accuracy.h"
 #include "allstar_controls.h"
+#include <stdio.h>
 #include <string.h>
 
 /* Bank 1 $6DB7: five random groups of ten exact player center/ground pairs.
@@ -89,4 +90,22 @@ uint16_t allstar_accuracy_bcd_value(const uint8_t value[2]) {
     return (uint16_t)(((value[0] >> 4) & 0x0f) * 1000 +
         (value[0] & 0x0f) * 100 + ((value[1] >> 4) & 0x0f) * 10 +
         (value[1] & 0x0f));
+}
+
+void allstar_accuracy_hud_76a7(uint32_t frames_remaining,
+                               uint16_t points,
+                               AllStarAccuracyHud *hud) {
+    uint32_t seconds;
+    if (!hud) return;
+    seconds = frames_remaining / 60u;
+    /* $7739 rotates through four writers. $7749 writes the active BCD
+       clock to $9821, while $7765 leaves the inactive one-player side at
+       zero. $7790/$77A1 write the low three score digits to row three. */
+    snprintf(hud->left_timer, sizeof(hud->left_timer), "%02u:%02u",
+             (unsigned)((seconds / 60u) % 100u),
+             (unsigned)(seconds % 60u));
+    memcpy(hud->right_timer, "00:00", sizeof(hud->right_timer));
+    snprintf(hud->left_points, sizeof(hud->left_points), "%03u",
+             (unsigned)(points % 1000u));
+    memcpy(hud->right_points, "000", sizeof(hud->right_points));
 }

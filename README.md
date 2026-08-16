@@ -13,12 +13,12 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | One-on-One | 100% of both fixed manifests | All 50 gameplay requirements and all 50 RNG/animation-asset/contact requirements are verified. This is Ghidra/manual-grounded mode coverage, not a claim of frame-perfect timing. |
 | Free Throws | 32/32 gameplay/presentation | Bank-2 single-player selection without VS, `$0C8E/$100F` lifecycle and music stop, exact `$22A9/$1A25` moving reticle, 8.8 aim/launch, `$1A7E` rating-based clean makes, rim/net scoring, attempts/results, separate close-up assets, and `$1C1D` priority are native. |
 | H-O-R-S-E | 30/30 gameplay/presentation | Two roster players, caller/matcher turns, exact 50-spot CPU table, saved X, letters, shared shot animation/physics, command `$07`, winner, and exit are native and Mesen-traced. |
-| Accuracy Shootout | 24/24 one-player scope | Single-player selection, exact 50 positions/custom editor, marker approach, shared shot/net, scoring, timer/result, and `$02` audio are traced and playable. |
+| Accuracy Shootout | 25/25 one-player scope | Single-player selection, exact 50 positions/custom editor, marker approach, shared shot/net, exact `$76A7` court-panel HUD, scoring, timer/result, and `$02` audio are traced and playable. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
 | Audio | Partial project-wide | Win32 PCM mixer works; eleven focused programs now include Accuracy `$02`, Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. The complete music/APU sequencer is not ported. |
 | ROM asset pack | Partial project-wide | Version 16 contains One-on-One art, Free Throw art/maps, all 24 `$6C60` lists, shared Horse/Accuracy assets, and eleven decoded audio programs; portraits, music, and remaining sound programs still need migration. |
-| Ghidra-to-C routine coverage | 63/141 verified | All 141 reviewed bank-aware functions recover/decompile; 38 mappings are candidates and 40 are unmapped. Accuracy's seven-routine scope is 4 verified/3 candidate. |
+| Ghidra-to-C routine coverage | 67/145 verified | All 145 reviewed bank-aware functions recover/decompile; 38 mappings are candidates and 40 are unmapped. Accuracy's expanded eleven-routine scope is 8 verified/3 candidate. |
 | Verified project milestones | 56.00% | 14 of 25 strict milestones; analysis is 6/7 and gameplay parity is 8/11. |
 | Scoped Free Throw gameplay/presentation | 100.00% | 32 of 32 requirements, including exact mode-specific assets, result layout, prior-OAM priority, and the made-ball gravity hold. |
 | Scoped H-O-R-S-E gameplay/presentation | 100.00% | 30 of 30 requirements; strict whole-shared-routine Ghidra coverage is 27/45 (60.00%). |

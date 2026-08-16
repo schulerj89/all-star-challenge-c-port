@@ -2,7 +2,7 @@
 
 This directory contains the bank-aware headless Ghidra recovery/export scripts and an optional HTTP/MCP bridge helper for reverse engineering the Game Boy ROM.
 
-The current setup maps and verifies all four banks correctly and validates 139 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
+The current setup maps and verifies all four banks correctly and validates 145 conservatively reviewed functions. It is **not yet a complete four-bank gameplay decompilation**.
 
 ## Verified Cartridge Layout
 
@@ -46,10 +46,10 @@ It also writes and validates:
 ### Current result and limitations
 
 - `setup_banked_rom.py` constructs and byte-verifies overlays for physical banks 1–3.
-- `recover_banked_functions.py` creates and decompiles 139 checked-in seeds: bank 0 = 83, bank 1 = 48, bank 2 = 8.
-- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (154 functions in the current run).
+- `recover_banked_functions.py` creates and decompiles 145 checked-in seeds: bank 0 = 85, bank 1 = 52, bank 2 = 8.
+- `decompile_all.py` no longer blindly sweeps unknown bytes as code; it exports reviewed functions plus standard vectors/thunks (158 functions in the current run).
 - Stable names preserve physical bank identity, for example `rom_b02_4000`.
-- Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout.
+- Bank 1 `$76A7` is deferred because its unresolved control flow currently causes a decompiler timeout. Its reviewed indirect Accuracy targets `$7749/$7765/$7790/$77A1` are independently recovered and decompiled.
 - Bank 3 has no reviewed function seeds; observed references currently use it as an asset-copy source.
 - WRAM/HRAM fields are still unnamed, call graphs/memory references are not exported, and no complete gameplay subsystem has parity evidence.
 

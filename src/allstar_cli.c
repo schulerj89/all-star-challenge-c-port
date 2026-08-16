@@ -2688,6 +2688,7 @@ int allstar_cli_export_accuracy_sfx(const char *pack_path,
 
 int allstar_cli_test_accuracy(void) {
     AllStarAccuracyState mode;
+    AllStarAccuracyHud hud;
     AllStarAccuracyDebugState debug;
     AllStarGame game;
     uint8_t x = 0x54, y = 0x80;
@@ -2733,6 +2734,20 @@ int allstar_cli_test_accuracy(void) {
         fprintf(stderr, "[Test] $0B20 packed-BCD increment mismatch\n");
         return 1;
     }
+    allstar_accuracy_hud_76a7(119u * 60u, 2, &hud);
+    if (strcmp(hud.left_timer, "01:59") != 0 ||
+        strcmp(hud.right_timer, "00:00") != 0 ||
+        strcmp(hud.left_points, "002") != 0 ||
+        strcmp(hud.right_points, "000") != 0 ||
+        ALLSTAR_ACCURACY_TIMER_LEFT_X != 1 ||
+        ALLSTAR_ACCURACY_TIMER_RIGHT_X != 14 ||
+        ALLSTAR_ACCURACY_TIMER_Y != 1 ||
+        ALLSTAR_ACCURACY_POINTS_LEFT_X != 2 ||
+        ALLSTAR_ACCURACY_POINTS_RIGHT_X != 15 ||
+        ALLSTAR_ACCURACY_POINTS_Y != 3) {
+        fprintf(stderr, "[Test] $76A7 Accuracy scoreboard layout mismatch\n");
+        return 1;
+    }
 
     if (!allstar_game_init(&game, NULL)) return 1;
     game.selected_mode = ALLSTAR_MODE_ACCURACY;
@@ -2772,7 +2787,7 @@ int allstar_cli_test_accuracy(void) {
         allstar_game_shutdown(&game); return 1;
     }
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: one-player route, 50 spots, marker, shot, BCD, result cue\n");
+    printf("[Test] PASSED: one-player route, 50 spots, marker, shot, BCD, $76A7 HUD, result cue\n");
     return 0;
 }
 

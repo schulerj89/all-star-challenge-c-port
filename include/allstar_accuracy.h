@@ -6,6 +6,21 @@
 #define ALLSTAR_ACCURACY_SPOTS_PER_GROUP 10
 #define ALLSTAR_ACCURACY_SPOT_GROUPS 5
 
+/* Bank 1 $76A7->$7739 uses these exact court tile-map destinations. */
+#define ALLSTAR_ACCURACY_TIMER_LEFT_X 1
+#define ALLSTAR_ACCURACY_TIMER_RIGHT_X 14
+#define ALLSTAR_ACCURACY_TIMER_Y 1
+#define ALLSTAR_ACCURACY_POINTS_LEFT_X 2
+#define ALLSTAR_ACCURACY_POINTS_RIGHT_X 15
+#define ALLSTAR_ACCURACY_POINTS_Y 3
+
+typedef struct {
+    char left_timer[6];
+    char right_timer[6];
+    char left_points[4];
+    char right_points[4];
+} AllStarAccuracyHud;
+
 typedef struct {
     uint8_t group;                 /* ROM $FFDF. */
     uint8_t position_index;        /* ROM $FFE0, 0..10. */
@@ -33,5 +48,9 @@ bool allstar_accuracy_record_custom_position_6d57(
 /* Fixed $0B20 increments a two-byte packed-BCD display value. */
 void allstar_accuracy_bcd_increment_0b20(uint8_t value[2]);
 uint16_t allstar_accuracy_bcd_value(const uint8_t value[2]);
+/* Bank 1 $7739/$7749/$7765/$7790/$77A1 one-player HUD values. */
+void allstar_accuracy_hud_76a7(uint32_t frames_remaining,
+                               uint16_t points,
+                               AllStarAccuracyHud *hud);
 
 #endif

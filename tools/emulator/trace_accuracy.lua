@@ -27,6 +27,10 @@ local command02Seen = false
 local command02Apu = {}
 local firstTargetX = -1
 local firstTargetY = -1
+local pendingBgLabel = nil
+local pendingBgDelay = 0
+local hudLayoutSeen = false
+local hudExec = {}
 local mem = emu.memType.gameboyDebug
 
 local function read(address)
@@ -47,18 +51,39 @@ end
 
 local function state(label)
   print(string.format(
-    "ACCURACY_%s frame=%d mode=%02X players=%02X pos_index=%02X group=%02X target=%02X,%02X player=%02X,%02X timer=%02X%02X attempts=%02X%02X makes=%02X%02X flags=%02X/%02X/%02X",
+    "ACCURACY_%s frame=%d mode=%02X players=%02X pos_index=%02X group=%02X target=%02X,%02X player=%02X,%02X timer=%02X%02X hud_left=%02X%02X hud_right=%02X%02X attempts=%02X%02X makes=%02X%02X flags=%02X/%02X/%02X",
     label, accuracyFrames, read(0xFF8F), read(0xFF91), read(0xFFE0),
     read(0xFFE1), read(0xFFDB), read(0xFFDC), read(0xFFA3), read(0xFFB2),
-    read(0xC0B7), read(0xC0B6), read(0xC13A), read(0xC139),
+    read(0xC0B7), read(0xC0B6), read(0xC134), read(0xC133),
+    read(0xC136), read(0xC135), read(0xC13A), read(0xC139),
     read(0xC138), read(0xC137), read(0xFFE8), read(0xFFF8), read(0xFFE2)))
 end
 
-local function dumpBg(label)
-  for row = 0, 17 do
-    print(string.format("ACCURACY_BG_%s row=%02d data=%s", label, row,
-      bytes(0x9800 + row * 0x20, 20)))
-  end
+local function digit(value)
+  return 0xC1 + value
+end
+
+local function verifyHudLayout(label)
+  local timerLow = read(0xC0B6)
+  local timerHigh = read(0xC0B7)
+  local scoreLow = read(0xC133)
+  local scoreHigh = read(0xC134)
+  local timer = bytes(0x9821, 5)
+  local leftScore = bytes(0x9862, 3)
+  local rightTimer = bytes(0x982E, 5)
+  local rightScore = bytes(0x986F, 3)
+  local ok = read(0x9821) == digit((timerHigh >> 4) & 0x0F) and
+    read(0x9822) == digit(timerHigh & 0x0F) and read(0x9823) == 0x09 and
+    read(0x9824) == digit((timerLow >> 4) & 0x0F) and
+    read(0x9825) == digit(timerLow & 0x0F) and
+    rightTimer == "C1C109C1C1" and
+    read(0x9862) == digit(scoreHigh & 0x0F) and
+    read(0x9863) == digit((scoreLow >> 4) & 0x0F) and
+    read(0x9864) == digit(scoreLow & 0x0F) and rightScore == "C1C1C1"
+  print(string.format(
+    "ACCURACY_HUD_%s timer@9821=%s score@9862=%s inactive_timer@982E=%s inactive_score@986F=%s ok=%s",
+    label, timer, leftScore, rightTimer, rightScore, tostring(ok)))
+  hudLayoutSeen = hudLayoutSeen or ok
 end
 
 local function onMenuLoop()
@@ -95,6 +120,10 @@ local function onAccuracyEntry()
   state("ENTRY_0E51")
 end
 
+local function onHudExec(address)
+  hudExec[address] = (hudExec[address] or 0) + 1
+end
+
 local function onAccuracyInit()
   state("INIT_6C9B")
 end
@@ -112,7 +141,11 @@ local function onPositionReady()
   if positionCalls == 1 then
     firstTargetX = read(0xFFDB)
     firstTargetY = read(0xFFDC)
-    dumpBg("GAMEPLAY")
+    pendingBgLabel = "INITIAL_SCOREBOARD"
+    pendingBgDelay = 2
+  elseif positionCalls == 2 then
+    pendingBgLabel = "AFTER_FIRST_MISS"
+    pendingBgDelay = 2
   end
 end
 
@@ -139,6 +172,8 @@ end
 local function onScore()
   scoreCount = scoreCount + 1
   state("SCORE_0F1E")
+  pendingBgLabel = "AFTER_MAKE"
+  pendingBgDelay = 2
 end
 
 local function onExit()
@@ -220,6 +255,13 @@ local function onInputPolled()
 end
 
 local function onEndFrame()
+  if pendingBgLabel then
+    pendingBgDelay = pendingBgDelay - 1
+    if pendingBgDelay <= 0 then
+      verifyHudLayout(pendingBgLabel)
+      pendingBgLabel = nil
+    end
+  end
   if exitSeen and accuracyFrames >= exitFrame + 245 and not stopping then
     stopping = true
     state("SUMMARY")
@@ -230,14 +272,18 @@ local function onEndFrame()
     local ok = settingsSeen and rosterEntryCount == 1 and rosterP1Count == 1 and
       read(0xFF91) == 1 and firstTargetX == 0x0C and firstTargetY == 0x94 and
       positionCalls >= 4 and launchCount >= 3 and attemptCount >= 3 and
-      makeCount >= 1 and scoreCount >= 1 and command02Seen and
+      makeCount >= 1 and scoreCount >= 1 and hudLayoutSeen and
+      (hudExec[0x76A7] or 0) > 0 and (hudExec[0x7739] or 0) > 0 and
+      (hudExec[0x7749] or 0) > 0 and (hudExec[0x7765] or 0) > 0 and
+      (hudExec[0x7790] or 0) > 0 and (hudExec[0x77A1] or 0) > 0 and
+      (hudExec[0x780A] or 0) > 0 and command02Seen and
       command02Apu[0xFF10] == 0x88 and command02Apu[0xFF11] == 0x00 and
       command02Apu[0xFF12] == 0xFF and command02Apu[0xFF13] == 0x5B and
       command02Apu[0xFF14] == 0xBE and command02Apu[0xFF16] == 0x3F and
       command02Apu[0xFF17] == 0x6F and command02Apu[0xFF18] == 0x41 and
       command02Apu[0xFF19] == 0xBE
     if ok then
-      print("TRACE PASSED: $4000/$4034 one-player Accuracy, $6CA2/$7AFD positions, $0EE7/$0F1E scoring, and $0FDE command-$02 APU")
+      print("TRACE PASSED: $4000/$4034 one-player Accuracy, $76A7/$7739 HUD, $6CA2/$7AFD positions, $0EE7/$0F1E scoring, and $0FDE command-$02 APU")
       emu.stop(0)
     else
       print("TRACE ERROR: Accuracy assertions failed")
@@ -260,6 +306,11 @@ emu.addMemoryCallback(onRosterP1, emu.callbackType.exec,
   0x4034, 0x4034, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onAccuracyEntry, emu.callbackType.exec,
   0x0E51, 0x0E51, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+for _, address in ipairs({0x76A7, 0x7739, 0x7749, 0x7765,
+                          0x7790, 0x77A1, 0x780A}) do
+  emu.addMemoryCallback(onHudExec, emu.callbackType.exec,
+    address, address, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+end
 emu.addMemoryCallback(onAccuracyInit, emu.callbackType.exec,
   0x6C9B, 0x6C9B, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onPositionBegin, emu.callbackType.exec,

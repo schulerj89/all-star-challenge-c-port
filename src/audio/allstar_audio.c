@@ -15,6 +15,7 @@
 #define MIX_CHANNELS 2
 #define MIX_SAMPLE_RATE 48000
 #define MAX_SFX_VOICES 4
+#define DMG_AUDIO_OVERSAMPLE 8
 
 #if defined(_WIN32) || defined(ALLSTAR_USE_SDL_AUDIO)
 #define ALLSTAR_AUDIO_OUTPUT 1
@@ -471,6 +472,7 @@ static bool generate_rom_music(PcmSound *out,
     double next_envelope2 = 1.0e30;
     double next_noise_envelope = 1.0e30;
     double next_sweep_time = 1.0e30;
+    float high_pass_capacitor = 0.0f;
     if (!out || !program || program->frame_count == 0 ||
         program->frame_count > ALLSTAR_ROM_MUSIC_MAX_FRAMES ||
         program->loop_frame >= program->frame_count) return false;
@@ -495,7 +497,6 @@ static bool generate_rom_music(PcmSound *out,
                 frequency1 = frame->square1_frequency;
                 if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER1) != 0) {
                     uint8_t pace;
-                    phase1 = 0.0f;
                     square1_sweep = frame->square1_sweep;
                     square1_envelope = frame->square1_envelope;
                     duty1 = dmg_square_duty(frame->square1_duty_length);
@@ -513,7 +514,6 @@ static bool generate_rom_music(PcmSound *out,
                 frequency2 = frame->square2_frequency;
                 if ((frame->flags & ALLSTAR_ROM_MUSIC_TRIGGER2) != 0) {
                     uint8_t pace;
-                    phase2 = 0.0f;
                     square2_envelope = frame->square2_envelope;
                     duty2 = dmg_square_duty(frame->square2_duty_length);
                     volume2 = square2_envelope >> 4;
@@ -565,52 +565,73 @@ static bool generate_rom_music(PcmSound *out,
             }
         }
 
-        if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
-            mixed += (phase1 < duty1 ? 1.0f : -1.0f) *
-                ((float)volume1 / 15.0f);
-            phase1 += dmg_square_hz(frequency1) / MIX_SAMPLE_RATE;
-            if (phase1 >= 1.0f) phase1 -= floorf(phase1);
-        }
-        if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
-            mixed += (phase2 < duty2 ? 1.0f : -1.0f) *
-                ((float)volume2 / 15.0f);
-            phase2 += dmg_square_hz(frequency2) / MIX_SAMPLE_RATE;
-            if (phase2 >= 1.0f) phase2 -= floorf(phase2);
-        }
-        if ((frame->flags & ALLSTAR_ROM_MUSIC_WAVE) != 0) {
-            uint8_t level_code = (wave_level >> 5) & 3u;
-            float scale = level_code == 1 ? 1.0f :
-                (level_code == 2 ? 0.5f :
-                 (level_code == 3 ? 0.25f : 0.0f));
-            unsigned wave_sample = (unsigned)(wave_phase * 32.0f) & 31u;
-            uint8_t packed = program->wave_tables[wave_table][wave_sample >> 1];
-            uint8_t nibble = (wave_sample & 1u) != 0
-                ? packed & 0x0f : packed >> 4;
-            mixed += (((float)nibble - 7.5f) / 7.5f) * scale;
-            wave_phase += dmg_wave_hz(wave_frequency) / MIX_SAMPLE_RATE;
-            if (wave_phase >= 1.0f) wave_phase -= floorf(wave_phase);
-        }
-        if ((frame->flags & ALLSTAR_ROM_MUSIC_NOISE) != 0) {
-            uint8_t divisor_code = noise_polynomial & 7u;
-            uint8_t shift = noise_polynomial >> 4;
-            float divisor = divisor_code == 0
-                ? 0.5f : (float)divisor_code;
-            float noise_hz = 262144.0f /
-                (divisor * (float)(1u << shift));
-            noise_phase += noise_hz / MIX_SAMPLE_RATE;
-            while (noise_phase >= 1.0f) {
-                uint16_t feedback = (uint16_t)(
-                    (noise_lfsr ^ (noise_lfsr >> 1)) & 1u);
-                noise_lfsr = (uint16_t)((noise_lfsr >> 1) |
-                                        (feedback << 14));
-                if ((noise_polynomial & 0x08) != 0) {
-                    noise_lfsr = (uint16_t)(
-                        (noise_lfsr & ~(1u << 6)) | (feedback << 6));
+        {
+            unsigned sub_sample;
+            const float oversampled_rate =
+                (float)(MIX_SAMPLE_RATE * DMG_AUDIO_OVERSAMPLE);
+            for (sub_sample = 0; sub_sample < DMG_AUDIO_OVERSAMPLE;
+                 sub_sample++) {
+                float sub_mix = 0.0f;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
+                    sub_mix += (phase1 < duty1 ? 1.0f : -1.0f) *
+                        ((float)volume1 / 15.0f);
+                    phase1 += dmg_square_hz(frequency1) / oversampled_rate;
+                    if (phase1 >= 1.0f) phase1 -= floorf(phase1);
                 }
-                noise_phase -= 1.0f;
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
+                    sub_mix += (phase2 < duty2 ? 1.0f : -1.0f) *
+                        ((float)volume2 / 15.0f);
+                    phase2 += dmg_square_hz(frequency2) / oversampled_rate;
+                    if (phase2 >= 1.0f) phase2 -= floorf(phase2);
+                }
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_WAVE) != 0) {
+                    uint8_t level_code = (wave_level >> 5) & 3u;
+                    float scale = level_code == 1 ? 1.0f :
+                        (level_code == 2 ? 0.5f :
+                         (level_code == 3 ? 0.25f : 0.0f));
+                    unsigned wave_sample =
+                        (unsigned)(wave_phase * 32.0f) & 31u;
+                    uint8_t packed = program->wave_tables[wave_table]
+                        [wave_sample >> 1];
+                    uint8_t nibble = (wave_sample & 1u) != 0
+                        ? packed & 0x0f : packed >> 4;
+                    sub_mix += (((float)nibble - 7.5f) / 7.5f) * scale;
+                    wave_phase += dmg_wave_hz(wave_frequency) /
+                        oversampled_rate;
+                    if (wave_phase >= 1.0f)
+                        wave_phase -= floorf(wave_phase);
+                }
+                if ((frame->flags & ALLSTAR_ROM_MUSIC_NOISE) != 0) {
+                    uint8_t divisor_code = noise_polynomial & 7u;
+                    uint8_t shift = noise_polynomial >> 4;
+                    float divisor = divisor_code == 0
+                        ? 0.5f : (float)divisor_code;
+                    float noise_hz = 262144.0f /
+                        (divisor * (float)(1u << shift));
+                    noise_phase += noise_hz / oversampled_rate;
+                    while (noise_phase >= 1.0f) {
+                        uint16_t feedback = (uint16_t)(
+                            (noise_lfsr ^ (noise_lfsr >> 1)) & 1u);
+                        noise_lfsr = (uint16_t)((noise_lfsr >> 1) |
+                                                (feedback << 14));
+                        if ((noise_polynomial & 0x08) != 0) {
+                            noise_lfsr = (uint16_t)(
+                                (noise_lfsr & ~(1u << 6)) |
+                                (feedback << 6));
+                        }
+                        noise_phase -= 1.0f;
+                    }
+                    sub_mix += (noise_lfsr & 1u ? 1.0f : -1.0f) *
+                        ((float)noise_volume / 15.0f);
+                }
+                mixed += sub_mix;
             }
-            mixed += (noise_lfsr & 1u ? 1.0f : -1.0f) *
-                ((float)noise_volume / 15.0f);
+            mixed /= DMG_AUDIO_OVERSAMPLE;
+        }
+        {
+            float high_passed = mixed - high_pass_capacitor;
+            high_pass_capacitor = mixed - high_passed * 0.996337f;
+            mixed = high_passed;
         }
         if (mixed > 3.4f) mixed = 3.4f;
         if (mixed < -3.4f) mixed = -3.4f;

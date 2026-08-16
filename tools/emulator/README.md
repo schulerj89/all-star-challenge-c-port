@@ -128,5 +128,16 @@ asserts the `$1CAA->$7C58` vector `(-36,-160,484)`, records the exact
 `$1B59->$1B93->$1B53->$1B99->$1B59->$1C05` rim sequence, verifies the made
 basket at release +118, command `$08` at +145, command `$05` at +189, and the
 next attempt at +292. It also captures live `$08/$0A` APU writes used to
-validate the version-12 asset-pack programs. Require exit code `0` and
+validate the version-15 asset-pack programs. Require exit code `0` and
 `TRACE PASSED: $0C8E/$1082/$18E7/$1942/$1986/$1CAA/$7C58 Free Throw lifecycle`.
+
+`trace_free_throw_make_window.lua` forces roster `$00` / rating profile 2 and
+target `$50/$3B`. It independently requires the cartridge clean-shot route
+`$1A7E->$1A94->$1C05->$1E0E` at release +77. Require exit code `0` and
+`TRACE PASSED: $1A7E->$1A94->$1C05 profile-2 clean Free Throw make`.
+
+`trace_horse.lua` selects menu mode `$02`, accepts both roster players, then
+drives a P1 called make and P2 CPU matcher miss. It asserts
+`$0CDF/$0D57/$0E36/$7AFD/$0E26/$7BA8`, the stored `$74/$88` spot, P2's
+5-to-4 letter decrement, exact live tile `$76`, and command `$07` APU writes.
+Require exit code `0` and `TRACE PASSED: $4000/$0CDF/$0D57/$0E26/$0E36/$7AFD/$7BA8 H-O-R-S-E lifecycle + $07 APU`.

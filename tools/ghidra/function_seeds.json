@@ -14,9 +14,9 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
-        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "0c8e", "100f", "10a5",
+        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "0c8e", "0cdf", "0d2b", "0d57", "0e26", "0e36", "100f", "10a5",
         "10ad", "10fa", "1638", "17aa", "17e2", "1884", "18e7", "1942", "1986", "1a25", "1a31", "1c1d", "1c61", "1caa", "1cbd", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
-        "20d0", "20f7", "21fa", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
+        "20d0", "20f7", "21fa", "2219", "2243", "22b9", "22c3", "22ef", "2639", "2729", "276d", "27c7", "27ea",
         "28e1", "2933", "293d", "2945", "2a2b", "2ab5", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2d08", "2f88", "3014"
       ]
@@ -53,11 +53,95 @@
     }
   ],
   "native_mappings": {
+    "rom_b00_0cdf": {
+      "status": "candidate",
+      "native_symbol": "horse_init",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Mode-2 music stop, shared court/asset setup, five-letter initialization, alternating P1/P2 turn loop, and end state are native. Exact transition palette timing in $0D2B remains conservative."
+    },
+    "rom_b00_0d2b": {
+      "status": "candidate",
+      "native_symbol": "horse_begin_turn",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Native resets the active shooter to the $7A90 start and retains the traced 192-frame between-turn interval; the cartridge's complete fade/VRAM transition is not claimed."
+    },
+    "rom_b00_0d57": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_resolve_shot_0d57",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Caller make/miss, caller ownership, matcher make/miss, saved-spot state, alternating turn order, 180-frame attempt resolution, and five-letter completion are deterministic-tested and followed live from a called make through a matcher letter."
+    },
+    "rom_b00_0e26": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_resolve_shot_0d57",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Exact selected-player +$0E decrement, $7BA8 redraw, game-ending zero, and command $07 dispatch are native-tested; Mesen captures NR10/11/12/13/14=$88/$40/$F2/$83/$BF then note $9D."
+    },
+    "rom_b00_0e36": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_save_spot_0e36",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Player center and ground are rounded down with AND $FC, including the $98-to-$94 lower-edge special case; the live trace stores $74/$88."
+    },
+    "rom_b00_22b9": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_init_0cdf",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Both player +$0E counters initialize to five and the shared roster palette path remains asset-backed for each selected player."
+    },
+    "rom_b00_22c3": {
+      "status": "candidate",
+      "native_symbol": "horse_draw",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Horse reuses the extracted One-on-One $04B1 court and exact $1ECC net overlay. Game Boy VRAM transfer timing is platform-native and excluded."
+    },
+    "rom_b01_6cab": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_cpu_spot_6cab",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "The $30/$5E/$8C/$BA RNG thresholds, five groups, ten-entry cycle, and all 50 $6DB7 X/Y pairs are checked in and boundary-tested."
+    },
+    "rom_b01_7a90": {
+      "status": "candidate",
+      "native_symbol": "horse_reset_active_player",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Native starts the active shooter at center $58/ground $60 with held-ball action $0B and renders only that shooter. Low-level inactive-player WRAM/OAM fields are not represented one-for-one."
+    },
+    "rom_b01_7aea": {
+      "status": "verified",
+      "native_symbol": "horse_begin_turn",
+      "source": "src/scenes/scene_horse.c",
+      "note": "With one human, only P2 callers enter the $6CAB CPU target route; P1 callers retain human control. The live mode-2 trace reaches this gate."
+    },
+    "rom_b01_7afd": {
+      "status": "candidate",
+      "native_symbol": "horse_begin_turn",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Matchers approach the exact saved center/ground, display the $7B7A marker, and begin from the common $7A90 state. The native approach pacing is visual parity rather than a register-level $100F loop clone."
+    },
+    "rom_b01_7b7a": {
+      "status": "verified",
+      "native_symbol": "horse_draw_marker_7b7a",
+      "source": "src/scenes/scene_horse.c",
+      "note": "Eight-frame blank/$76 alternation and raw OAM X/Y bias use exact tile $76 bytes captured from VRAM; source index 41 is already present in the 42-tile ball/object stream."
+    },
+    "rom_b01_7ba8": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_letters_7bc0",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Both players' strings are redrawn at tile coordinates (1,1) and (14,1) after the exact remaining-letter lookup."
+    },
+    "rom_b01_7bc0": {
+      "status": "verified",
+      "native_symbol": "allstar_horse_letters_7bc0",
+      "source": "src/gameplay/allstar_horse.c",
+      "note": "Remaining counters 5..0 select empty/H/HO/HOR/HORS/HORSE exactly from the recovered high-bit-terminated table."
+    },
     "rom_b00_0c8e": {
       "status": "verified",
       "native_symbol": "allstar_free_throw_init",
       "source": "src/gameplay/allstar_free_throw.c",
-      "note": "The selected-side attempt counter, per-attempt reset, BCD-equivalent 5/10/20 decrement loop, 292-frame presentation, score carry, result entry, and native result exit are Mesen- and deterministic-tested."
+      "note": "The initial $DD73 music-command clear, selected-side attempt counter, per-attempt reset, BCD-equivalent 5/10/20 decrement loop, 292-frame presentation, score carry, result entry, and native result exit are Mesen- and deterministic-tested."
     },
     "rom_b00_100f": {
       "status": "candidate",
@@ -78,10 +162,10 @@
       "note": "The frozen preflight, $50/$79 presentation coordinates, +3 Z handoff, 180+100 live-flight calls, and 292-frame next-attempt boundary match the live trace."
     },
     "rom_b00_1884": {
-      "status": "candidate",
-      "native_symbol": "allstar_free_throw_ball_screen_1884",
-      "source": "src/gameplay/allstar_free_throw.c",
-      "note": "Exact X and Y-Z-$18 screen coordinates are ported, but the mode-specific four-OAM tile table is not yet extracted."
+      "status": "verified",
+      "native_symbol": "draw_free_throw_ball_1884",
+      "source": "src/scenes/scene_free_throw.c",
+      "note": "X and Y-Z-$18, $C4/$D2 depth selection, all three $7FCD/$7FDD/$7FED 4x4 maps, 30 $6EF1 OBJ tiles, 16-entry composition, and the preceding $1C1D priority state are exact, asset-backed, screenshot-verified, and deterministic-tested."
     },
     "rom_b00_18e7": {
       "status": "verified",
@@ -105,19 +189,19 @@
       "status": "verified",
       "native_symbol": "allstar_free_throw_tick_100f",
       "source": "src/gameplay/allstar_free_throw.c",
-      "note": "The final mode-1 step stores the current integer aim Y/X pair as the previous background-reticle coordinates."
+      "note": "The final mode-1 step stores integer aim Y/X into the $C098/$C099 OAM entry. Native state preserves those raw coordinates and renders exact OBJ tile $7F extracted from fixed $22A9; Mesen observed {Y=$33,X=$48,tile=$7F,attr=0}."
     },
     "rom_b00_1a31": {
       "status": "candidate",
       "native_symbol": "rim_contact_1a31",
       "source": "src/gameplay/allstar_free_throw.c",
-      "note": "The complete traced Free Throw y-clamp, eleven X groups, $0039 bounce, $C164 double-contact make, profile latch, cooldown, and score path are native; other mode branches prevent whole-routine credit."
+      "note": "The complete traced Free Throw y-clamp, $1A7E/$1AAD/$1AB0 rating-dependent clean-make tables, eleven X groups, $1BBD target override, $0039 bounce, $C164 double-contact make, profile latch, cooldown, and score path are native; other mode branches prevent whole-routine credit."
     },
     "rom_b00_1c1d": {
-      "status": "candidate",
-      "native_symbol": "free_throw_draw",
-      "source": "src/scenes/scene_free_throw.c",
-      "note": "Native layer ordering represents ball/net priority, but the original four-entry sprite-priority mutation is not reproduced byte-for-byte."
+      "status": "verified",
+      "native_symbol": "free_throw_oam_step_1c1d_1884",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The four 4-entry OAM rows use the previous $1884 Y, clear priority below $58, set it at/after $58, and force all rows while the mode-$01 $C12B=$2D make timer is nonzero. The subsequent $1884 snapshot and $7BE8 gravity hold are deterministic-tested."
     },
     "rom_b00_1c61": {
       "status": "verified",
@@ -133,9 +217,9 @@
     },
     "rom_b00_1cbd": {
       "status": "candidate",
-      "native_symbol": "draw_free_throw_court",
+      "native_symbol": "free_throw_draw",
       "source": "src/scenes/scene_free_throw.c",
-      "note": "A playable native Free Throw court and HUD exist, but the bank-3 mode-specific background stream is not yet extracted into the pack."
+      "note": "The exact bank-3 $7F69 32x32 background, signed BG tiles, $0749 last name, and SHOT/SCORE HUD are asset-backed and rendered. Whole-routine credit remains conservative because VRAM timing itself is platform-native."
     },
     "rom_b00_0714": {
       "status": "verified",
@@ -252,10 +336,10 @@
       "note": "Bank-2 $40F4 calls this fixed-bank command-$0F selector for roster navigation. The separate accepted-player path selects command $0E directly; both focused programs are extracted and Mesen-traced."
     },
     "rom_b00_2243": {
-      "status": "unmapped",
-      "native_symbol": null,
-      "source": null,
-      "note": "This loader belongs to a different mode; it is intentionally not credited to the One-on-One asset port."
+      "status": "candidate",
+      "native_symbol": "extract_free_throw_art",
+      "source": "src/allstar_asset_pack.c",
+      "note": "This is the Free Throw/shared alternate-mode loader, not One-on-One. Its exact $640F/$6EF1/$708E streams, wrap behavior, and fixed $22A9->$87F0 reticle-tile copy are extracted; selected-side/profile/counter initialization is represented separately, so conservative whole-routine credit is withheld."
     },
     "rom_b00_2219": {
       "status": "verified",
@@ -309,13 +393,13 @@
       "status": "candidate",
       "native_symbol": "extract_gameplay_audio",
       "source": "src/allstar_asset_pack.c",
-      "note": "Focused partial mapping: exact command-table words for $04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F are extracted and live-traced, including Free Throw $08/$0A. Other command priorities and dispatch behavior keep whole-routine credit withheld."
+      "note": "Focused partial mapping: exact command-table words for $04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F are extracted and live-traced, including Horse $07 and Free Throw $08/$0A. Other command priorities and dispatch behavior keep whole-routine credit withheld."
     },
     "rom_b00_3014": {
       "status": "candidate",
       "native_symbol": "allstar_audio_bind_rom_sfx",
       "source": "src/audio/allstar_audio.c",
-      "note": "Focused partial mapping: nine gameplay programs are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep/noise PCM; Free Throw $08/$0A and One-on-One $09 include live APU proof. Remaining programs, channels, and music keep whole-routine credit withheld."
+      "note": "Focused partial mapping: ten gameplay programs are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep/noise PCM; Horse $07, Free Throw $08/$0A, and One-on-One $09 include live APU proof. Remaining programs, channels, and music keep whole-routine credit withheld."
     },
     "rom_b00_0b80": {
       "status": "candidate",
@@ -520,6 +604,24 @@
       "native_symbol": "one_on_one_launch_shot",
       "source": "src/scenes/scene_one_on_one.c",
       "note": "Exact distinct $7FC7/$7FCB action/facing tables, phase/variant offsets, and +$05/+$15 height composition are ported. Mesen proves the shot release and the later $6F2A override on live dribbling; other-mode whole-routine behavior remains outside this mapping."
+    },
+    "rom_b02_4000": {
+      "status": "candidate",
+      "native_symbol": "roster_select_update",
+      "source": "src/scenes/scene_roster_select.c",
+      "note": "Focused mode-$01/$02 mapping: mode 1 jumps directly through $4034 after P1, while mode 2 deliberately continues through the $4023 opponent path and accepts a distinct P2 roster record. Both routes are Mesen-observed; complete roster presentation remains outside this mapping."
+    },
+    "rom_b02_4034": {
+      "status": "candidate",
+      "native_symbol": "roster_select_update",
+      "source": "src/scenes/scene_roster_select.c",
+      "note": "Native stores the accepted P1 and dispatches command $0E; mode 1 enters gameplay directly, while mode 2 continues to the opponent selector. Exact bank-2 roster screen art remains outside this mapping."
+    },
+    "rom_b02_40f4": {
+      "status": "candidate",
+      "native_symbol": "roster_select_update",
+      "source": "src/scenes/scene_roster_select.c",
+      "note": "Accepted P1/P2 records, distinct opponent flow, and command $0E are native and Mesen-observed for mode 2; exact bank-2 portrait/VRAM presentation remains outside the mapping."
     },
     "rom_b00_28e1": {
       "status": "verified",

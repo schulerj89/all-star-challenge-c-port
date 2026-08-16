@@ -6,18 +6,28 @@ Last verified: **2026-08-15**
 
 Free Throws is now a playable native mode: D-pad aim, A release, ROM 8.8
 flight, rim/make outcomes, animated net, delayed score, 5/10/20 attempts,
-results, and return to the title flow are implemented. The scoped behavior
-manifest is **20/20 (100.00%)**. Exact bank-3 background tiles and the original
-four-entry ball OAM tile table remain presentation work and are not counted in
-that behavioral denominator.
+results, and return to the title flow are implemented. Free Throw selection
+now accepts one player and enters the mode without an opponent or VS card,
+and mode entry stops the title/menu song. The earlier procedural
+top-down court was incorrect. The ROM actually presents a close-up fixed
+shooter/backboard scene. Asset-pack v14 extracts and draws that mode's
+separate graphics. The expanded gameplay-and-presentation manifest is
+**32/32 (100.00%)**. Fixed `$1C1D` now consumes the prior `$1884` OAM Y,
+including its `$58` threshold and the mode-1 `$C12B=$2D` made-ball hold.
 
 ## Correct dispatcher path
 
-The fixed-bank mode table at `$0267` maps mode `$01` to `$0C8E`. The nearby
+The fixed-bank mode table at `$0267` maps mode `$01` to `$0C8E`. Before that,
+bank-2 `$4000` sees one player at `$FF91=1` and mode `$FF8F=1`; its
+`$4014-$401D` branch jumps directly to `$4034`, which runs only the first
+player selector and returns. It never enters `$4023`, the opponent selector,
+or any VS presentation. The nearby
 `$0CDF` entry is H-O-R-S-E; it is not Free Throws. The traced Free Throw path is:
 
 ```text
 $0C8E mode lifecycle
+  -> clear $DD73 (stop prior music command)
+  -> $2243 copies fixed $22A9 reticle art to OBJ tile $7F
   -> $17AA attempt reset
      -> $18E7 four-row RNG aim seed
   -> $100F mode-1 frame branch
@@ -37,8 +47,48 @@ $0C8E mode lifecycle
 
 Native code is split accordingly between
 `include/allstar_free_throw.h`, `src/gameplay/allstar_free_throw.c`, and
-`src/scenes/scene_free_throw.c`. The scene owns input, audio event dispatch,
+`src/scenes/scene_free_throw.c`. Asset extraction is in
+`src/allstar_asset_pack.c`. The scene owns input, audio event dispatch,
 drawing, results, and exit; the gameplay file owns the translated ROM state.
+
+## Recovered mode-specific graphics
+
+The Free Throw screen does not use the One-on-One court or player-frame
+renderer. The exact `$0C8E->$2243/$1CBD` loads are:
+
+| ROM path | Destination/use | Decoded bytes | FNV-1a |
+|---|---|---:|---:|
+| bank 1 `$640F..$6660` via `$050F` | VRAM `$8C00`; signed BG font IDs `$C0..$FA` | 944 | `EA6C7CAD` |
+| bank 3 `$6EF1..$708D` via `$050F` | VRAM `$8000`; 30 OBJ tiles for `$1884` | 480 | `ADFC1015` |
+| bank 3 `$708E..$793E` via `$050F` | VRAM `$9000`, wrapping at `$9800` to `$8800`; BG IDs `$00..$A2` | 2,608 | `B088FF84` |
+| bank 3 `$7F69..$7FCC` via `$050F` | VRAM `$9800`; 32x32 base tilemap | 1,024 | `3501C85B` |
+| fixed bank `$22A9..$22B8` via `$0496` | VRAM `$87F0`; OBJ tile `$7F` aiming reticle | 16 | exact literal copy |
+
+Fixed `$1828` selects three 9x8 close-up shooter maps at bank-1
+`$6661/$66A9/$66F1`. Fixed `$1858` selects four 3x5 hoop/net maps at
+`$6739/$6748/$6757/$6766`. Fixed `$1884` selects one of three 4x4 OBJ maps
+at bank-3 `$7FCD/$7FDD/$7FED` from ball Y thresholds `$C4/$D2`, then emits
+all 16 OAM entries. `$0749->$06C0` writes the selected player's last name;
+the shooter graphics themselves are fixed mode art, not per-roster sheets.
+
+The reticle is not a procedural crosshair and it is not part of the
+background. `$2243` initializes OAM entry `$C098..$C09B` to
+`{Y=0,X=0,tile=$7F,attr=0}` after copying the fixed 16 bytes at `$22A9` to
+VRAM `$87F0`. Each mode-1 frame calls `$1A25` after `$1942/$1986`; it writes
+the integer target Y to `$C098` and X to `$C099`. Native rendering uses the
+same raw OAM conversion (`screen_y=Y-16`, `screen_x=X-8`) and exact tile.
+Mesen observed `{Y=$33,X=$48,tile=$7F,attr=$00}` on the first live update.
+
+`$100F` calls `$1C1D` before `$1884`. Native therefore snapshots the prior
+OAM Y for all four sprite rows, applies the exact `<$58`/`>=$58` priority
+decision, then captures the new 16-entry `$1884` position before physics.
+On a make, `$1E49` writes `$C12B=$2D`; native holds gravity and forces all
+four rows behind nonzero BG pixels for the same countdown.
+
+The final screen is also cartridge-derived: selected last name on row 4,
+`SHOTS ATTEMPTED` on row 7, and `SHOTS MADE` on row 10. The former native
+boxed `FREE THROWS / SCORE n / n` panel was not a ROM screen and was removed
+from the asset-backed path.
 
 ## Recovered behavior
 
@@ -74,6 +124,24 @@ controller calls. The next `$17AA` occurs 292 traced frames after release.
 normalizes nonzero VX to `+/-$24`, and emits command `$0A`. For Z `$77..$79`
 and X `$33..$55`, table `$1B0F` selects one of eleven handlers.
 
+Before that eleven-way rim dispatch, `$1A7E->$1AA6` compares the captured
+release target against X table `$1AAD = {4F,50,51}` and a shooter-profile Y
+list selected through `$1AA7`:
+
+| `$2F40` profile | ROM Y list | Clean cells |
+|---:|---|---:|
+| 0 | `$38..$3E` | 21 |
+| 1 | `$39..$3D` | 15 |
+| 2 | `$3B..$3C` | 6 |
+
+A match jumps directly to `$1C05->$1E0E`; it does not need the later
+double-rim route. `trace_free_throw_make_window.lua` proves roster `$00`
+(profile 2), target `$50/$3B`, and the exact
+`$1A7E->$1A94->$1C05` make at release +77. The native exhaustive regression
+checks all 224 visible assist-rectangle cells for each profile and obtains
+the ROM counts 21/15/6. `$1BBD` also accepts its separate X `$4F..$51`, Y
+`$32/$33` center-rim override before consulting the profile latch.
+
 For the deterministic center shot, Mesen proves this exact sequence:
 
 ```text
@@ -95,9 +163,19 @@ command `$05` and increments the selected score at state 6 (make +71). The
 native center trace consequently reports make `118`, `$08` at `145`, `$05`
 at `189`, and next attempt at `292`.
 
+`$1E0E` seeds `$C12B=$2D`; `$1C1D` therefore applies OBJ priority to every
+ball row during the made-shot/net passage. The native software compositor
+uses that live timer immediately, keeping the ball behind nonzero foreground
+net/background pixels even on the first rendered make frame.
+
 ## Audio proof
 
-The expanded version-12 asset pack decodes two mode-specific `$3014` programs
+The mode has no replacement background song. Fixed `$0C8E` begins with
+`xor a; ld [$DD73],a`; `$3014` treats zero as no active music program. Native
+mode entry therefore stops the roster/title BGM rather than letting it loop
+under Free Throw gameplay. The Mesen trace reaches `$0C92` with `$DD73=$00`.
+
+The expanded version-15 asset pack decodes two mode-specific `$3014` programs
 directly from the user-owned ROM:
 
 | Command | Program | Priority | Stream | Frames | First live APU state |
@@ -124,14 +202,28 @@ instruments, duration expansion, channel registers, and shared source FNV-1a
 python tools/check_free_throw_coverage.py --require-min 100
 ```
 
-The native test asserts all four RNG rows, the center launch vector, live
+The native test asserts the single-player/no-VS transition, `$0C8E` music
+stop, all four RNG rows, reticle state, center launch vector, live
 make/net/score timing, five successful attempts, result state, and A-to-title
 exit. `tools/emulator/trace_free_throw.lua` independently boots the original
-ROM through its real menu and proves the same path and APU commands.
+ROM through its real menu and proves the `$4018->$4034` selector branch,
+`$DD73=0`, OAM tile `$7F`, shot path, and APU commands.
 
-Generated visual proof is written under `build/free_throw_proof/`:
+Generated native visual proof is written under
+`build/free_throw_reticle_proof/`.
+Original Mesen captures are `build/original_free_throw_aim_png.png`,
+`build/original_free_throw_flight_plus60.png`, and
+`build/original_free_throw_result_png.png`. These generated files are ignored
+and are not shipped as repository assets.
 
-- `06_free_throw.bmp` — live reticle and ready ball;
+The native proof set contains:
+
+- `03a_free_throw_roster.bmp` — the only player card selected for mode `$01`;
+- `03b_free_throw_no_vs.bmp` — the immediate next native frame is gameplay,
+  not a VS card;
+- `06_free_throw.bmp` — live exact-tile reticle and ready ball;
+- `06e_free_throw_reticle_left.bmp` / `06f_free_throw_reticle_right.bmp` —
+  exact `$1A25` OAM tile at two timing positions;
 - `06a_free_throw_flight.bmp` — fixed-point flight;
 - `06b_free_throw_make.bmp` — made-ball/net priority;
 - `06c_free_throw_net.bmp` — animated net phase;

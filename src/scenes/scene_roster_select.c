@@ -66,7 +66,12 @@ static void roster_select_update(AllStarScene *scene, AllStarGame *game, const A
             if (allstar_game_mode_requires_opponent(game->selected_mode)) {
                 data->state = ROSTER_STATE_SPLASH_OPPONENT;
             } else {
-                data->state = ROSTER_STATE_MATCHUP_VS;
+                /* Bank 2 $4000 jumps straight through $4034 only for
+                   modes 1 and 3. Mode 2 H-O-R-S-E deliberately continues
+                   through $4023 and selects a distinct CPU roster player. */
+                allstar_game_change_scene(
+                    game, allstar_game_mode_scene(game->selected_mode));
+                return;
             }
         }
     } else if (data->state == ROSTER_STATE_SPLASH_OPPONENT) {

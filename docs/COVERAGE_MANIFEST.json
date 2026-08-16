@@ -95,9 +95,9 @@
     {
       "id": "behavior.free_throw",
       "group": "gameplay",
-      "description": "Free Throw timing, attempts, scoring, results, and exit flow match the ROM.",
+      "description": "Free Throw single-player selection, title-music stop, moving reticle, rating-dependent clean-make timing, attempts, scoring, results, exit, close-up assets, 4x4 OBJ composition, and priority flow match the ROM.",
       "status": "verified",
-      "evidence": ["docs/parity/FREE_THROW.md", "docs/parity/FREE_THROW_COVERAGE.json", "include/allstar_free_throw.h", "src/gameplay/allstar_free_throw.c", "src/scenes/scene_free_throw.c", "tools/emulator/trace_free_throw.lua"],
+      "evidence": ["docs/parity/FREE_THROW.md", "docs/parity/FREE_THROW_COVERAGE.json", "include/allstar_asset_pack.h", "include/allstar_free_throw.h", "src/allstar_asset_pack.c", "src/gameplay/allstar_free_throw.c", "src/scenes/scene_free_throw.c", "tools/emulator/trace_free_throw.lua", "tools/emulator/trace_free_throw_make_window.lua"],
       "verification_command": ".\\build\\allstar_port.exe --test-free-throw"
     },
     {
@@ -112,7 +112,9 @@
       "id": "behavior.horse",
       "group": "gameplay",
       "description": "H-O-R-S-E called-shot, matching, letter, turn, and win rules match the ROM.",
-      "status": "scaffolded"
+      "status": "verified",
+      "evidence": ["docs/parity/HORSE.md", "docs/parity/HORSE_COVERAGE.json", "include/allstar_horse.h", "src/gameplay/allstar_horse.c", "src/scenes/scene_horse.c", "tools/emulator/trace_horse.lua"],
+      "verification_command": ".\\build\\allstar_port.exe --test-horse"
     },
     {
       "id": "behavior.accuracy",
@@ -238,7 +240,14 @@
       "verified": 12,
       "total": 25,
       "percent": 48.0,
-      "note": "Replaced the Free Throw gauge prototype with the traced $0C8E/$100F mode: exact 8.8 aim and launch, $1A31 rim/make sequence, $1C61 delayed net/score, 5/10/20 attempts, result/exit flow, and ROM-derived $08/$0A audio."
+      "note": "Replaced the Free Throw gauge/top-down prototype with the traced mode. The scope now includes bank-2 single-player selection without VS, $0C8E music stop, exact $22A9/$1A25 reticle, aim/launch, rim/net/score, attempts/results, $08/$0A audio, $2243/$1CBD assets, $1828/$1858 maps, $1884 OBJ composition, and $1C1D priority."
+    },
+    {
+      "date": "2026-08-15",
+      "verified": 13,
+      "total": 25,
+      "percent": 52.0,
+      "note": "Replaced the procedural Horse prototype with the traced mode-2 caller/matcher state machine, two-player roster selection, exact 50-position CPU table, saved X marker, H-O-R-S-E counters, shared shot physics/animation, command-$07 audio, result flow, and emulator/native proof."
     }
   ]
 }

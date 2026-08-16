@@ -44,6 +44,11 @@ typedef struct {
     uint8_t contact_cooldown;
     uint8_t center_latch;
     uint8_t ricochet_count;
+    uint8_t priority_timer;
+    uint8_t oam_x;
+    uint8_t oam_y;
+    uint8_t oam_band;
+    uint8_t oam_priority_rows;
     uint16_t presentation_frame;
     bool physics_enabled;
     bool made_current;
@@ -72,6 +77,9 @@ void allstar_free_throw_aim_step_1986(AllStarFreeThrowState *state);
 bool allstar_free_throw_launch_1caa_7c58(AllStarFreeThrowState *state,
                                         uint8_t rng);
 uint8_t allstar_free_throw_player_profile_2f40(uint8_t roster_id);
+bool allstar_free_throw_clean_make_window_1a7e(uint8_t aim_x,
+                                               uint8_t aim_y,
+                                               uint8_t player_profile);
 void allstar_free_throw_ball_screen_1884(const AllStarFreeThrowState *state,
                                          int *screen_x, int *screen_y);
 

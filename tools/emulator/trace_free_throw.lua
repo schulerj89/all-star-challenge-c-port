@@ -11,6 +11,9 @@ local shotReleased = false
 local shotResolved = false
 local launchChecked = false
 local nextAttempt = false
+local singleSelectorSeen = false
+local musicStopped = false
+local reticleSeen = false
 local launchFrame = nil
 local failures = 0
 local stopping = false
@@ -49,6 +52,32 @@ local function onModeEntry()
   print(string.format(
     "FT_ENTRY mode=%02X attempts=%02X/%02X selected_side=%02X",
     read(0xFF8F), read(0xFFAB), read(0xFFC4), read(0xFFE1)))
+end
+
+local function onSingleSelectorBranch()
+  if read(0xFF8F) == 0x01 then
+    singleSelectorSeen = true
+    print(string.format(
+      "FT_SELECTOR mode=%02X players=%02X branch=4018->4034 (no second player/VS)",
+      read(0xFF8F), read(0xFF91)))
+  end
+end
+
+local function onMusicCleared()
+  if read(0xFF8F) == 0x01 then
+    musicStopped = read(0xDD73) == 0
+    print(string.format(
+      "FT_MUSIC_STOP pc=0C92 command_DD73=%02X", read(0xDD73)))
+  end
+end
+
+local function onReticleStored()
+  if not reticleSeen and read(0xC09A) == 0x7F then
+    reticleSeen = true
+    print(string.format(
+      "FT_RETICLE pc=1A30 oam_C098={y=%02X,x=%02X,tile=%02X,attr=%02X}",
+      read(0xC098), read(0xC099), read(0xC09A), read(0xC09B)))
+  end
 end
 
 local function onAimInit()
@@ -181,6 +210,10 @@ local function onEndFrame()
     expect(shotReleased, "$1CAA->$7C58 did not release the shot")
     expect(launchChecked, "$7C58 did not reach the computed-vector handoff")
     expect(shotResolved, "center target did not reach the ROM made-basket cell")
+    expect(singleSelectorSeen,
+      "bank-2 mode-$01 single-player selector branch was not observed")
+    expect(musicStopped, "$0C8E did not clear the music command at $DD73")
+    expect(reticleSeen, "$1A25 did not update OBJ reticle tile $7F")
     expect(read(0xFFAB) == 0x04 or read(0xFFC4) == 0x04,
       "$0CD1 did not decrement the selected BCD attempt counter")
     print(failures == 0 and
@@ -198,6 +231,12 @@ emu.addMemoryCallback(onMenuLoop, emu.callbackType.exec,
   0x03B9, 0x03B9, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onModeEntry, emu.callbackType.exec,
   0x0C8E, 0x0C8E, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onSingleSelectorBranch, emu.callbackType.exec,
+  0x4018, 0x4018, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onMusicCleared, emu.callbackType.exec,
+  0x0C92, 0x0C92, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onReticleStored, emu.callbackType.exec,
+  0x1A30, 0x1A30, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onAimInit, emu.callbackType.exec,
   0x18E7, 0x18E7, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onAimInitReturn, emu.callbackType.exec,

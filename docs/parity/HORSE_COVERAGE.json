@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "horse_gameplay_requirements",
+    "description": "Thirty equal, all-or-nothing requirements for the cartridge's mode-2 H-O-R-S-E gameplay path. Guessed or procedural substitutes receive no credit.",
+    "total": 30,
+    "points_per_requirement": 3.3333333333
+  },
+  "requirements": [
+    {"id":"lifecycle.mode_entry_0cdf","group":"lifecycle","status":"verified","evidence":["docs/parity/HORSE.md","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"lifecycle.two_roster_selector_4000","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_roster_select.c"],"test":"--test-mode-routing"},
+    {"id":"lifecycle.music_stop_0cdf","group":"lifecycle","status":"verified","evidence":["docs/parity/HORSE.md","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"lifecycle.five_letter_init_22b9","group":"lifecycle","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+    {"id":"lifecycle.alternating_turns_0d0a","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c"],"test":"--test-horse"},
+    {"id":"lifecycle.resolve_wait_180","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"lifecycle.between_turn_192","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"lifecycle.win_and_exit","group":"lifecycle","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/scenes/scene_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+
+    {"id":"rules.saved_spot_0e36","group":"rules","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c"],"test":"--test-horse"},
+    {"id":"rules.lower_edge_alignment_0e36","group":"rules","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+    {"id":"rules.caller_make_keeps_call","group":"rules","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c"],"test":"--test-horse"},
+    {"id":"rules.caller_miss_changes_call","group":"rules","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+    {"id":"rules.matcher_make_no_letter","group":"rules","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+    {"id":"rules.matcher_miss_letter_0e26","group":"rules","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c"],"test":"--test-horse"},
+    {"id":"rules.zero_counter_winner","group":"rules","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+
+    {"id":"cpu.rng_groups_6cab","group":"control","status":"verified","evidence":["docs/parity/HORSE.md","src/gameplay/allstar_horse.c"],"test":"--test-horse"},
+    {"id":"cpu.fifty_spots_6db7","group":"control","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
+    {"id":"cpu.ten_spot_cycle_ffe0","group":"control","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"control.matcher_placement_7afd","group":"control","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"control.human_move_during_gather_702d","group":"control","status":"verified","evidence":["src/scenes/scene_horse.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-one-on-one-shooting"},
+
+    {"id":"shot.variant_and_facing_7138_714d","group":"shot","status":"verified","evidence":["src/scenes/scene_horse.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-horse"},
+    {"id":"shot.shared_animation_6a8c","group":"shot","status":"verified","evidence":["src/scenes/scene_horse.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-horse"},
+    {"id":"shot.release_origin_7f37","group":"shot","status":"verified","evidence":["src/scenes/scene_horse.c","src/gameplay/allstar_one_on_one.c"],"test":"--test-horse"},
+    {"id":"shot.profile_vector_7c58_7ea9","group":"shot","status":"verified","evidence":["src/scenes/scene_horse.c","src/gameplay/allstar_physics.c"],"test":"--test-physics"},
+    {"id":"shot.fixed_step_7be8","group":"shot","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/scenes/scene_horse.c"],"test":"--test-physics"},
+    {"id":"shot.rim_score_1ced","group":"shot","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/scenes/scene_horse.c"],"test":"--test-physics"},
+
+    {"id":"presentation.shared_court_net","group":"presentation","status":"verified","evidence":["src/scenes/scene_horse.c","src/allstar_renderer.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.saved_x_tile_7b7a","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_horse.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.letter_prefixes_7ba8_7bc0","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c","src/scenes/scene_horse.c"],"test":"--test-horse"},
+    {"id":"audio.letter_command_07","group":"presentation","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"],"test":"--export-horse-sfx"}
+  ]
+}

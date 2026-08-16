@@ -10,7 +10,7 @@ animation selection, roster-specific OBJ palettes, shot facing, live steals,
 charging/blocking, ball placement, miss recovery and take-back, plus the focused
 `$04/$05/$09/$0C/$0D/$0E/$0F` audio programs. It does not claim that the
 entire cartridge music/APU interpreter is ported; these seven cues are decoded
-from the user's ROM into asset-pack v12 and rendered from recovered square/noise
+from the user's ROM into asset-pack v15 and rendered from recovered square/noise
 state.
 
 ## Ghidra and live-ROM path
@@ -88,7 +88,7 @@ The builder follows `$2F88->$3014` data instead of embedding guessed notes:
   source region in the verified USA/Europe image.
 
 The runtime never uses the old generic three-note/two-note fallbacks when a
-valid version-12 user pack is loaded. The proof WAVs are reproducible from the
+valid version-15 user pack is loaded. The proof WAVs are reproducible from the
 serialized decoded frames:
 
 ```powershell
@@ -106,7 +106,7 @@ The 2026-08-15 v11 rebuild produced the original seven-cue SHA-256 proof
 `8EEF558779ED3E91996EBC01ABEBAAF80F6268CDB4CFE547C93951150D80EB89`
 for command `$0F` character cycling and
 `3CF97D15C31128FA60E91E9590F1948E74BAE2EFD4E083A740BA77904C2ED0C3`
-for command `$04` charging/blocking. Current rebuilds use asset-pack v12,
+for command `$04` charging/blocking. Current rebuilds use asset-pack v15,
 not checked-in replacement recordings.
 
 ## Native pacing

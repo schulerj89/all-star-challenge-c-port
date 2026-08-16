@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 12
+#define ALLSTAR_ASSET_VERSION 15
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -18,10 +18,19 @@
 #define ALLSTAR_BALL_OAM_PAIR_COUNT 32
 #define ALLSTAR_COURT_TILE_COUNT 86
 #define ALLSTAR_NET_TILE_COUNT 17
-#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 9
+#define ALLSTAR_FREE_THROW_BG_TILE_COUNT 256
+#define ALLSTAR_FREE_THROW_OBJ_TILE_COUNT 30
+#define ALLSTAR_FREE_THROW_POSE_COUNT 3
+#define ALLSTAR_FREE_THROW_POSE_MAP_SIZE 72
+#define ALLSTAR_FREE_THROW_NET_MAP_COUNT 4
+#define ALLSTAR_FREE_THROW_NET_MAP_SIZE 15
+#define ALLSTAR_FREE_THROW_BALL_MAP_COUNT 3
+#define ALLSTAR_FREE_THROW_BALL_MAP_SIZE 16
+#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 10
 #define ALLSTAR_ROM_SFX_MAX_FRAMES 72
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
 #define ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO (1u << 1)
+#define ALLSTAR_ASSET_FEATURE_FREE_THROW_ART (1u << 2)
 
 #define ALLSTAR_ROM_SFX_CHANNEL_1 (1u << 0)
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
@@ -57,7 +66,7 @@ typedef struct {
 } AllStarRomOamPair;
 
 /* Focused $3014 APU-program decode for gameplay commands
-   $04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F.
+   $04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F.
    Frequencies are the DMG 11-bit NR13/NR14 and NR23/NR24 values after the
    ROM's $3244 pitch modulation has been applied for that 59.7 Hz frame. */
 typedef struct {
@@ -136,6 +145,19 @@ typedef struct {
     AllStarRomOamPair ball_oam_pairs[ALLSTAR_BALL_OAM_PAIR_COUNT];
     AllStarTile court_tiles[ALLSTAR_COURT_TILE_COUNT];
     AllStarTile net_tiles[ALLSTAR_NET_TILE_COUNT];
+    /* Fixed $2243/$1CBD Free Throw VRAM image. BG tiles are indexed by the
+       raw signed-mode tile byte; OBJ tiles are the $1884 4x4 ball source. */
+    AllStarTile free_throw_bg_tiles[ALLSTAR_FREE_THROW_BG_TILE_COUNT];
+    AllStarTile free_throw_obj_tiles[ALLSTAR_FREE_THROW_OBJ_TILE_COUNT];
+    /* Fixed-bank $22A9 tile copied by $2243 to OBJ tile $7F. */
+    AllStarTile free_throw_reticle_tile;
+    uint8_t free_throw_tilemap[32 * 32];
+    uint8_t free_throw_pose_maps[ALLSTAR_FREE_THROW_POSE_COUNT]
+                                [ALLSTAR_FREE_THROW_POSE_MAP_SIZE];
+    uint8_t free_throw_net_maps[ALLSTAR_FREE_THROW_NET_MAP_COUNT]
+                               [ALLSTAR_FREE_THROW_NET_MAP_SIZE];
+    uint8_t free_throw_ball_maps[ALLSTAR_FREE_THROW_BALL_MAP_COUNT]
+                                [ALLSTAR_FREE_THROW_BALL_MAP_SIZE];
     AllStarRomSfxProgram rom_sfx_programs[ALLSTAR_ROM_SFX_PROGRAM_COUNT];
     bool is_loaded;
 } AllStarAssetPack;

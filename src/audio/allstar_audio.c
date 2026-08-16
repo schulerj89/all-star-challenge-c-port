@@ -374,6 +374,8 @@ static void generate_gameplay_sfx_fallbacks(void) {
     static const float whistle_d[] = {0.09f, 0.14f};
     static const float cheer_f[] = {330.0f, 392.0f, 494.0f, 659.0f};
     static const float cheer_d[] = {0.08f, 0.08f, 0.08f, 0.18f};
+    static const float horse_letter_f[] = {740.0f, 988.0f};
+    static const float horse_letter_d[] = {0.10f, 0.22f};
 
     if (!g_sfx[ALLSTAR_SFX_DRIBBLE].loaded)
         generate_square_sequence(&g_sfx[ALLSTAR_SFX_DRIBBLE],
@@ -407,6 +409,9 @@ static void generate_gameplay_sfx_fallbacks(void) {
     if (!g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT].loaded)
         generate_square_sequence(&g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT],
             dribble_f, dribble_d, 1, 6500.0f);
+    if (!g_sfx[ALLSTAR_SFX_HORSE_LETTER].loaded)
+        generate_square_sequence(&g_sfx[ALLSTAR_SFX_HORSE_LETTER],
+            horse_letter_f, horse_letter_d, 2, 7500.0f);
 }
 
 static DWORD WINAPI audio_mixer_thread(LPVOID param) {
@@ -562,6 +567,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     const AllStarRomSfxProgram *foul;
     const AllStarRomSfxProgram *free_throw_net;
     const AllStarRomSfxProgram *free_throw_contact;
+    const AllStarRomSfxProgram *horse_letter;
     if (!audio || !pack || !pack->is_loaded ||
         (pack->header.feature_flags &
             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) == 0 ||
@@ -576,6 +582,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
     foul = &pack->rom_sfx_programs[6];
     free_throw_net = &pack->rom_sfx_programs[7];
     free_throw_contact = &pack->rom_sfx_programs[8];
+    horse_letter = &pack->rom_sfx_programs[9];
     if (movement->command != 0x0d || movement->program_id != 0x11 ||
         movement->priority_frames != 0x14 || movement->frame_count != 3 ||
         movement->stream_pointer_1 != 0x3fa2 ||
@@ -618,6 +625,11 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_throw_contact->priority_frames != 0x1c ||
         free_throw_contact->frame_count != 12 ||
         free_throw_contact->stream_pointer_1 != 0x3f0a ||
+        horse_letter->command != 0x07 ||
+        horse_letter->program_id != 0x06 ||
+        horse_letter->priority_frames != 0x2a ||
+        horse_letter->frame_count != 42 ||
+        horse_letter->stream_pointer_1 != 0x3eb6 ||
         movement->source_checksum == 0 ||
         movement->source_checksum != score->source_checksum ||
         movement->source_checksum != dribble->source_checksum ||
@@ -626,7 +638,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         movement->source_checksum != rim->source_checksum ||
         movement->source_checksum != foul->source_checksum ||
         movement->source_checksum != free_throw_net->source_checksum ||
-        movement->source_checksum != free_throw_contact->source_checksum)
+        movement->source_checksum != free_throw_contact->source_checksum ||
+        movement->source_checksum != horse_letter->source_checksum)
         return false;
 #ifdef _WIN32
     {
@@ -639,6 +652,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         PcmSound foul_pcm = {0};
         PcmSound free_throw_net_pcm = {0};
         PcmSound free_throw_contact_pcm = {0};
+        PcmSound horse_letter_pcm = {0};
         if (!generate_rom_program(&movement_pcm, movement) ||
             !generate_rom_program(&score_pcm, score) ||
             !generate_rom_program(&dribble_pcm, dribble) ||
@@ -648,7 +662,8 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             !generate_rom_program(&foul_pcm, foul) ||
             !generate_rom_program(&free_throw_net_pcm, free_throw_net) ||
             !generate_rom_program(&free_throw_contact_pcm,
-                                  free_throw_contact)) {
+                                  free_throw_contact) ||
+            !generate_rom_program(&horse_letter_pcm, horse_letter)) {
             free_pcm_sound(&movement_pcm);
             free_pcm_sound(&score_pcm);
             free_pcm_sound(&dribble_pcm);
@@ -658,6 +673,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
             free_pcm_sound(&foul_pcm);
             free_pcm_sound(&free_throw_net_pcm);
             free_pcm_sound(&free_throw_contact_pcm);
+            free_pcm_sound(&horse_letter_pcm);
             return false;
         }
         EnterCriticalSection(&g_audio_lock);
@@ -670,6 +686,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_WHISTLE]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_FREE_THROW_NET]);
         free_pcm_sound(&g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT]);
+        free_pcm_sound(&g_sfx[ALLSTAR_SFX_HORSE_LETTER]);
         g_sfx[ALLSTAR_SFX_SHOE_SQUEAK] = movement_pcm;
         g_sfx[ALLSTAR_SFX_SCORE_CHIME] = score_pcm;
         g_sfx[ALLSTAR_SFX_DRIBBLE] = dribble_pcm;
@@ -679,6 +696,7 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
         g_sfx[ALLSTAR_SFX_WHISTLE] = foul_pcm;
         g_sfx[ALLSTAR_SFX_FREE_THROW_NET] = free_throw_net_pcm;
         g_sfx[ALLSTAR_SFX_FREE_THROW_CONTACT] = free_throw_contact_pcm;
+        g_sfx[ALLSTAR_SFX_HORSE_LETTER] = horse_letter_pcm;
         LeaveCriticalSection(&g_audio_lock);
     }
 #endif

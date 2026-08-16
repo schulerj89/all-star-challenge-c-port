@@ -62,6 +62,10 @@ void allstar_free_throw_reset_attempt_17aa(AllStarFreeThrowState *state,
     state->ball.x = 0x4f00;
     state->ball.y = 0xe000;
     state->ball.z = 0x7200;
+    state->oam_x = 0x4f;
+    state->oam_y = (uint8_t)(0xe0 - 0x72 - 0x18);
+    state->oam_band = 2;
+    state->oam_priority_rows = 0;
     state->net_state = 7;
     state->net_timer = 0x10;
     allstar_free_throw_aim_init_18e7(state, rng);
@@ -143,6 +147,7 @@ bool allstar_free_throw_launch_1caa_7c58(AllStarFreeThrowState *state,
     state->physics_enabled = false;
     state->made_current = false;
     state->score_pending = false;
+    state->priority_timer = 0;
     state->attempts_taken++;
     if (state->attempts_remaining > 0) state->attempts_remaining--;
 
@@ -180,8 +185,41 @@ static void make_1e0e(AllStarFreeThrowState *state) {
     state->made_current = true;
     state->score_pending = true;
     state->net_state = 0;
+    /* Mode $01 takes the $1E2F A=$2D branch. $7BE8 counts this down before
+       applying gravity, and $1C1D forces all four OAM rows behind BG. */
+    state->priority_timer = 0x2d;
     /* $C0B4 remains the reset value 16 until $1C61 consumes it. */
     if (state->net_timer == 0) state->net_timer = 0x10;
+}
+
+static void free_throw_oam_step_1c1d_1884(AllStarFreeThrowState *state) {
+    uint8_t priority = 0;
+    uint8_t row;
+    uint8_t ball_y;
+    uint8_t ball_z;
+    if (!state) return;
+    for (row = 0; row < 4; row++) {
+        if (state->priority_timer != 0 ||
+            (uint8_t)(state->oam_y + row * 8) >= 0x58)
+            priority |= (uint8_t)(1u << row);
+    }
+    ball_y = high_byte(state->ball.y);
+    ball_z = high_byte(state->ball.z);
+    state->oam_priority_rows = priority;
+    state->oam_x = high_byte(state->ball.x);
+    state->oam_y = (uint8_t)(ball_y - ball_z - 0x18);
+    state->oam_band = ball_y >= 0xd2 ? 2 : (ball_y >= 0xc4 ? 1 : 0);
+}
+
+static void free_throw_ball_step_7be8(AllStarFreeThrowState *state) {
+    if (state->priority_timer == 0) {
+        allstar_physics_rom_step_7be8(&state->ball);
+        return;
+    }
+    state->priority_timer--;
+    state->ball.x = (uint16_t)(state->ball.x + (uint16_t)state->ball.vx);
+    state->ball.y = (uint16_t)(state->ball.y + (uint16_t)state->ball.vy);
+    state->ball.z = (uint16_t)(state->ball.z + (uint16_t)state->ball.vz);
 }
 
 static uint8_t rim_group_1b0f(uint8_t x) {
@@ -196,6 +234,44 @@ static uint8_t rim_group_1b0f(uint8_t x) {
     if (x <= 0x4d) return 8;
     if (x <= 0x51) return 9;
     return 10;
+}
+
+/* $1A7E->$1AA6 checks the release target before the eleven rim handlers.
+   $1AAD is {4F,50,51}; $1AA7 selects one of the three FF-terminated Y
+   lists at $1AB0/$1AB8/$1ABE from the shooter's $2F40 profile. */
+bool allstar_free_throw_clean_make_window_1a7e(uint8_t aim_x,
+                                               uint8_t aim_y,
+                                               uint8_t player_profile) {
+    static const uint8_t x_table_1aad[] = { 0x4f, 0x50, 0x51 };
+    static const uint8_t y_table_1ab0[][8] = {
+        { 0x38,0x39,0x3a,0x3b,0x3c,0x3d,0x3e,0xff },
+        { 0x39,0x3a,0x3b,0x3c,0x3d,0xff,0xff,0xff },
+        { 0x3b,0x3c,0xff,0xff,0xff,0xff,0xff,0xff }
+    };
+    uint8_t profile = player_profile <= 2 ? player_profile : 2;
+    size_t i;
+    bool x_match = false;
+
+    for (i = 0; i < sizeof(x_table_1aad); i++) {
+        if (aim_x == x_table_1aad[i]) {
+            x_match = true;
+            break;
+        }
+    }
+    if (!x_match) return false;
+    for (i = 0; i < sizeof(y_table_1ab0[profile]); i++) {
+        if (y_table_1ab0[profile][i] == 0xff) break;
+        if (aim_y == y_table_1ab0[profile][i]) return true;
+    }
+    return false;
+}
+
+/* The center-rim handler at $1BBD has a second, smaller target override. */
+static bool center_rim_make_window_1bbd(const AllStarFreeThrowState *state) {
+    uint8_t aim_x = high_byte(state->aim_x);
+    uint8_t aim_y = high_byte(state->aim_y);
+    return aim_x >= 0x4f && aim_x <= 0x51 &&
+           (aim_y == 0x32 || aim_y == 0x33);
 }
 
 static uint32_t rim_contact_1a31(AllStarFreeThrowState *state) {
@@ -223,6 +299,12 @@ static uint32_t rim_contact_1a31(AllStarFreeThrowState *state) {
         if (state->ball.vx < 0) state->ball.vx = (int16_t)-0x24;
         else if (state->ball.vx > 0) state->ball.vx = 0x24;
         events |= ALLSTAR_FREE_THROW_EVENT_BALL_CONTACT;
+        if (allstar_free_throw_clean_make_window_1a7e(
+                high_byte(state->aim_x), high_byte(state->aim_y),
+                state->player_profile)) {
+            make_1e0e(state);
+            return events | ALLSTAR_FREE_THROW_EVENT_MAKE;
+        }
         y = 0xba;
     }
     x = high_byte(state->ball.x);
@@ -243,7 +325,8 @@ static uint32_t rim_contact_1a31(AllStarFreeThrowState *state) {
                 state->contact_cooldown = 4;
                 return events | ALLSTAR_FREE_THROW_EVENT_BALL_CONTACT;
             case 5:
-                if (state->center_latch != 0) {
+                if (center_rim_make_window_1bbd(state) ||
+                    state->center_latch != 0) {
                     make_1e0e(state);
                     return events | ALLSTAR_FREE_THROW_EVENT_MAKE;
                 }
@@ -291,6 +374,10 @@ uint32_t allstar_free_throw_tick_100f(AllStarFreeThrowState *state,
                                      uint8_t rng) {
     uint32_t events = 0;
     if (!state) return 0;
+    /* `$100F` mode 1 calls `$1C1D` before `$1884`, so priority is selected
+       from the prior OAM Y while the new OAM position is captured before
+       input/physics updates the underlying ball state. */
+    free_throw_oam_step_1c1d_1884(state);
     if (state->phase == ALLSTAR_FREE_THROW_AIMING) {
         allstar_free_throw_aim_input_1942(state, held_buttons);
         allstar_free_throw_aim_step_1986(state);
@@ -315,7 +402,7 @@ uint32_t allstar_free_throw_tick_100f(AllStarFreeThrowState *state,
                                        (uint8_t)(high_byte(state->ball.z) + 3));
         state->physics_enabled = true;
     } else if (state->physics_enabled) {
-        allstar_physics_rom_step_7be8(&state->ball);
+        free_throw_ball_step_7be8(state);
         events |= rim_contact_1a31(state);
     }
     if (state->presentation_frame >= ALLSTAR_FREE_THROW_PRESENTATION_FRAMES) {

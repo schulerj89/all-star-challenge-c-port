@@ -2,12 +2,13 @@
   "schema_version": 1,
   "metric": {
     "name": "free_throw_gameplay_requirements",
-    "description": "Twenty equal, all-or-nothing requirements for a playable native Free Throw mode. Exact mode-background tile extraction is tracked separately and is not part of this behavioral denominator.",
-    "total": 20,
-    "points_per_requirement": 5.0
+    "description": "Thirty-two equal, all-or-nothing requirements for Free Throw gameplay, single-player selection, audio transition, and mode-specific ROM presentation. Guessed/procedural replacements receive no credit.",
+    "total": 32,
+    "points_per_requirement": 3.125
   },
   "requirements": [
     {"id":"lifecycle.mode_entry_0c8e","group":"lifecycle","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
+    {"id":"lifecycle.single_player_selector_4000_4034","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/scenes/scene_roster_select.c","src/allstar_cli.c"],"test":"--test-free-throw"},
     {"id":"lifecycle.attempt_options","group":"lifecycle","status":"verified","evidence":["src/allstar_game.c","src/gameplay/allstar_free_throw.c"],"test":"--test-settings"},
     {"id":"lifecycle.attempt_decrement","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
     {"id":"lifecycle.next_attempt_17e2","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
@@ -18,17 +19,29 @@
     {"id":"aim.attraction_and_acceleration_1986","group":"aim","status":"verified","evidence":["src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
     {"id":"aim.boundary_stops_1986","group":"aim","status":"verified","evidence":["src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
     {"id":"aim.release_and_assist_1caa","group":"aim","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
+    {"id":"presentation.reticle_2243_1a25","group":"aim","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_asset_pack.c","src/scenes/scene_free_throw.c","src/allstar_cli.c"],"test":"--dump-screenshots"},
 
     {"id":"shot.vector_7c58","group":"shot","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_cli.c"],"test":"--test-free-throw"},
     {"id":"shot.fixed_step_7be8","group":"shot","status":"verified","evidence":["src/gameplay/allstar_physics.c","src/gameplay/allstar_free_throw.c"],"test":"--test-physics"},
     {"id":"shot.presentation_292_frames","group":"shot","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_cli.c"],"test":"--test-free-throw"},
     {"id":"shot.traced_rim_sequence_1a31","group":"shot","status":"verified","evidence":["docs/parity/FREE_THROW.md","tools/emulator/trace_free_throw.lua","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
+    {"id":"shot.rating_clean_make_tables_1a7e","group":"shot","status":"verified","evidence":["docs/parity/FREE_THROW.md","tools/emulator/trace_free_throw_make_window.lua","src/gameplay/allstar_free_throw.c","src/allstar_cli.c"],"test":"--test-free-throw"},
     {"id":"shot.double_contact_make_c164","group":"shot","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_cli.c"],"test":"--test-free-throw"},
 
     {"id":"presentation.ball_coordinates_1884","group":"presentation","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
     {"id":"presentation.net_sequence_1c61","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/gameplay/allstar_free_throw.c"],"test":"--test-free-throw"},
     {"id":"presentation.delayed_score","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_cli.c"],"test":"--test-free-throw"},
     {"id":"audio.command_08_net","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"],"test":"--export-free-throw-sfx"},
-    {"id":"audio.command_0a_contact","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"],"test":"--export-free-throw-sfx"}
+    {"id":"audio.command_0a_contact","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/allstar_asset_pack.c","src/audio/allstar_audio.c"],"test":"--export-free-throw-sfx"},
+    {"id":"audio.mode_entry_stop_0c8e","group":"presentation","status":"verified","evidence":["tools/emulator/trace_free_throw.lua","src/scenes/scene_free_throw.c","src/allstar_cli.c"],"test":"--test-free-throw"},
+
+    {"id":"assets.loader_2243","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/allstar_asset_pack.c"],"test":"--build-assetpack"},
+    {"id":"assets.base_map_1cbd_7f69","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/allstar_asset_pack.c","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"assets.shooter_pose_maps_1828","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/allstar_asset_pack.c","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"assets.net_maps_1858","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/allstar_asset_pack.c","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"assets.ball_tiles_and_oam_1884","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/allstar_asset_pack.c","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.rom_hud_name_shot_score","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.result_10a5_layout","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/scenes/scene_free_throw.c"],"test":"--dump-screenshots"},
+    {"id":"presentation.oam_priority_1c1d","group":"assets","status":"verified","evidence":["docs/parity/FREE_THROW.md","src/gameplay/allstar_free_throw.c","src/scenes/scene_free_throw.c","src/allstar_cli.c"],"test":"--test-free-throw"}
   ]
 }

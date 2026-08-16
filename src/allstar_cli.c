@@ -1,4 +1,5 @@
 #include "allstar_game.h"
+#include "allstar_horse.h"
 #include "allstar_rom.h"
 #include "allstar_asset_pack.h"
 #include "allstar_roster.h"
@@ -66,6 +67,7 @@ static void print_usage(const char *prog_name) {
     printf("                                        Export decoded ROM cues\n");
     printf("  --export-free-throw-sfx <pack> <08.wav> <0A.wav>\n");
     printf("                                        Export Free Throw net/contact cues\n");
+    printf("  --export-horse-sfx <pack> <07.wav> Export ROM Horse letter cue\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -75,6 +77,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-one-on-one-shooting         Verify staged shooting and traveling\n");
     printf("  --test-one-on-one-presentation     Verify One-on-One movement/roster audio\n");
     printf("  --test-free-throw                 Verify ROM Free Throw lifecycle/physics\n");
+    printf("  --test-horse                      Verify ROM H-O-R-S-E rules/scene\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -525,7 +528,7 @@ int allstar_cli_test_mode_routing(void) {
     } expected[ALLSTAR_MODE_COUNT] = {
         { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true  },
         { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false },
-        { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       false },
+        { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true },
         { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true  },
         { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true  }
     };
@@ -2600,6 +2603,132 @@ int allstar_cli_export_free_throw_sfx(const char *pack_path,
     return 0;
 }
 
+int allstar_cli_export_horse_sfx(const char *pack_path,
+                                 const char *letter_path) {
+    AllStarAssetPack pack;
+    const AllStarRomSfxProgram *letter;
+    if (!allstar_asset_pack_load_file(&pack, pack_path) ||
+        pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
+        return 1;
+    letter = &pack.rom_sfx_programs[9];
+    if (!allstar_audio_export_rom_sfx_wav(&pack, 0x07, letter_path)) {
+        fprintf(stderr, "[Horse SFX] Failed to export command $07 WAV proof\n");
+        return 1;
+    }
+    printf("[Horse SFX] $07 -> program $%02X priority %u stream $%04X, "
+           "%u frames, NR10/11/12=%02X/%02X/%02X, "
+           "notes $%04X->$%04X, source FNV-1a %08X\n",
+           letter->program_id, letter->priority_frames,
+           letter->stream_pointer_1, letter->frame_count,
+           letter->square1_sweep, letter->square1_duty_length,
+           letter->square1_envelope,
+           letter->frames[0].square1_frequency,
+           letter->frames[6].square1_frequency,
+           letter->source_checksum);
+    printf("[Horse SFX] Exported %s\n", letter_path);
+    return 0;
+}
+
+int allstar_cli_test_horse(void) {
+    AllStarHorseState mode;
+    AllStarHorseDebugState debug;
+    AllStarGame game;
+    uint8_t x;
+    uint8_t y;
+    uint32_t events;
+    int frame;
+    printf("[Test] Running ROM H-O-R-S-E Rule/Scene Tests...\n");
+    allstar_horse_init_0cdf(&mode);
+    if (mode.current_player != 1 || mode.caller != 1 ||
+        mode.letters_remaining[0] != 5 || mode.letters_remaining[1] != 5 ||
+        strcmp(allstar_horse_letters_7bc0(5), "") != 0 ||
+        strcmp(allstar_horse_letters_7bc0(0), "HORSE") != 0) {
+        fprintf(stderr, "[Test] $0CDF/$22B9/$7BC0 initial state mismatch\n");
+        return 1;
+    }
+    allstar_horse_cpu_spot_6cab(0x00, 0, &x, &y);
+    if (x != 0x0c || y != 0x94) {
+        fprintf(stderr, "[Test] $6CAB group-0 spot mismatch\n");
+        return 1;
+    }
+    allstar_horse_cpu_spot_6cab(0xba, 9, &x, &y);
+    if (x != 0x8c || y != 0x78) {
+        fprintf(stderr, "[Test] $6CAB group-4 spot mismatch\n");
+        return 1;
+    }
+    events = allstar_horse_resolve_shot_0d57(&mode, true, 117.0f, 136.0f);
+    if ((events & ALLSTAR_HORSE_EVENT_CALLED_MAKE) == 0 ||
+        mode.current_player != 2 || mode.caller != 1 ||
+        mode.saved_x != 0x74 || mode.saved_y != 0x88) {
+        fprintf(stderr, "[Test] $0D57 caller make/save mismatch\n");
+        return 1;
+    }
+    events = allstar_horse_resolve_shot_0d57(&mode, false, 116.0f, 136.0f);
+    if ((events & ALLSTAR_HORSE_EVENT_LETTER) == 0 ||
+        mode.letters_remaining[1] != 4 || mode.current_player != 1 ||
+        strcmp(allstar_horse_letters_7bc0(4), "H") != 0) {
+        fprintf(stderr, "[Test] $0E26 matcher letter mismatch\n");
+        return 1;
+    }
+    events = allstar_horse_resolve_shot_0d57(&mode, false, 88.0f, 152.0f);
+    if ((events & ALLSTAR_HORSE_EVENT_CALLER_CHANGED) == 0 ||
+        mode.caller != 2 || mode.current_player != 2 ||
+        mode.saved_y != 0x94) {
+        fprintf(stderr, "[Test] $0D57 caller miss/edge alignment mismatch\n");
+        return 1;
+    }
+    mode.current_player = 1;
+    mode.caller = 2;
+    mode.called_shot_made = true;
+    mode.letters_remaining[0] = 1;
+    events = allstar_horse_resolve_shot_0d57(&mode, false, 88.0f, 96.0f);
+    if ((events & ALLSTAR_HORSE_EVENT_COMPLETE) == 0 || !mode.complete ||
+        mode.winner != 2 || mode.letters_remaining[0] != 0) {
+        fprintf(stderr, "[Test] $0E26 HORSE completion/winner mismatch\n");
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) return 1;
+    game.selected_mode = ALLSTAR_MODE_HORSE;
+    game.selected_player_1 = 0;
+    game.selected_player_2 = 1;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_HORSE);
+    if (!allstar_scene_horse_get_debug_state(game.active_scene, &debug) ||
+        debug.current_player != 1 || debug.caller != 1 ||
+        debug.p1_letters_remaining != 5 || debug.p2_letters_remaining != 5) {
+        fprintf(stderr, "[Test] Horse scene did not initialize mode-2 state\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    if (!allstar_scene_horse_force_test_result(game.active_scene, true)) {
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    for (frame = 0; frame < 192; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (!allstar_scene_horse_get_debug_state(game.active_scene, &debug) ||
+        debug.current_player != 2 || debug.caller != 1 ||
+        !debug.marker_visible) {
+        fprintf(stderr, "[Test] $7AFD matching turn/X marker did not begin\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_scene_horse_force_test_result(game.active_scene, false);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (!allstar_scene_horse_get_debug_state(game.active_scene, &debug) ||
+        debug.p2_letters_remaining != 4 ||
+        (debug.last_events & ALLSTAR_HORSE_EVENT_LETTER) == 0 ||
+        game.audio.last_sfx != ALLSTAR_SFX_HORSE_LETTER) {
+        fprintf(stderr, "[Test] Horse matcher miss did not award H/command $07\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: $0CDF/$0D57/$0E26/$0E36/$6CAB/$7AFD/$7BC0\n");
+    return 0;
+}
+
 int allstar_cli_test_one_on_one_presentation(void) {
     AllStarGame game;
     AllStarRomInboundPlacement inbound;
@@ -2979,15 +3108,24 @@ int allstar_cli_test_free_throw(void) {
     AllStarFreeThrowDebugState debug;
     AllStarGame game;
     uint32_t events;
+    int16_t make_vz = 0;
     int frame;
     int make_frame = -1, net_frame = -1, score_frame = -1;
     int attempt;
+    int profile_index;
+    static const int expected_clean_cells[3] = { 21, 15, 6 };
 
     printf("[Test] ROM Free Throw mode ($0C8E/$100F)...\n");
     allstar_free_throw_init(&state, 5, 0x00, 0);
     if (state.aim_x != 0x5b00 || state.aim_y != 0x3800 ||
         state.aim_vx != 0x0045 || state.aim_vy != 0x0040) {
         fprintf(stderr, "[Test] FAILED: $18E7 RNG row 0 mismatch\n");
+        return 1;
+    }
+    allstar_free_throw_tick_100f(&state, 0, 0, 0);
+    if (state.oam_y != 0x56 || state.oam_x != 0x4f ||
+        state.oam_band != 2 || state.oam_priority_rows != 0x0e) {
+        fprintf(stderr, "[Test] FAILED: $1C1D/$1884 initial OAM state mismatch\n");
         return 1;
     }
     allstar_free_throw_aim_init_18e7(&state, 0x40);
@@ -3044,8 +3182,21 @@ int allstar_cli_test_free_throw(void) {
     allstar_free_throw_launch_1caa_7c58(&state, 0xff);
     for (frame = 1; frame <= ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; frame++) {
         events = allstar_free_throw_tick_100f(&state, 0, 0, 0xff);
-        if ((events & ALLSTAR_FREE_THROW_EVENT_MAKE) && make_frame < 0)
+        if ((events & ALLSTAR_FREE_THROW_EVENT_MAKE) && make_frame < 0) {
             make_frame = frame;
+            make_vz = state.ball.vz;
+            if (state.priority_timer != 0x2d) {
+                fprintf(stderr, "[Test] FAILED: $1E49 priority timer mismatch\n");
+                return 1;
+            }
+        } else if (make_frame > 0 && frame == make_frame + 1 &&
+                   (state.oam_priority_rows != 0x0f ||
+                    state.priority_timer != 0x2c ||
+                    state.ball.vz != make_vz)) {
+            fprintf(stderr,
+                "[Test] FAILED: $1C1D/$7BE8 made-ball priority/gravity hold mismatch\n");
+            return 1;
+        }
         if ((events & ALLSTAR_FREE_THROW_EVENT_NET) && net_frame < 0)
             net_frame = frame;
         if ((events & ALLSTAR_FREE_THROW_EVENT_SCORE) && score_frame < 0)
@@ -3062,6 +3213,48 @@ int allstar_cli_test_free_throw(void) {
             "[Test] FAILED: $17E2/$1A31/$1C61 shot lifecycle mismatch\n");
         return 1;
     }
+
+    /* $1A7E->$1AA6 checks all three X columns from $1AAD against the
+       rating-selected $1AB0/$1AB8/$1ABE Y list before rim ricochets. */
+    for (profile_index = 0; profile_index < 3; profile_index++) {
+        int clean_cells = 0;
+        int target_y;
+        int target_x;
+        for (target_y = 0x36; target_y <= 0x43; target_y++) {
+            for (target_x = 0x48; target_x <= 0x57; target_x++) {
+                if (allstar_free_throw_clean_make_window_1a7e(
+                        (uint8_t)target_x, (uint8_t)target_y,
+                        (uint8_t)profile_index)) clean_cells++;
+            }
+        }
+        printf("  profile %d clean make cells: %d / 224\n",
+               profile_index, clean_cells);
+        if (clean_cells != expected_clean_cells[profile_index]) {
+            fprintf(stderr,
+                "[Test] FAILED: $1AAD profile %d expected %d clean cells, got %d\n",
+                profile_index, expected_clean_cells[profile_index],
+                clean_cells);
+            return 1;
+        }
+    }
+    allstar_free_throw_init(&state, 5, 0, 0x00);
+    allstar_free_throw_set_test_aim(&state, 0x50, 0x3b);
+    allstar_free_throw_launch_1caa_7c58(&state, 0xff);
+    make_frame = -1;
+    for (frame = 1; frame <= 100; frame++) {
+        events = allstar_free_throw_tick_100f(&state, 0, 0, 0xff);
+        if (events & ALLSTAR_FREE_THROW_EVENT_MAKE) {
+            make_frame = frame;
+            break;
+        }
+    }
+    if (make_frame < 0 || !state.made_current || state.priority_timer != 0x2d) {
+        fprintf(stderr,
+            "[Test] FAILED: $1A7E profile-2 clean target did not make\n");
+        return 1;
+    }
+    printf("  profile 2 clean target $50/$3B made at release +%d\n",
+           make_frame);
 
     allstar_free_throw_init(&state, 5, 0, 0);
     allstar_free_throw_set_test_aim(&state, 0x39, 0x28);
@@ -3092,6 +3285,24 @@ int allstar_cli_test_free_throw(void) {
     }
 
     if (!allstar_game_init(&game, NULL)) return 1;
+    /* Bank 2 $4000:$4014-$401D sends mode $01 directly through the
+       single-player $4034 selector, and $0C8E clears music command $DD73. */
+    game.selected_mode = ALLSTAR_MODE_FREE_THROW;
+    allstar_audio_play_bgm(&game.audio, ALLSTAR_BGM_TITLE);
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
+    allstar_game_tick(&game, 0.8f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    if (!game.active_scene ||
+        game.active_scene->id != ALLSTAR_SCENE_FREE_THROW ||
+        game.audio.current_bgm != ALLSTAR_BGM_NONE ||
+        game.audio.last_sfx != ALLSTAR_SFX_MENU_SELECT) {
+        fprintf(stderr,
+            "[Test] FAILED: mode-$01 selector did not bypass VS and clear $DD73\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, 0);
     game.settings.free_throw_attempts = 5;
     allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
     for (attempt = 0; attempt < 5; attempt++) {
@@ -3121,7 +3332,8 @@ int allstar_cli_test_free_throw(void) {
         return 1;
     }
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: Free Throw aim, launch, rim/net score, five attempts, result\n");
+    printf("[Test] PASSED: Free Throw single selector, reticle state, music stop, "
+           "aim, launch, rim/net score, five attempts, result\n");
     return 0;
 }
 
@@ -3169,6 +3381,23 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
     snprintf(path, sizeof(path), "%s\\04_one_on_one.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 3a/3b. Mode-$01 takes bank-2 $4018->$4034: one player card, then
+       immediate Free Throw entry with no opponent or VS presentation. */
+    game.selected_mode = ALLSTAR_MODE_FREE_THROW;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ROSTER_SELECT);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.8f);
+    snprintf(path, sizeof(path), "%s\\03a_free_throw_roster.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\03b_free_throw_no_vs.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     /* 4d. Held-ball movement exposes the final $6F2A dribble placement. */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
@@ -3526,6 +3755,22 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     snprintf(path, sizeof(path), "%s\\06_free_throw.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* The exact $22A9 OBJ tile follows $1A25's raw OAM coordinates. Two
+       deterministic aim states make the displacement visible in proof. */
+    allstar_scene_free_throw_set_test_aim(game.active_scene, 0x40, 0x30);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\06e_free_throw_reticle_left.bmp",
+             out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    allstar_scene_free_throw_set_test_aim(game.active_scene, 0x60, 0x50);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\06f_free_throw_reticle_right.bmp",
+             out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 6a-6d. Fixed $1942/$1986 aim, $1CAA/$7C58 flight,
        $1A31->$1C05 make, $1C61 net, and $0C8E five-attempt results. */
     allstar_scene_free_throw_set_test_aim(game.active_scene, 0x52, 0x3c);
@@ -3567,6 +3812,40 @@ int allstar_cli_dump_screenshots(const char *out_dir,
     snprintf(path, sizeof(path), "%s\\07_horse.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
+    /* 7a. Shared $702D->$714D->$7C58 gather and released ball. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_RIGHT | ALLSTAR_BTN_DOWN);
+    for (int i = 0; i < 36; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    for (int i = 0; i < 18; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\07a_horse_shot_flight.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 7b. $0E36 called spot followed by $7AFD/$7B7A's exact tile-$76 X. */
+    allstar_scene_horse_force_test_result(game.active_scene, true);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    for (int i = 0; i < 200; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\07b_horse_match_x.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 7c. Matcher miss reaches $0E26 then $7BA8/$7BC0 and command $07. */
+    allstar_scene_horse_force_test_result(game.active_scene, false);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\07c_horse_letter_h.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
     /* 8. Tournament */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_TOURNAMENT);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
@@ -3588,6 +3867,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_one_on_one_shooting();
     failed += allstar_cli_test_one_on_one_presentation();
     failed += allstar_cli_test_free_throw();
+    failed += allstar_cli_test_horse();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -3643,6 +3923,13 @@ int allstar_cli_main(int argc, char **argv) {
         }
         return allstar_cli_export_free_throw_sfx(
             argv[2], argv[3], argv[4]);
+    } else if (strcmp(cmd, "--export-horse-sfx") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "Error: --export-horse-sfx requires "
+                    "<pack> and <07.wav>\n");
+            return 1;
+        }
+        return allstar_cli_export_horse_sfx(argv[2], argv[3]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");
@@ -3665,6 +3952,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_one_on_one_presentation();
     } else if (strcmp(cmd, "--test-free-throw") == 0) {
         return allstar_cli_test_free_throw();
+    } else if (strcmp(cmd, "--test-horse") == 0) {
+        return allstar_cli_test_horse();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

@@ -45,7 +45,7 @@ mode/presentation branches remain outside the focused gameplay denominators.
 | `$1E0E->$C12B`, then `$6945->$69F5` | Seed `$C12B=$23`; while nonzero, OR OAM priority bit 7 into the score ball so nonzero net BG pixels cover it while player OAM stays in front. | The scene draws the ball between court and net layers through score frame 34, then returns to normal loose-ball composition. |
 | `$1F26->$2F88` | Select net-impact sound command `$08` with the first bend at `+20`. | The score presentation emits `NET_SOUND`; the scene plays `ALLSTAR_SFX_SWISH`. |
 | `$1E0E->$1F23/$1F06->$2F88` | At `+65`, commit the score and select command `$05`, whose `$2FB0` word is `$640C`. | The scene updates the score and plays asset program `$0C`, decoded from `$3EF6/$3F00`. |
-| `$2F88->$3014->$32A9->$347B:$34A3->$35F0/$3631` | Commands `$04/$05/$09/$0C/$0D/$0E/$0F` select programs `$0A/$0C/$0B/$02/$11/$12/$07`; `$347B` adds descriptor `+$01` to each square note before `$31C6/$3159` lookup. Command `$0F` therefore resolves `$47+$0A=$51`, `$07B1`, APU `$B1/$BF`. | Asset-pack v12 decodes these seven One-on-One programs plus Free Throw `$08/$0A`; Mesen asserts the exact roster-cycle APU writes. |
+| `$2F88->$3014->$32A9->$347B:$34A3->$35F0/$3631` | Commands `$04/$05/$09/$0C/$0D/$0E/$0F` select programs `$0A/$0C/$0B/$02/$11/$12/$07`; `$347B` adds descriptor `+$01` to each square note before `$31C6/$3159` lookup. Command `$0F` therefore resolves `$47+$0A=$51`, `$07B1`, APU `$B1/$BF`. | Asset-pack v14 decodes these seven One-on-One programs plus Free Throw `$08/$0A`; Mesen asserts the exact roster-cycle APU writes. |
 | `$2DD2->$21FA->$2933/$293D->$2945->$2A2B` | Selected roster records are copied to `$C23B/$C254`; byte zero selects exact per-slot OBJ palettes. Player frames then come from three shared action-family tile stores—there is no per-roster gameplay body-sheet table. | The renderer maps `$90/$91` to P1 `$E4/$D9` and P2 `$E0/$D0` while composing the shared extracted animation frames. |
 | `$711F/$714D->$7138` | Add eight to raw player X and compare with `$54`; set `+$02` bit 4 on the left, clear it on the right, forcing the shot toward the hoop. | Both human and CPU gathers call `allstar_one_on_one_rom_shot_horizontal_flip_7138` before loading `$0A/$12`. |
 | `$7F37->$7FC7/$7FCB` | Both held-shot families use byte rows `07 FE 0A FE`: X `+7/+10` by facing and height `-2` for either action. | `allstar_renderer_rom_held_ball_7f37` now uses the identical rows, correcting action `$12` on the left side. |
@@ -112,7 +112,7 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$7F37 -> $7FC7/$7FCB -> $6F2A/$6FEA` | `$7F37` supplies identical `{+7,-2}/{+10,-2}` held rows for both shot actions; final ordinary held-ball presentation reads exact player `+$05/+$06` and uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-12 asset pack. The old
+The extracted bytes exist only in a user-built version-15 asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 

@@ -11,16 +11,17 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
 | One-on-One | 100% of both fixed manifests | All 50 gameplay requirements and all 50 RNG/animation-asset/contact requirements are verified. This is Ghidra/manual-grounded mode coverage, not a claim of frame-perfect timing. |
-| Free Throws | Gameplay verified | `$0C8E/$100F` lifecycle, 8.8 reticle and launch, `$1A31` rim/make path, `$1C61` net/delayed score, 5/10/20 attempts, results, and exit are playable and regression-tested. Exact mode-background tile extraction remains presentation work. |
-| H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
+| Free Throws | 32/32 gameplay/presentation | Bank-2 single-player selection without VS, `$0C8E/$100F` lifecycle and music stop, exact `$22A9/$1A25` moving reticle, 8.8 aim/launch, `$1A7E` rating-based clean makes, rim/net scoring, attempts/results, separate close-up assets, and `$1C1D` priority are native. |
+| H-O-R-S-E | 30/30 gameplay/presentation | Two roster players, caller/matcher turns, exact 50-spot CPU table, saved X, letters, shared shot animation/physics, command `$07`, winner, and exit are native and Mesen-traced. |
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
-| Audio | Partial project-wide | Win32 PCM mixer works; focused `$04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F` programs are decoded from the ROM's `$3014` data, including Free Throw net/contact cues. The complete music/APU sequencer is not ported. |
-| ROM asset pack | Partial project-wide | Version 12 contains One-on-One court/net/player/ball assets, all 24 `$6C60` lists, and nine focused decoded audio programs, including Free Throw `$08/$0A`; other mode backgrounds, portraits, music, and remaining sound programs still need migration. |
-| Ghidra-to-C routine coverage | 47/132 verified | All 132 reviewed bank-aware functions recover and decompile cleanly; 31 mappings remain candidates and 54 are unmapped. Free Throw adds nine conservative whole-routine mappings; shared/multi-mode and incomplete presentation helpers remain candidates. |
-| Verified project milestones | 48.00% | 12 of 25 strict milestones; analysis is 6/7 and gameplay parity is 6/11. |
-| Scoped Free Throw gameplay | 100.00% | 20 of 20 behavioral requirements; exact bank-3 background/OAM tile extraction is explicitly outside this gameplay denominator. |
+| Audio | Partial project-wide | Win32 PCM mixer works; ten focused programs now include Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. The complete music/APU sequencer is not ported. |
+| ROM asset pack | Partial project-wide | Version 15 contains One-on-One art, Free Throw close-up art/maps, all 24 `$6C60` lists, exact Horse X tile reuse, and ten focused decoded audio programs; portraits, music, and remaining sound programs still need migration. |
+| Ghidra-to-C routine coverage | 58/139 verified | All 139 reviewed bank-aware functions recover/decompile; 38 mappings are candidates and 43 are unmapped. Horse's 45-routine mode scope is 27 verified/18 candidate/0 unmapped. |
+| Verified project milestones | 52.00% | 13 of 25 strict milestones; analysis is 6/7 and gameplay parity is 7/11. |
+| Scoped Free Throw gameplay/presentation | 100.00% | 32 of 32 requirements, including exact mode-specific assets, result layout, prior-OAM priority, and the made-ball gravity hold. |
+| Scoped H-O-R-S-E gameplay/presentation | 100.00% | 30 of 30 requirements; strict whole-shared-routine Ghidra coverage is 27/45 (60.00%). |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. |
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
 | One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-state sequence is complete; the native presentation intentionally plays it at 3× speed for a roughly 1.43-second score-to-inbound transition. |
@@ -41,6 +42,7 @@ python tools\check_one_on_one_coverage.py
 python tools\check_one_on_one_remaining_coverage.py
 python tools\check_one_on_one_presentation_audio_coverage.py
 python tools\check_free_throw_coverage.py
+python tools\check_horse_coverage.py
 ```
 
 For future commit decisions, compare the working tree with the currently committed manifest:
@@ -97,9 +99,9 @@ The current MSVC build succeeds without warnings.
 .\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
-Version 12 extracts the One-on-One court tiles/map, the separate 17-tile score-net stream, three shared player action-family tile stores, 60 frame maps, ball/shadow tiles and descriptors, all 24 animation-control lists, and decoded command-`$04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F` square/noise programs from the ROM. `$08/$0A` are the Free Throw net and ball-contact cues. `$2DD2->$21FA` proves that selected players reuse the shared gameplay body art and differ through exact roster-record OBJ palettes; there is no per-player gameplay body-sheet table to extract. Portraits, other-mode graphics, music, and the remaining sound programs are still outside the pack.
+Version 15 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, and decoded command-`$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs. Horse reuses the One-on-One assets and source tile 41 for its exact `$76` X; `$07` is its letter cue. Portraits, music, and remaining sound programs are outside the pack.
 
-The Win32 game requires a valid version-12 `build\allstar.assetpack` and now
+The Win32 game requires a valid version-15 `build\allstar.assetpack` and now
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 
@@ -115,7 +117,7 @@ procedural test fallback.
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, the complete `$7170-$761A` CPU controller, `$702D/$714D` shared player control, One-on-One contact/recovery/presentation, and the Free Throw `$0C8E/$100F/$18E7/$1942/$1986/$1CAA/$1A31/$1C61` lifecycle through five attempts, results, and exit. Broader whole-game and frame-perfect parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch/contact physics, the complete `$7170-$761A` CPU and `$702D/$714D` player controllers, One-on-One, Free Throw through results/exit, and Horse caller/matcher/spot/letter/winner rules. Broader whole-game and frame-perfect parity remain unverified.
 
 For manual comparison with the original ROM:
 
@@ -123,7 +125,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces cover One-on-One control, animation, assets, collisions, CPU behavior, made-basket flow, focused APU programs, and the Free Throw `$0C8E->$100F->$1CAA/$7C58->$1A31->$1C61` shot path with live `$08/$0A` APU writes. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the Free Throw conversion](docs/parity/FREE_THROW.md), [the controller conversion](docs/parity/ONE_ON_ONE_CONTROLLERS.md), [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), and [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md).
+Automated Mesen traces cover One-on-One, Free Throw, and the Horse `$4000->$0CDF->$0D57->$7AFD->$0E26` path with exact X art and live `$07` APU writes. Broader whole-game WRAM snapshots and frame-difference tests remain. See [the Horse conversion](docs/parity/HORSE.md), [the Free Throw conversion](docs/parity/FREE_THROW.md), and [the controller conversion](docs/parity/ONE_ON_ONE_CONTROLLERS.md).
 
 ## Reverse Engineering
 

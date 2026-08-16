@@ -119,4 +119,26 @@ bool allstar_scene_free_throw_get_debug_state(
 bool allstar_scene_free_throw_set_test_aim(
     AllStarScene *scene, uint8_t x, uint8_t y);
 
+typedef struct {
+    uint8_t phase;
+    uint8_t current_player;
+    uint8_t caller;
+    uint8_t p1_letters_remaining;
+    uint8_t p2_letters_remaining;
+    uint8_t saved_x;
+    uint8_t saved_y;
+    uint8_t player_x;
+    uint8_t player_y;
+    uint16_t shot_frames;
+    uint32_t last_events;
+    bool marker_visible;
+    bool ball_in_flight;
+    bool shot_made;
+    bool complete;
+} AllStarHorseDebugState;
+
+bool allstar_scene_horse_get_debug_state(
+    const AllStarScene *scene, AllStarHorseDebugState *state);
+bool allstar_scene_horse_force_test_result(AllStarScene *scene, bool made);
+
 #endif /* ALLSTAR_SCENE_H */

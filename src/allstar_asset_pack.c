@@ -311,6 +311,59 @@ static bool extract_one_on_one_art(AllStarAssetPack *pack,
     return true;
 }
 
+/* Free Throw fixed-bank $0C8E->$2243/$1CBD.  $2243 assembles two separate
+   VRAM banks: bank 1 $640F supplies signed BG IDs $C0..$FA, bank 3 $708E
+   supplies BG IDs $00..$A2, and bank 3 $6EF1 supplies OBJ IDs $00..$1D.
+   It also copies fixed-bank $22A9 directly to OBJ tile $7F for the aiming
+   reticle. $1828/$1858 and $1884 use the raw map tables copied below. */
+static bool extract_free_throw_art(AllStarAssetPack *pack,
+                                   const AllStarRom *rom) {
+    uint8_t bg_bytes[ALLSTAR_FREE_THROW_BG_TILE_COUNT * 16];
+    uint8_t obj_bytes[ALLSTAR_FREE_THROW_OBJ_TILE_COUNT * 16];
+    size_t i;
+    static const size_t pose_offsets[ALLSTAR_FREE_THROW_POSE_COUNT] = {
+        0x6661, 0x66a9, 0x66f1
+    };
+    static const size_t net_offsets[ALLSTAR_FREE_THROW_NET_MAP_COUNT] = {
+        0x6739, 0x6748, 0x6757, 0x6766
+    };
+    static const size_t ball_offsets[ALLSTAR_FREE_THROW_BALL_MAP_COUNT] = {
+        0xffcd, 0xffdd, 0xffed
+    };
+
+    if (!pack || !rom || rom->size < 0x10000) return false;
+    memset(bg_bytes, 0, sizeof(bg_bytes));
+    memset(obj_bytes, 0, sizeof(obj_bytes));
+    if (!decode_rom_rle_050f(rom, 0x640f, 0x6660,
+            bg_bytes + 0xc0 * 16, 59 * 16) ||
+        !decode_rom_rle_050f(rom, 0xf08e, 0xf93e,
+            bg_bytes, 163 * 16) ||
+        !decode_rom_rle_050f(rom, 0xeef1, 0xf08d,
+            obj_bytes, sizeof(obj_bytes)) ||
+        !decode_rom_rle_050f(rom, 0xff69, 0xffcc,
+            pack->free_throw_tilemap,
+            sizeof(pack->free_throw_tilemap))) {
+        return false;
+    }
+    decode_tile_bytes(bg_bytes, ALLSTAR_FREE_THROW_BG_TILE_COUNT,
+                      pack->free_throw_bg_tiles);
+    decode_tile_bytes(obj_bytes, ALLSTAR_FREE_THROW_OBJ_TILE_COUNT,
+                      pack->free_throw_obj_tiles);
+    decode_gb_tile_2bpp(rom->data + 0x22a9,
+                        &pack->free_throw_reticle_tile);
+    for (i = 0; i < ALLSTAR_FREE_THROW_POSE_COUNT; i++)
+        memcpy(pack->free_throw_pose_maps[i], rom->data + pose_offsets[i],
+               ALLSTAR_FREE_THROW_POSE_MAP_SIZE);
+    for (i = 0; i < ALLSTAR_FREE_THROW_NET_MAP_COUNT; i++)
+        memcpy(pack->free_throw_net_maps[i], rom->data + net_offsets[i],
+               ALLSTAR_FREE_THROW_NET_MAP_SIZE);
+    for (i = 0; i < ALLSTAR_FREE_THROW_BALL_MAP_COUNT; i++)
+        memcpy(pack->free_throw_ball_maps[i], rom->data + ball_offsets[i],
+               ALLSTAR_FREE_THROW_BALL_MAP_SIZE);
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_FREE_THROW_ART;
+    return true;
+}
+
 static uint16_t rom_word(const AllStarRom *rom, size_t offset) {
     return (uint16_t)(rom->data[offset] | (rom->data[offset + 1] << 8));
 }
@@ -463,7 +516,7 @@ static bool decode_rom_noise_stream(const AllStarRom *rom,
 static bool extract_gameplay_audio(AllStarAssetPack *pack,
                                    const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04, 0x08, 0x0a};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04, 0x08, 0x0a, 0x07};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -585,7 +638,17 @@ static bool extract_gameplay_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[8].square1_sweep != 0xff ||
         pack->rom_sfx_programs[8].square1_duty_length != 0x7f ||
         pack->rom_sfx_programs[8].square1_envelope != 0xf1 ||
-        pack->rom_sfx_programs[8].frames[0].square1_frequency != 0)
+        pack->rom_sfx_programs[8].frames[0].square1_frequency != 0 ||
+        pack->rom_sfx_programs[9].command != 0x07 ||
+        pack->rom_sfx_programs[9].program_id != 0x06 ||
+        pack->rom_sfx_programs[9].priority_frames != 0x2a ||
+        pack->rom_sfx_programs[9].stream_pointer_1 != 0x3eb6 ||
+        pack->rom_sfx_programs[9].frame_count != 42 ||
+        pack->rom_sfx_programs[9].square1_sweep != 0x88 ||
+        pack->rom_sfx_programs[9].square1_duty_length != 0x40 ||
+        pack->rom_sfx_programs[9].square1_envelope != 0xf2 ||
+        pack->rom_sfx_programs[9].frames[0].square1_frequency != 0x0783 ||
+        pack->rom_sfx_programs[9].frames[6].square1_frequency != 0x079d)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
@@ -603,6 +666,7 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *foul;
     const AllStarRomSfxProgram *free_throw_net;
     const AllStarRomSfxProgram *free_throw_contact;
+    const AllStarRomSfxProgram *horse_letter;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
@@ -614,6 +678,7 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     foul = &pack->rom_sfx_programs[6];
     free_throw_net = &pack->rom_sfx_programs[7];
     free_throw_contact = &pack->rom_sfx_programs[8];
+    horse_letter = &pack->rom_sfx_programs[9];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -699,7 +764,18 @@ static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
         free_throw_contact->square1_envelope == 0xf1 &&
         free_throw_contact->frames[0].square1_frequency == 0 &&
         movement->source_checksum == free_throw_net->source_checksum &&
-        movement->source_checksum == free_throw_contact->source_checksum;
+        movement->source_checksum == free_throw_contact->source_checksum &&
+        horse_letter->command == 0x07 &&
+        horse_letter->program_id == 0x06 &&
+        horse_letter->priority_frames == 0x2a &&
+        horse_letter->stream_pointer_1 == 0x3eb6 &&
+        horse_letter->frame_count == 42 &&
+        horse_letter->square1_sweep == 0x88 &&
+        horse_letter->square1_duty_length == 0x40 &&
+        horse_letter->square1_envelope == 0xf2 &&
+        horse_letter->frames[0].square1_frequency == 0x0783 &&
+        horse_letter->frames[6].square1_frequency == 0x079d &&
+        movement->source_checksum == horse_letter->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
@@ -769,6 +845,10 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
         return false;
     }
+    if (!extract_free_throw_art(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid Free Throw graphics streams\n");
+        return false;
+    }
     if (!extract_gameplay_audio(pack, rom)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One $3014 audio streams\n");
         return false;
@@ -783,7 +863,7 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
     }
 
     printf("[AssetPack] Built asset pack from ROM: '%s' "
-           "(%u tiles, %u players, %u animation actions, One-on-One art, "
+           "(%u tiles, %u players, %u animation actions, One-on-One/Free Throw art, "
            "%u ROM audio programs)\n",
            rom->header.title, pack->header.tile_count,
            pack->header.player_count, pack->header.animation_action_count,
@@ -827,6 +907,25 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
         fwrite(pack->net_tiles, sizeof(AllStarTile),
                pack->header.net_tile_count, f) !=
                pack->header.net_tile_count ||
+        fwrite(pack->free_throw_bg_tiles, sizeof(AllStarTile),
+               ALLSTAR_FREE_THROW_BG_TILE_COUNT, f) !=
+               ALLSTAR_FREE_THROW_BG_TILE_COUNT ||
+        fwrite(pack->free_throw_obj_tiles, sizeof(AllStarTile),
+               ALLSTAR_FREE_THROW_OBJ_TILE_COUNT, f) !=
+               ALLSTAR_FREE_THROW_OBJ_TILE_COUNT ||
+        fwrite(&pack->free_throw_reticle_tile, sizeof(AllStarTile), 1, f) != 1 ||
+        fwrite(pack->free_throw_tilemap, 1,
+               sizeof(pack->free_throw_tilemap), f) !=
+               sizeof(pack->free_throw_tilemap) ||
+        fwrite(pack->free_throw_pose_maps, 1,
+               sizeof(pack->free_throw_pose_maps), f) !=
+               sizeof(pack->free_throw_pose_maps) ||
+        fwrite(pack->free_throw_net_maps, 1,
+               sizeof(pack->free_throw_net_maps), f) !=
+               sizeof(pack->free_throw_net_maps) ||
+        fwrite(pack->free_throw_ball_maps, 1,
+               sizeof(pack->free_throw_ball_maps), f) !=
+               sizeof(pack->free_throw_ball_maps) ||
         fwrite(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
                pack->header.rom_sfx_program_count, f) !=
                pack->header.rom_sfx_program_count) {
@@ -940,6 +1039,25 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
         fread(pack->net_tiles, sizeof(AllStarTile),
               pack->header.net_tile_count, f) !=
               pack->header.net_tile_count ||
+        fread(pack->free_throw_bg_tiles, sizeof(AllStarTile),
+              ALLSTAR_FREE_THROW_BG_TILE_COUNT, f) !=
+              ALLSTAR_FREE_THROW_BG_TILE_COUNT ||
+        fread(pack->free_throw_obj_tiles, sizeof(AllStarTile),
+              ALLSTAR_FREE_THROW_OBJ_TILE_COUNT, f) !=
+              ALLSTAR_FREE_THROW_OBJ_TILE_COUNT ||
+        fread(&pack->free_throw_reticle_tile, sizeof(AllStarTile), 1, f) != 1 ||
+        fread(pack->free_throw_tilemap, 1,
+              sizeof(pack->free_throw_tilemap), f) !=
+              sizeof(pack->free_throw_tilemap) ||
+        fread(pack->free_throw_pose_maps, 1,
+              sizeof(pack->free_throw_pose_maps), f) !=
+              sizeof(pack->free_throw_pose_maps) ||
+        fread(pack->free_throw_net_maps, 1,
+              sizeof(pack->free_throw_net_maps), f) !=
+              sizeof(pack->free_throw_net_maps) ||
+        fread(pack->free_throw_ball_maps, 1,
+              sizeof(pack->free_throw_ball_maps), f) !=
+              sizeof(pack->free_throw_ball_maps) ||
         fread(pack->rom_sfx_programs, sizeof(AllStarRomSfxProgram),
               pack->header.rom_sfx_program_count, f) !=
               pack->header.rom_sfx_program_count) {

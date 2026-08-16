@@ -8,7 +8,7 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 
 | Area | Status | Notes |
 |---|---|---|
-| SDL runtime and 160×144 framebuffer | Implemented | Builds on macOS and uses the same SDL host on Windows and Linux. |
+| SDL runtime and 160×144 framebuffer | Implemented | Builds on macOS and iOS, and uses the same SDL host on Windows and Linux. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
 | One-on-One | 100% of both fixed manifests | All 50 gameplay requirements and all 50 RNG/animation-asset/contact requirements are verified. This is Ghidra/manual-grounded mode coverage, not a claim of frame-perfect timing. |
 | Free Throws | 32/32 gameplay/presentation | Bank-2 single-player selection without VS, `$0C8E/$100F` lifecycle and music stop, exact `$22A9/$1A25` moving reticle, 8.8 aim/launch, `$1A7E` rating-based clean makes, rim/net scoring, attempts/results, separate close-up assets, and `$1C1D` priority are native. |
@@ -84,15 +84,44 @@ The generated asset pack is local and ignored by Git; the ROM is never copied
 or embedded. Linux and Windows can use the same CMake flow. On those platforms,
 place `allstar.assetpack` beside the `allstar_port_game` executable.
 
+### iPhone Simulator
+
+The iOS build bundles a local generated asset pack into the app build and uses
+landscape touch controls. It does not bundle the source ROM. Build the macOS
+target and generate `build/macos/allstar.assetpack` first, then run:
+
+```sh
+cmake -S . -B build/ios-sim -G "Unix Makefiles" \
+  -DCMAKE_SYSTEM_NAME=iOS \
+  -DCMAKE_OSX_SYSROOT=iphonesimulator \
+  -DCMAKE_OSX_ARCHITECTURES="$(uname -m)" \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DALLSTAR_ASSETPACK_PATH="$(pwd)/build/macos/allstar.assetpack"
+cmake --build build/ios-sim --parallel
+
+xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
+open -a Simulator
+xcrun simctl bootstatus "iPhone 17 Pro" -b
+xcrun simctl install "iPhone 17 Pro" \
+  build/ios-sim/allstar_port_game.app
+xcrun simctl launch "iPhone 17 Pro" \
+  com.schulerj89.allstarchallenge.ios
+```
+
+For a physical iPhone, generate an Xcode build with `iphoneos`, open the
+generated project, select a Personal Team for signing, and run it on the
+connected phone. The local asset pack remains inside the ignored build tree.
+
 ### Controls
 
-| Game Boy input | Keyboard | Gamepad |
-|---|---|---|
-| D-pad | Arrow keys | D-pad |
-| A | `Z` or `J` | South / bottom face button |
-| B | `X` or `K` | East / right face button |
-| Start | Return | Start |
-| Select | Space or Shift | Back |
+| Game Boy input | Keyboard | Gamepad | iPhone touch |
+|---|---|---|---|
+| D-pad | Arrow keys | D-pad | Left D-pad |
+| A | `Z` or `J` | South / bottom face button | Right `A` button |
+| B | `X` or `K` | East / right face button | Right `B` button |
+| Start | Return | Start | `START` pill |
+| Select | Space or Shift | Back | `SELECT` pill |
 
 Press `1`, `2`, or `3` to select the original green, grayscale, or modern
 palette. Press `P` to cycle palettes.

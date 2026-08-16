@@ -9,6 +9,8 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(ALLSTAR_BUILD_SDL_GAME "Build the cross-platform SDL game" ON)
 option(ALLSTAR_BUILD_WIN32_REFERENCE
        "Build the original Win32 game host for transition testing" OFF)
+set(ALLSTAR_ASSETPACK_PATH "" CACHE FILEPATH
+    "Path to a user-generated allstar.assetpack to bundle with the game")
 
 set(ALLSTAR_CORE_SOURCES
     src/allstar_rom.c
@@ -43,15 +45,17 @@ if(NOT MSVC)
     target_compile_options(allstar_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-add_executable(allstar_port
-    src/main.c
-    src/allstar_cli.c
-    src/audio/allstar_audio.c
-)
-target_link_libraries(allstar_port PRIVATE allstar_core)
+if(NOT IOS)
+    add_executable(allstar_port
+        src/main.c
+        src/allstar_cli.c
+        src/audio/allstar_audio.c
+    )
+    target_link_libraries(allstar_port PRIVATE allstar_core)
 
-if(WIN32)
-    target_link_libraries(allstar_port PRIVATE winmm)
+    if(WIN32)
+        target_link_libraries(allstar_port PRIVATE winmm)
+    endif()
 endif()
 
 if(ALLSTAR_BUILD_SDL_GAME)
@@ -81,7 +85,52 @@ if(ALLSTAR_BUILD_SDL_GAME)
     )
     FetchContent_MakeAvailable(SDL3)
 
-    if(APPLE)
+    if(IOS)
+        if(NOT ALLSTAR_ASSETPACK_PATH)
+            set(ALLSTAR_ASSETPACK_PATH
+                "${CMAKE_CURRENT_SOURCE_DIR}/build/macos/allstar.assetpack")
+        endif()
+        if(NOT EXISTS "${ALLSTAR_ASSETPACK_PATH}")
+            message(FATAL_ERROR
+                "Build a version-17 allstar.assetpack and pass its path with "
+                "-DALLSTAR_ASSETPACK_PATH=/absolute/path/allstar.assetpack")
+        endif()
+
+        set(ALLSTAR_IOS_ASSET_CATALOG
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/ios/Assets.xcassets")
+        set(ALLSTAR_IOS_LEGACY_ICONS
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/ios/AppIcon-60@2x.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/ios/AppIcon-60@3x.png"
+        )
+        set(ALLSTAR_IOS_RESOURCES
+            "${ALLSTAR_ASSETPACK_PATH}"
+            "${ALLSTAR_IOS_ASSET_CATALOG}"
+            ${ALLSTAR_IOS_LEGACY_ICONS}
+        )
+        set_source_files_properties(${ALLSTAR_IOS_RESOURCES} PROPERTIES
+            MACOSX_PACKAGE_LOCATION "Resources"
+        )
+        add_executable(allstar_port_game MACOSX_BUNDLE
+            src/sdl_game_main.c
+            src/audio/allstar_audio.c
+            ${ALLSTAR_IOS_RESOURCES}
+        )
+        set_target_properties(allstar_port_game PROPERTIES
+            RESOURCE "${ALLSTAR_IOS_RESOURCES}"
+            MACOSX_BUNDLE_INFO_PLIST
+                "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ios/Info.plist.in"
+            MACOSX_BUNDLE_BUNDLE_NAME "NBA All-Star Challenge"
+            MACOSX_BUNDLE_GUI_IDENTIFIER
+                "com.schulerj89.allstarchallenge.ios"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1"
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+            XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER
+                "com.schulerj89.allstarchallenge.ios"
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1"
+        )
+    elseif(APPLE)
         set(ALLSTAR_MACOS_ICON
             "${CMAKE_CURRENT_SOURCE_DIR}/assets/nba_allstar_challenge.icns")
         set_source_files_properties(${ALLSTAR_MACOS_ICON} PROPERTIES

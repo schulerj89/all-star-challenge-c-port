@@ -20,6 +20,7 @@ work, so whole-function credit is intentionally withheld.
 
 ```text
 bank 2 $4000
+  <- fixed $22EF sees mode $02 and returns without a settings screen
   -> $4034 P1 roster selection
   -> mode 2 continues through the opponent selector (unlike Free Throw)
   -> $40F4 accepted-player command $0E
@@ -66,6 +67,7 @@ matcher miss. The decisive checkpoints are:
 
 | Event | Horse frame | State |
 |---|---:|---|
+| `$22EF -> $255D` settings bypass | before entry | mode `$02` loads no settings tilemap |
 | P1 turn begins at `$0D57` | 247 | caller 1, letters 5/5 |
 | P1 launches through `$7C58` | 319 | moved shooting location |
 | `$1E0E` make | 381 | called spot becomes `$74/$88` |

@@ -5,6 +5,8 @@ local totalFrames = 0
 local horseFrames = 0
 local menuReached = false
 local menuMoves = 0
+local settingsDispatcherSeen = false
+local settingsBypassSeen = false
 local horseReached = false
 local rosterChooseCount = 0
 local opponentMoved = false
@@ -61,6 +63,20 @@ end
 
 local function onMenuLoop()
   menuReached = true
+end
+
+local function onSettingsDispatcher()
+  if read(0xFF8F) == 0x02 then
+    settingsDispatcherSeen = true
+    print("HORSE_SETTINGS_22EF mode=02 branch=immediate-bypass")
+  end
+end
+
+local function onSettingsBypass()
+  if read(0xFF8F) == 0x02 then
+    settingsBypassSeen = true
+    print("HORSE_SETTINGS_255D mode=02 no-settings-tilemap")
+  end
 end
 
 local function onRosterChoose()
@@ -191,6 +207,8 @@ local function onEndFrame()
     horseState("SUMMARY")
     expect(read(0xFF8F) == 0x02, "mode dispatcher did not retain ID $02")
     expect(read(0xFF91) == 0x01, "one-human player-count byte changed")
+    expect(settingsDispatcherSeen and settingsBypassSeen,
+      "$22EF mode-$02 settings bypass was not observed")
     expect(rosterChooseCount >= 2,
       "mode 2 did not execute both $40F4 roster accepts")
     expect(callerSeen, "$7AEA caller controller was not reached")
@@ -209,7 +227,7 @@ local function onEndFrame()
       "00000000C3C366663C3C3C3C6666C3C3",
       "Horse X tile $76 differs from live VRAM")
     print(failures == 0 and
-      "TRACE PASSED: $4000/$0CDF/$0D57/$0E26/$0E36/$7AFD/$7BA8 H-O-R-S-E lifecycle + $07 APU" or
+      "TRACE PASSED: $22EF/$255D/$4000/$0CDF/$0D57/$0E26/$0E36/$7AFD/$7BA8 H-O-R-S-E lifecycle + $07 APU" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))
     emu.stop(failures == 0 and 0 or 3)
   elseif totalFrames >= 6000 and not stopping then
@@ -221,6 +239,10 @@ end
 
 emu.addMemoryCallback(onMenuLoop, emu.callbackType.exec,
   0x03B9, 0x03B9, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onSettingsDispatcher, emu.callbackType.exec,
+  0x22EF, 0x22EF, emu.cpuType.gameboy, emu.memType.gameboyMemory)
+emu.addMemoryCallback(onSettingsBypass, emu.callbackType.exec,
+  0x255D, 0x255D, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onRosterChoose, emu.callbackType.exec,
   0x40F4, 0x40F4, emu.cpuType.gameboy, emu.memType.gameboyMemory)
 emu.addMemoryCallback(onModeEntry, emu.callbackType.exec,

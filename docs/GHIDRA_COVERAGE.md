@@ -13,7 +13,8 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 The strict project milestone tracker is currently **13/25 (52.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **7/11 (63.64%)** verified.
 
 The H-O-R-S-E gameplay manifest is **30/30 (100.00%)**. The original trace
-follows `$4000->$0CDF->$0D57->$7AEA/$7AFD->$7C58->$0E26->$7BA8`, proving
+follows `$22EF->$255D->$4000->$0CDF->$0D57->$7AEA/$7AFD->$7C58->$0E26->$7BA8`, proving
+mode `$02` bypasses the settings tilemap,
 two roster selections, caller/matcher ownership, saved spot `$74/$88`, the
 exact tile-$76 X, a P2 5-to-4 letter decrement, and command `$07` APU writes.
 Native mode 2 uses the same court, player animation, launch, flight, and rim

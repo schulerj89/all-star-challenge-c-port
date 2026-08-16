@@ -525,12 +525,13 @@ int allstar_cli_test_mode_routing(void) {
         const char *name;
         AllStarSceneId scene_id;
         bool requires_opponent;
+        bool uses_settings;
     } expected[ALLSTAR_MODE_COUNT] = {
-        { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true  },
-        { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false },
-        { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true },
-        { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true  },
-        { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true  }
+        { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true,  true  },
+        { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false, true  },
+        { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true,  false },
+        { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true,  true  },
+        { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true,  true  }
     };
 
     printf("[Test] Running ROM Menu Mode Routing Parity Tests...\n");
@@ -545,15 +546,18 @@ int allstar_cli_test_mode_routing(void) {
         AllStarGameMode mode = allstar_game_mode_from_menu_index(menu_index);
         const AllStarSceneId scene_id = allstar_game_mode_scene(mode);
         const bool requires_opponent = allstar_game_mode_requires_opponent(mode);
+        const bool uses_settings = allstar_game_mode_uses_settings(mode);
         const char *name = allstar_game_mode_name(mode);
 
         if (mode != expected[menu_index].mode ||
             scene_id != expected[menu_index].scene_id ||
             requires_opponent != expected[menu_index].requires_opponent ||
+            uses_settings != expected[menu_index].uses_settings ||
             strcmp(name, expected[menu_index].name) != 0) {
             fprintf(stderr,
-                    "[Test] Mode route %u mismatch: mode=%d name=%s scene=%d opponent=%d\n",
-                    menu_index, (int)mode, name, (int)scene_id, requires_opponent ? 1 : 0);
+                    "[Test] Mode route %u mismatch: mode=%d name=%s scene=%d opponent=%d settings=%d\n",
+                    menu_index, (int)mode, name, (int)scene_id,
+                    requires_opponent ? 1 : 0, uses_settings ? 1 : 0);
             allstar_game_shutdown(&game);
             return 1;
         }
@@ -568,14 +572,36 @@ int allstar_cli_test_mode_routing(void) {
     }
 
     if (allstar_game_mode_from_menu_index(ALLSTAR_MODE_COUNT) != ALLSTAR_MODE_ONE_ON_ONE ||
-        allstar_game_mode_scene((AllStarGameMode)ALLSTAR_MODE_COUNT) != ALLSTAR_SCENE_ONE_ON_ONE) {
+        allstar_game_mode_scene((AllStarGameMode)ALLSTAR_MODE_COUNT) != ALLSTAR_SCENE_ONE_ON_ONE ||
+        !allstar_game_mode_uses_settings((AllStarGameMode)ALLSTAR_MODE_COUNT)) {
         fprintf(stderr, "[Test] Invalid mode routing did not use the safe One-on-One fallback\n");
         allstar_game_shutdown(&game);
         return 1;
     }
 
+    /* Exercise the visible menu path: Down twice selects mode $02, whose
+       $22EF branch bypasses settings and enters the two-player selector. */
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_MENU);
+    allstar_input_update(&game.input, ALLSTAR_BTN_DOWN);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_DOWN);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, 0.0f);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, 0.0f);
+    if (game.selected_mode != ALLSTAR_MODE_HORSE || !game.active_scene ||
+        game.active_scene->id != ALLSTAR_SCENE_ROSTER_SELECT) {
+        fprintf(stderr,
+                "[Test] Mode $02 menu path did not bypass $22EF settings\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
     allstar_game_shutdown(&game);
-    printf("[Test] PASSED: All 5 ROM menu IDs route to the intended native scenes\n");
+    printf("[Test] PASSED: All 5 ROM menu IDs route correctly; Horse bypasses $22EF settings\n");
     return 0;
 }
 

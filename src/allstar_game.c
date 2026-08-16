@@ -8,15 +8,16 @@ typedef struct {
     const char *name;
     AllStarSceneId scene_id;
     bool requires_opponent;
+    bool uses_settings;
 } AllStarModeRoute;
 
 /* ROM menu selector $FF8F uses these IDs in the displayed 0..4 order. */
 static const AllStarModeRoute ALLSTAR_MODE_ROUTES[ALLSTAR_MODE_COUNT] = {
-    { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true  },
-    { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false },
-    { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true },
-    { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true  },
-    { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true  }
+    { ALLSTAR_MODE_ONE_ON_ONE, "One On One",        ALLSTAR_SCENE_ONE_ON_ONE,  true,  true  },
+    { ALLSTAR_MODE_FREE_THROW, "Free Throws",       ALLSTAR_SCENE_FREE_THROW,  false, true  },
+    { ALLSTAR_MODE_HORSE,      "Horse",             ALLSTAR_SCENE_HORSE,       true,  false },
+    { ALLSTAR_MODE_ACCURACY,   "Accuracy Shootout", ALLSTAR_SCENE_THREE_POINT, true,  true  },
+    { ALLSTAR_MODE_TOURNAMENT, "Tournament",        ALLSTAR_SCENE_TOURNAMENT,  true,  true  }
 };
 
 static const AllStarModeRoute* allstar_game_mode_route(AllStarGameMode mode) {
@@ -37,6 +38,10 @@ AllStarSceneId allstar_game_mode_scene(AllStarGameMode mode) {
 
 bool allstar_game_mode_requires_opponent(AllStarGameMode mode) {
     return allstar_game_mode_route(mode)->requires_opponent;
+}
+
+bool allstar_game_mode_uses_settings(AllStarGameMode mode) {
+    return allstar_game_mode_route(mode)->uses_settings;
 }
 
 const char* allstar_game_mode_name(AllStarGameMode mode) {

@@ -8,7 +8,7 @@
   },
   "requirements": [
     {"id":"lifecycle.mode_entry_0cdf","group":"lifecycle","status":"verified","evidence":["docs/parity/HORSE.md","src/scenes/scene_horse.c"],"test":"--test-horse"},
-    {"id":"lifecycle.two_roster_selector_4000","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_roster_select.c"],"test":"--test-mode-routing"},
+    {"id":"lifecycle.two_roster_selector_4000","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/scenes/scene_menu.c","src/scenes/scene_roster_select.c"],"test":"--test-mode-routing"},
     {"id":"lifecycle.music_stop_0cdf","group":"lifecycle","status":"verified","evidence":["docs/parity/HORSE.md","src/scenes/scene_horse.c"],"test":"--test-horse"},
     {"id":"lifecycle.five_letter_init_22b9","group":"lifecycle","status":"verified","evidence":["src/gameplay/allstar_horse.c","src/allstar_cli.c"],"test":"--test-horse"},
     {"id":"lifecycle.alternating_turns_0d0a","group":"lifecycle","status":"verified","evidence":["tools/emulator/trace_horse.lua","src/gameplay/allstar_horse.c"],"test":"--test-horse"},

@@ -69,6 +69,7 @@ void allstar_game_tick(AllStarGame *game, float dt);
 AllStarGameMode allstar_game_mode_from_menu_index(uint32_t menu_index);
 AllStarSceneId allstar_game_mode_scene(AllStarGameMode mode);
 bool allstar_game_mode_requires_opponent(AllStarGameMode mode);
+bool allstar_game_mode_uses_settings(AllStarGameMode mode);
 const char* allstar_game_mode_name(AllStarGameMode mode);
 void allstar_game_settings_init(AllStarGameSettings *settings);
 uint8_t allstar_game_settings_cycle_time(uint8_t current, int direction);

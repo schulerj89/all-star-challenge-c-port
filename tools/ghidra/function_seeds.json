@@ -453,7 +453,7 @@
       "status": "candidate",
       "native_symbol": "settings_update",
       "source": "src/scenes/scene_settings.c",
-      "note": "Mode-specific settings editor analogue with recovered value cycles and complementary Accuracy position flags."
+      "note": "Mode-specific settings editor analogue with recovered value cycles and complementary Accuracy position flags. Its exact mode-$02 early return is implemented by scene_menu via allstar_game_mode_uses_settings, so Horse bypasses settings and enters the roster selector."
     },
     "rom_b00_077d": {
       "status": "verified",

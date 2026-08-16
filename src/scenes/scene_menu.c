@@ -32,7 +32,13 @@ static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInp
 
     if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) || allstar_input_is_pressed(input, ALLSTAR_BTN_START)) {
         game->selected_mode = allstar_game_mode_from_menu_index((uint32_t)data->selected_index);
-        allstar_game_change_scene(game, ALLSTAR_SCENE_SETTINGS);
+        /* Fixed $22EF returns immediately for mode $02 before loading or
+           editing a settings screen. Horse proceeds directly to bank-2
+           $4000's two-player roster selector. */
+        allstar_game_change_scene(game,
+            allstar_game_mode_uses_settings(game->selected_mode)
+                ? ALLSTAR_SCENE_SETTINGS
+                : ALLSTAR_SCENE_ROSTER_SELECT);
     }
 }
 

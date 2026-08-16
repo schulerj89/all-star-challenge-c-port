@@ -90,6 +90,7 @@ local function onJumpContact()
   if stopping or scenario < 2 then return end
   local base = read(0xC187) == 1 and P1 or P2
   placePlayer(base, 0x05, 0x40, 0x60, 0x70, 0x01, true)
+  write(base + 0x07, 0x01)
   placeBall(0x48, 0x6E, 0x10)
   write(0xFFCF, 0)
   clearTransferLocks(scenario == 2)
@@ -176,10 +177,15 @@ local function onEndFrame()
     elseif scenario == 3 and reboundJumpReached then
       expect(read(0xFFCF) == reboundPlayer,
         "$2B6C did not award the same contact after first contact")
+      local reboundBase = reboundPlayer == 1 and P1 or P2
+      expect(read(reboundBase) == 0x05 and
+             read(reboundBase + 0x07) == 0x01 and
+             read(reboundBase + 0x10) == 0x01,
+        "$2B88 changed rebound action/direction/facing state")
       if not stopping then
         stopping = true
         print(failures == 0 and
-          "TRACE PASSED: $2B14 steal and $2B6C/$2B88 live-shot lock" or
+          "TRACE PASSED: $2B14 steal and $2B6C/$2B88 rebound-state preservation" or
           string.format("TRACE FAILED: %d mismatch(es)", failures))
         emu.stop(failures == 0 and 0 or 3)
       end

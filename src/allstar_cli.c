@@ -2273,6 +2273,7 @@ int allstar_cli_test_one_on_one_presentation(void) {
     bool cpu_released = false;
     bool defender_recovered = false;
     float defender_start_x;
+    float rebound_catch_x;
     int frame;
     printf("[Test] Running One-on-One Presentation/Audio Integration Tests...\n");
     allstar_one_on_one_rom_inbound_placement_20f7(1, &inbound);
@@ -2409,16 +2410,54 @@ int allstar_cli_test_one_on_one_presentation(void) {
     printf("  CPU route released at scene frame %d after reaching stage 2\n",
            frame);
 
-    /* Fixed $70FD->$6A8C action $05 must land into $06 and accept movement. */
+    /* $70FD leaves the direction sampled at the jump edge in player +$07.
+       Protected action $05 bypasses $702D's normal direction refresh, while
+       $6BF9->$6B72 continues moving on each jump-record boundary. $2B88 must
+       also preserve that direction when the airborne defender rebounds. */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
     allstar_scene_one_on_one_set_test_possession(
         game.active_scene, &game, 2);
     allstar_scene_one_on_one_set_test_positions(
         game.active_scene, 20.0f, 128.0f, 132.0f, 128.0f);
-    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_input_update(
+        &game.input, ALLSTAR_BTN_A | ALLSTAR_BTN_RIGHT);
     allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     allstar_input_update(&game.input, 0);
-    for (frame = 0; frame < ALLSTAR_ROM_DEFENSE_JUMP_FRAMES + 18; frame++)
+    for (frame = 0; frame < 18; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (!debug.p1_defense_jump_active || debug.p1_x <= 20.0f) {
+        fprintf(stderr,
+                "[Test] $70FD/$6BF9 block jump discarded latched movement "
+                "(action=$%02X record=%u active=%d x=20->%.0f)\n",
+                debug.p1_action, debug.p1_record,
+                debug.p1_defense_jump_active ? 1 : 0, debug.p1_x);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    if (!allstar_scene_one_on_one_take_test_live_possession(
+            game.active_scene, &game, 1)) {
+        fprintf(stderr, "[Test] Could not seed $2B88 airborne rebound\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    rebound_catch_x = debug.p1_x;
+    for (frame = 0; frame < 12; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (!debug.p1_has_ball || !debug.p1_defense_jump_active ||
+        debug.p1_x <= rebound_catch_x) {
+        fprintf(stderr,
+                "[Test] $2B88 rebound erased $6BF9/$6B72 jump movement "
+                "(action=$%02X active=%d owner=%d x=%.0f->%.0f)\n",
+                debug.p1_action,
+                debug.p1_defense_jump_active ? 1 : 0,
+                debug.p1_has_ball ? 1 : 0,
+                rebound_catch_x, debug.p1_x);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    for (frame = 0; frame < ALLSTAR_ROM_DEFENSE_JUMP_FRAMES; frame++)
         allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
     allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
     defender_start_x = debug.p1_x;

@@ -69,7 +69,7 @@
       "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_animation_tick_6a8c",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "All 24 $6C60 action lists, record timing, loops, transitions, protected-action side effects, and the exact $6B72 movement callback path are native and trace-tested. Ghidra and Mesen also verify that contact and rebound do not assign separate actions."
+      "note": "All 24 $6C60 action lists, record timing, loops, transitions, protected-action side effects, and the exact $6B72 movement callback path are native and trace-tested. Ghidra and Mesen verify that $70FD jumps retain +$07 through $6BF9->$6B72, and that contact/rebound do not assign separate actions."
     },
     "rom_b01_6e3c": {
       "status": "verified",
@@ -339,7 +339,7 @@
       "status": "verified",
       "native_symbol": "allstar_one_on_one_rom_recovery_dispatch",
       "source": "src/gameplay/allstar_one_on_one.c",
-      "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, the 20-frame reload, and $2B88 owner/$FFD1 output. Deterministic tests plus trace_one_on_one_miss_take_back.lua cover the full recovery path."
+      "note": "Native dispatcher preserves cooldown decrement, possession/$FFEB/height gates, player order, action/collision eligibility, $FFE2/$FFE7/$FFF8 final locks, the 20-frame reload, and $2B88 owner/$FFD1 output. Deterministic tests plus Mesen recovery traces also prove $2B88 leaves player action, +$07, +$10, and facing untouched."
     },
     "rom_b00_2b14": {
       "status": "verified",

@@ -96,5 +96,7 @@ bool allstar_scene_one_on_one_begin_test_foul(
     uint8_t violation, int offender);
 bool allstar_scene_one_on_one_set_test_take_back_required(
     AllStarScene *scene, bool required);
+bool allstar_scene_one_on_one_take_test_live_possession(
+    AllStarScene *scene, struct AllStarGame *game, int player);
 
 #endif /* ALLSTAR_SCENE_H */

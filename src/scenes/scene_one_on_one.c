@@ -52,6 +52,10 @@ static bool one_on_one_action_uses_dribble_ball_6f2a(uint8_t action) {
            action == 0x0b || action == 0x10 || action == 0x13;
 }
 
+static bool one_on_one_action_is_defense_jump_70fd(uint8_t action) {
+    return action == 0x05 || action == 0x0c || action == 0x14;
+}
+
 static AllStarRomContactEvent one_on_one_tick_rom_animations(
     SceneOneOnOneData *data,
     AllStarGame *game,
@@ -248,14 +252,20 @@ static void one_on_one_take_live_possession(SceneOneOnOneData *data,
         allstar_one_on_one_rom_animation_set_action_6a8c(
             &data->p2_animation, player == 2 ? 0x13 : 0x0d);
     }
-    data->p1_input_direction = 0;
-    data->p2_input_direction = 0;
-    data->p1_previous_direction = player == 1
-        ? ALLSTAR_BTN_RIGHT : ALLSTAR_BTN_UP;
-    data->p2_previous_direction = player == 2
-        ? ALLSTAR_BTN_RIGHT : ALLSTAR_BTN_UP;
-    data->p1_horizontal_flip = player == 1;
-    data->p2_horizontal_flip = player == 2;
+    /* $2B88 changes only possession/role globals. It does not touch either
+       player's current +$07 direction, stored +$10 direction, facing bit,
+       or animation record. In particular, a $2B6C airborne rebound keeps
+       running $6BF9->$6B72 with the direction latched when the jump began. */
+    if (!preserve_animation) {
+        data->p1_input_direction = 0;
+        data->p2_input_direction = 0;
+        data->p1_previous_direction = player == 1
+            ? ALLSTAR_BTN_RIGHT : ALLSTAR_BTN_UP;
+        data->p2_previous_direction = player == 2
+            ? ALLSTAR_BTN_RIGHT : ALLSTAR_BTN_UP;
+        data->p1_horizontal_flip = player == 1;
+        data->p2_horizontal_flip = player == 2;
+    }
     data->recovery.cooldown_frames = ALLSTAR_ROM_RECOVERY_COOLDOWN_FRAMES;
     allstar_one_on_one_shot_reset(&data->shot_attempt);
     /* $2B88 changes owner without clearing $C0A3/$C0A7. $6F2A replaces
@@ -738,8 +748,13 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
     }
 
     {
-        data->p1_input_direction = 0;
-        if (!data->p1_defense_jump_active) {
+        /* On $70FD's protected actions $05/$0C/$14, $702D branches at
+           $709A before clearing or refreshing player +$07. Preserve the
+           direction sampled on the jump edge so $6BF9->$6B72 can keep
+           moving at record boundaries until the landing transition. */
+        if (!data->p1_defense_jump_active &&
+            !one_on_one_action_is_defense_jump_70fd(
+                data->p1_animation.action)) {
             data->p1_input_direction = (uint8_t)(
                 input->buttons_held & 0x0f);
         }
@@ -781,7 +796,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         }
     } else {
         if (allstar_input_is_pressed(input, ALLSTAR_BTN_A) &&
-            !data->p1.is_shooting && !data->p1_defense_jump_active) {
+            !data->p1.is_shooting && !data->p1_defense_jump_active &&
+            !one_on_one_action_is_defense_jump_70fd(
+                data->p1_animation.action)) {
             data->p1_defense_jump_active = true;
             data->p1_defense_jump_elapsed_frames = 0;
             allstar_one_on_one_rom_animation_set_action_6a8c(
@@ -823,8 +840,12 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         allstar_one_on_one_rom_animation_set_action_6a8c(
             &data->p2_animation, data->p2_shot_action);
     }
-    data->p2_input_direction = one_on_one_direction_from_delta(
-        data->p2.x - p2_before_x, data->p2.y - p2_before_y);
+    if (!data->p2_defense_jump_active &&
+        !one_on_one_action_is_defense_jump_70fd(
+            data->p2_animation.action)) {
+        data->p2_input_direction = one_on_one_direction_from_delta(
+            data->p2.x - p2_before_x, data->p2.y - p2_before_y);
+    }
     {
         data->p2.x = p2_before_x;
         data->p2.y = p2_before_y;
@@ -837,7 +858,9 @@ static void one_on_one_update(AllStarScene *scene, AllStarGame *game, const AllS
         return;
     }
     if (data->p2.is_jumping && !data->p2.is_shooting &&
-        !data->p2_defense_jump_active) {
+        !data->p2_defense_jump_active &&
+        !one_on_one_action_is_defense_jump_70fd(
+            data->p2_animation.action)) {
         data->p2_defense_jump_active = true;
         data->p2_defense_jump_elapsed_frames = 0;
         allstar_one_on_one_rom_animation_set_action_6a8c(
@@ -1294,5 +1317,15 @@ bool allstar_scene_one_on_one_set_test_take_back_required(
     data = (SceneOneOnOneData*)scene->user_data;
     data->take_back_required = required;
     data->take_back_violation_pending = 0;
+    return true;
+}
+
+bool allstar_scene_one_on_one_take_test_live_possession(
+        AllStarScene *scene, AllStarGame *game, int player) {
+    SceneOneOnOneData *data;
+    if (!scene || !game || scene->id != ALLSTAR_SCENE_ONE_ON_ONE ||
+        !scene->user_data || (player != 1 && player != 2)) return false;
+    data = (SceneOneOnOneData*)scene->user_data;
+    one_on_one_take_live_possession(data, game, player, true);
     return true;
 }

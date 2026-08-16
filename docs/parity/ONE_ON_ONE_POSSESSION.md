@@ -14,12 +14,12 @@ The native One-on-One rules now centralize possession changes and shot-clock res
 | Defensive rebound | Possession changes and the shot clock resets. |
 | Offensive rebound | Possession remains with the offense and the current shot clock is preserved. |
 | Traveling after an unreleased jump | The defender receives possession and the shot clock resets. |
-| Loose-ball pickup | After first ground contact clears the flight lock, height below `$18` plus `$077D`'s strict rectangular proximity limits select the first eligible recovering player; the shot clock resets only when the possession side changes. `$2B88` does not assign a pickup animation, so native recovery preserves the current animation record. |
+| Loose-ball pickup | After first ground contact clears the flight lock, height below `$18` plus `$077D`'s strict rectangular proximity limits select the first eligible recovering player; the shot clock resets only when the possession side changes. `$2B88` does not assign a pickup animation or rewrite player `+$07`, `+$10`, or facing, so native recovery preserves the current animation and movement state. |
 | Pickup cooldown | `$2AE2` decrements `$C12D` before its early exits; `$2B88` requires it to be zero and reloads it with 20 frames when possession is awarded. |
 | Pickup global locks | `$2AE2` rejects recovery during `$FFEB` counted waits. `$2B88` then rejects a pending `$FFE2` score event, an `$FFE7` gameplay transition, or `$FFF8` before the first ground contact. The live scene supplies the corresponding native states after its score/lifecycle early returns. |
 | Outer dead-ball boundary | `$1CED->$1F4D` stops planar ball motion; it does not directly call a turnover or award possession. |
 | Steal | `$2B14` requires `$0A78` vulnerability, `$077D` contact, and opposing direction masks before sharing the `$2B88` possession transfer. |
-| Defensive jump recovery | `$2B6C` adds the exact `reach-8 < ball height <= reach` band, but shared `$2B88` rejects it while `$FFF8` marks initial shot flight. The same contact can recover a post-contact rebound. |
+| Defensive jump recovery | `$2B6C` adds the exact `reach-8 < ball height <= reach` band, but shared `$2B88` rejects it while `$FFF8` marks initial shot flight. The same contact can recover a post-contact rebound and then continues its latched `$6BF9->$6B72` movement through the remaining jump records. |
 
 The post-score ROM branch is at `$0C13..$0C2C`: when `$FF96` is nonzero it reverses `$FFD0` before the possession setup call at `$20F7`. Together with the settings-screen label and manual rule, this is the winners-outs behavior implemented by `allstar_one_on_one_next_possession_after_score`.
 

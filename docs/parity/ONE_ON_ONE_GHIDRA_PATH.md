@@ -16,6 +16,23 @@ Two earlier assumptions were corrected by following the live call graph:
 The C port preserves those absences instead of adding behavior not present in
 the cartridge.
 
+## Remaining conservative whole-routine gaps
+
+The focused One-on-One requirements are complete, but the routine inventory
+does not promote partially exercised functions merely because their important
+One-on-One branches work:
+
+| Candidate/unmapped ROM area | Covered subset | What remains before whole-routine credit |
+|---|---|---|
+| `$0B80/$0B9A` match controller | One-on-One start/play/score/overtime/result and return events | Prove every controller branch and non-One-on-One caller/state. |
+| `$6FF3/$7015/$702D/$714D` player controller | Human movement, shot gather/release/dunk, steal, defensive jump, and rebound motion | Map thin entry wrappers and every protected/override branch as standalone routines. `$702D` remains a candidate mapping. |
+| `$7170/$74BB` CPU controller | Drive targets, shot decisions, contests, steals, and `$75CD` contact response | Recover the remaining state/hysteresis branches and resolve deferred `$76A7`; the full controller remains candidate. |
+| `$791D/$794B/$7BE8/$7C58/$7EA9/$7EC4/$7F37` shot/ball cluster | One-on-One variants, launch vectors, held offsets, 8.8 flight, rim/score/bounce, and take-back rejection | Prove all calling contexts and residual branches before promoting the complete routines. |
+| `$2F88/$3014` audio dispatcher | Seven focused One-on-One commands/programs | Port the remaining commands, music sequencing, envelopes/modulation, and full APU lifecycle. |
+
+Exact input/RNG frame synchronization, native two-player input, and unrelated
+mode/presentation branches remain outside the focused gameplay denominators.
+
 ## Shooting through the next inbound
 
 | ROM path followed in Ghidra | Recovered behavior | Native C path |
@@ -58,6 +75,8 @@ about 4.3 seconds to 1.43 seconds while preserving the recovered event order.
 | `$2CCA -> $0AC5` | At counter expiry, test the possession owner's `+$16` orientation and one exact unsigned player spacing. | `allstar_one_on_one_rom_contact_alignment_0ac5`. |
 | `$0AC5 -> $05A3 -> $20F7` | Owner offender is charging; defender offender is blocking. Restart possession for the player opposite the offender. | `AllStarRomContactEvent` plus live `one_on_one_reset_possession` dispatch. |
 | `$100F -> $6FF3 -> $7015 -> $702D` | Update player input/action state after the rule dispatcher. | Human input capture and CPU intent in `scene_one_on_one.c`. |
+| `$702D:$7059->$70FD`, then protected `$709A` | A defensive jump selects `$05/$0C/$14`; later protected-action updates bypass the normal `+$07` clear/refresh, retaining the direction sampled on the jump edge. | Human and CPU jump state latch their entry direction instead of zeroing or continuously replacing it. |
+| `$6A8C -> $6BF9 -> $6C27 -> $6B72` | Jump records apply `$6C4D` visual lift and, when `+$07` is nonzero, dispatch the same four-pixel movement callbacks used by grounded records. | Moving block attempts retain ROM record-boundary motion while the visual jump completes. |
 | `$702D -> $782E -> $6A8C` | At an animation-record boundary, choose the movement/idle action and load its next duration/frame record. | `allstar_one_on_one_rom_select_movement_action_782e` and `allstar_one_on_one_rom_animation_tick_6a8c`. |
 | `$6A8C:$6B5F -> $6B72` | Clear the per-player contact latch, then dispatch requested axes in right, left, up, down order. | `allstar_one_on_one_rom_player_move_6b72`. |
 | `$6B72 -> $6BAD/$6BBA/$6BD4/$6BC7` | Apply court limits and attempt a direct four-pixel coordinate update. | The same C movement helper, called only for a newly loaded normal record. |
@@ -76,8 +95,8 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | ROM path | Recovered behavior | Native C path |
 |---|---|---|
 | `$2AE2 -> $2B07 -> $0A78 -> $077D` | Tick the cooldown, reject protected actors, and test the exact loose-ball rectangle. | `allstar_one_on_one_rom_recovery_dispatch` and the existing `$077D` contact helper. |
-| `$2B07 -> $2B88` | Apply score/transition/first-flight/cooldown gates, set `$C12D=20`, clear flight inputs, set `$FFCF`, and report whether owner changed. | Recovery dispatch plus `allstar_one_on_one_match_take_possession`. |
-| return to `$7015 -> $782E -> $6A8C` | Continue normal player animation selection. No pickup action is assigned and animation fields `+$00..+$04` are untouched. | Recovery no longer forces `$13/$0D`; the current animation record is preserved. |
+| `$2B07 -> $2B88` | Apply score/transition/first-flight/cooldown gates, set `$C12D=20`, clear flight inputs, set `$FFCF`, and report whether owner changed. Player action/record, `+$07`, `+$10`, and facing are untouched. | Recovery dispatch plus `allstar_one_on_one_match_take_possession`; live transfer preserves the complete player movement/presentation state. |
+| return to `$7015 -> $782E -> $6A8C` | Continue normal player animation selection. No pickup action is assigned; an airborne catch continues its remaining `$6BF9->$6B72` jump movement before landing naturally. | Recovery no longer forces `$13/$0D` or clears direction/facing; the current record and latched motion continue. |
 | `$2B88 -> $FFD1`, then `$6F2A -> $78E9 -> $794B/$796C` | A defensive recovery sets the changed-owner flag. It remains set while the held ball is inside the central region and clears outside it; `$7C58` refuses a shot while set. | `take_back_required` is set only on a live owner change, uses the exact held-ball coordinates/region helper, and gates both human and CPU launch. |
 | `$7C58->$FFD0/$C178`, next `$2C50->$067C->$05A3->$0C49->$20F7` | Attempting a shot before clearing latches the owner, displays “DIDN'T CLEAR BALL,” sends command `$04`, then restarts possession opposite the offender. | The scene uses a next-update pending latch, the shared popup/fade state, decoded rule cue, and normal opposite-offender restart. |
 | `$1CED -> $1D8C/$1F5F -> $1F4D` | A rim miss receives its exact impulse and eight-frame cooldown; an outer boundary zeroes both planar velocity words but leaves a live recoverable ball. | `allstar_physics_apply_rom_court_contacts` feeds the normal recovery/take-back route instead of creating an unverified sideline inbound. |

@@ -11,12 +11,13 @@ local opponentMoved = false
 local stopping = false
 local failures = 0
 local lastAction = -1
+local jumpStartX = nil
 local observed = {
   idleBall = false, rightBall = false, downBall = false, leftBall = false,
   upBall = false,
   idleNoBall = false, rightNoBall = false, downNoBall = false,
   leftNoBall = false, upNoBall = false, directionalIdleNoBall = false,
-  jump = false, steal = false,
+  jump = false, jumpDirection = false, jumpMoved = false, steal = false,
   sixFrameCadence = false
 }
 local P1 = 0xFF9D
@@ -95,7 +96,10 @@ local function onAnimationDispatcher()
     observed.directionalIdleNoBall = true
   elseif gameplayFrames >= 401 and gameplayFrames <= 480 and action == 0x0C then
     observed.jump = true
-  elseif gameplayFrames >= 481 and action == 0x0F then
+    if jumpStartX == nil then jumpStartX = read(P1 + 0x06) end
+    observed.jumpDirection = observed.jumpDirection or read(P1 + 0x07) == 0x01
+    observed.jumpMoved = observed.jumpMoved or read(P1 + 0x06) > jumpStartX
+  elseif gameplayFrames >= 481 and action == 0x17 then
     observed.steal = true
   end
 end
@@ -106,6 +110,15 @@ local function onPlayerInputUpdate()
     write(0xFFCF, 2)
     write(P1 + 0x09, 1)
     write(P2 + 0x09, 0)
+  end
+  if gameplayFrames == 401 then
+    -- Isolate the jump from player-pair contact. $70FD samples Right into
+    -- +$07 on the A edge; protected action $0C then retains it while
+    -- $6BF9->$6B72 advances X at normal six-frame record boundaries.
+    write(P1 + 0x06, 0x20)
+    write(P1 + 0x15, 0x70)
+    write(P2 + 0x06, 0x80)
+    write(P2 + 0x15, 0x70)
   end
   if gameplayFrames >= 481 then
     -- Re-establish the reviewed $2B14 contact after the 72-frame jump.
@@ -150,7 +163,10 @@ local function onInputPolled()
     if gameplayFrames >= 261 and gameplayFrames <= 295 then input.down = true end
     if gameplayFrames >= 296 and gameplayFrames <= 330 then input.left = true end
     if gameplayFrames >= 331 and gameplayFrames <= 365 then input.up = true end
-    if gameplayFrames == 406 then input.a = true end
+    if gameplayFrames == 406 then
+      input.a = true
+      input.right = true
+    end
     if gameplayFrames >= 481 and gameplayFrames <= 515 then input.b = true end
   end
   emu.setInput(input, 0)
@@ -176,11 +192,16 @@ local function onEndFrame()
     expect(observed.directionalIdleNoBall,
       "up-facing idle-without-ball action $0D was not observed")
     expect(observed.jump, "middle-family defensive jump action $0C was not observed")
-    expect(observed.steal, "middle-family post-jump steal action $0F was not observed")
+    expect(observed.jumpDirection,
+      "$70FD defensive jump did not retain sampled +$07 direction")
+    expect(observed.jumpMoved,
+      "$6BF9/$6B72 did not move during the defensive jump")
+    expect(observed.steal,
+      "right-facing post-jump steal action $17 was not observed")
     expect(observed.sixFrameCadence,
       "$6A8C did not reload the second $10 record with six frames")
     print(failures == 0 and
-      "TRACE PASSED: $782E/$6A8C directional actions and record cadence" or
+      "TRACE PASSED: $782E/$6A8C directions, jump motion, and record cadence" or
       string.format("TRACE FAILED: %d mismatch(es)", failures))
     emu.stop(failures == 0 and 0 or 3)
   elseif totalFrames >= 3600 and not stopping then

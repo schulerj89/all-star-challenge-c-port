@@ -34,9 +34,10 @@ vertical velocity, and display frame `$13`.
 deterministic native contact states at the reviewed routine boundaries. It
 confirms a `$2B14` steal transfer and proves that `$2B88` rejects `$2B6C` jump
 contact while `$FFF8=1`, then accepts the same post-contact recovery after the
-flag clears. Run it by substituting that filename for the script in the command
-above; exit code `0` and `TRACE PASSED: $2B14 steal and $2B6C/$2B88 live-shot
-lock` are required.
+flag clears without changing the rebounder's action, `+$07`, or `+$10`. Run it
+by substituting that filename for the script in the command above; exit code
+`0` and `TRACE PASSED: $2B14 steal and $2B6C/$2B88 rebound-state preservation`
+are required.
 
 `trace_one_on_one_rng.lua` resolves the fixed-bank `$0714/$072F` generator
 used by One-on-One. It asserts the first 32 gameplay-frame values of `$FFFB`,
@@ -47,9 +48,10 @@ exit code `0` plus `TRACE PASSED: $FFFB writer and 32 One-on-One frame values`.
 `trace_one_on_one_animation.lua` follows bank 1 `$6A8C` under controlled
 held-ball movement, no-ball movement, defensive jump, and steal inputs. It
 asserts all four `$782E` direction branches in both possession families,
-directional idle, `$70FD`'s middle-family jump, the following steal family,
-and a six-frame record reload through player fields `+$00..+$04`. Require exit
-code `0` and `TRACE PASSED: $782E/$6A8C directional actions and record cadence`.
+directional idle, `$70FD`'s middle-family jump, preserved jump direction and
+`$6BF9/$6B72` motion, the following steal family, and a six-frame record reload
+through player fields `+$00..+$07`. Require exit code `0` and `TRACE PASSED:
+$782E/$6A8C directions, jump motion, and record cadence`.
 
 `trace_one_on_one_player_collision.lua` follows bank 1
 `$6A8C->$6B72->$6BAD->$6E3C/$6EC0/$6EEA`. It injects controlled player

@@ -12,7 +12,7 @@ The port currently has broad native scene scaffolding. Mode routing, settings pe
 
 The strict project milestone tracker is currently **10/25 (40.00%)**, increased from the audited **3/25 (12.00%)** baseline. Analysis is **6/7 (85.71%)** and gameplay is **4/11 (36.36%)** verified.
 
-The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, defensive jumps, post-contact recovery, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
+The separate One-on-One behavior manifest is **50/50 (100.00%)**. Its fixed requirements are now complete, including steals, moving defensive jumps, post-contact recovery that preserves action/direction/facing, and the ROM's explicit initial-flight lock/no-separate-goaltending behavior. This focused result does not promote incomplete whole-project milestones or candidate whole-routine mappings.
 
 The expanded One-on-One shooting/presentation audit is **22/22 (100.00%)**,
 up from **12/22 (54.55%)** when the former contact-only denominator was

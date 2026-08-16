@@ -82,15 +82,22 @@ if(ALLSTAR_BUILD_SDL_GAME)
     FetchContent_MakeAvailable(SDL3)
 
     if(APPLE)
+        set(ALLSTAR_MACOS_ICON
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/nba_allstar_challenge.icns")
+        set_source_files_properties(${ALLSTAR_MACOS_ICON} PROPERTIES
+            MACOSX_PACKAGE_LOCATION "Resources"
+        )
         add_executable(allstar_port_game MACOSX_BUNDLE
             src/sdl_game_main.c
             src/audio/allstar_audio.c
+            ${ALLSTAR_MACOS_ICON}
         )
         set_target_properties(allstar_port_game PROPERTIES
             MACOSX_BUNDLE_BUNDLE_NAME "NBA All-Star Challenge"
             MACOSX_BUNDLE_GUI_IDENTIFIER "com.schulerj89.allstarchallenge"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
             MACOSX_BUNDLE_BUNDLE_VERSION "1"
+            MACOSX_BUNDLE_ICON_FILE "nba_allstar_challenge.icns"
         )
     elseif(WIN32)
         add_executable(allstar_port_game WIN32

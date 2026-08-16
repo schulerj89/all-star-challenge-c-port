@@ -99,4 +99,24 @@ bool allstar_scene_one_on_one_set_test_take_back_required(
 bool allstar_scene_one_on_one_take_test_live_possession(
     AllStarScene *scene, struct AllStarGame *game, int player);
 
+typedef struct {
+    uint8_t phase;
+    uint8_t attempts_taken;
+    uint8_t attempts_remaining;
+    uint8_t makes;
+    uint8_t aim_x;
+    uint8_t aim_y;
+    uint8_t ball_x;
+    uint8_t ball_y;
+    uint8_t ball_z;
+    uint16_t presentation_frame;
+    uint32_t last_events;
+    bool made_current;
+} AllStarFreeThrowDebugState;
+
+bool allstar_scene_free_throw_get_debug_state(
+    const AllStarScene *scene, AllStarFreeThrowDebugState *state);
+bool allstar_scene_free_throw_set_test_aim(
+    AllStarScene *scene, uint8_t x, uint8_t y);
+
 #endif /* ALLSTAR_SCENE_H */

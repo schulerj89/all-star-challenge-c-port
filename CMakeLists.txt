@@ -18,8 +18,10 @@ set(ALLSTAR_SOURCES
     src/allstar_roster.c
     src/allstar_game.c
     src/gameplay/allstar_physics.c
+    src/gameplay/allstar_rng.c
     src/gameplay/allstar_ai.c
     src/gameplay/allstar_one_on_one.c
+    src/gameplay/allstar_free_throw.c
     src/audio/allstar_audio.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c

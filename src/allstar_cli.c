@@ -5,6 +5,7 @@
 #include "allstar_physics.h"
 #include "allstar_ai.h"
 #include "allstar_rng.h"
+#include "allstar_free_throw.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,6 +64,8 @@ static void print_usage(const char *prog_name) {
     printf("  --build-assetpack <rom> <out.pack> Build asset pack from ROM\n");
     printf("  --export-rom-sfx <pack> <05.wav> <0D.wav> <0C.wav> <0F.wav> <0E.wav> <09.wav> <04.wav>\n");
     printf("                                        Export decoded ROM cues\n");
+    printf("  --export-free-throw-sfx <pack> <08.wav> <0A.wav>\n");
+    printf("                                        Export Free Throw net/contact cues\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -71,6 +74,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-one-on-one-lifecycle        Verify One-on-One endings and returns\n");
     printf("  --test-one-on-one-shooting         Verify staged shooting and traveling\n");
     printf("  --test-one-on-one-presentation     Verify One-on-One movement/roster audio\n");
+    printf("  --test-free-throw                 Verify ROM Free Throw lifecycle/physics\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
     printf("  --test-all                         Execute all test suites\n");
@@ -2564,6 +2568,38 @@ int allstar_cli_export_rom_sfx(const char *pack_path,
     return 0;
 }
 
+int allstar_cli_export_free_throw_sfx(const char *pack_path,
+                                      const char *net_path,
+                                      const char *contact_path) {
+    AllStarAssetPack pack;
+    const AllStarRomSfxProgram *net;
+    const AllStarRomSfxProgram *contact;
+    if (!allstar_asset_pack_load_file(&pack, pack_path) ||
+        pack.header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT)
+        return 1;
+    net = &pack.rom_sfx_programs[7];
+    contact = &pack.rom_sfx_programs[8];
+    if (!allstar_audio_export_rom_sfx_wav(&pack, 0x08, net_path) ||
+        !allstar_audio_export_rom_sfx_wav(&pack, 0x0a, contact_path)) {
+        fprintf(stderr, "[Free Throw SFX] Failed to export decoded WAV proof\n");
+        return 1;
+    }
+    printf("[Free Throw SFX] $08 -> program $%02X priority %u stream $%04X, "
+           "%u frames, NR41/42/43/44=%02X/%02X/%02X/%02X\n",
+           net->program_id, net->priority_frames, net->stream_pointer_1,
+           net->frame_count, net->noise_length, net->noise_envelope,
+           net->frames[0].noise_polynomial, net->noise_control);
+    printf("[Free Throw SFX] $0A -> program $%02X priority %u stream $%04X, "
+           "%u frames, NR10/11/12=%02X/%02X/%02X\n",
+           contact->program_id, contact->priority_frames,
+           contact->stream_pointer_1, contact->frame_count,
+           contact->square1_sweep, contact->square1_duty_length,
+           contact->square1_envelope);
+    printf("[Free Throw SFX] source FNV-1a %08X; exported %s and %s\n",
+           net->source_checksum, net_path, contact_path);
+    return 0;
+}
+
 int allstar_cli_test_one_on_one_presentation(void) {
     AllStarGame game;
     AllStarRomInboundPlacement inbound;
@@ -2935,6 +2971,157 @@ int allstar_cli_test_one_on_one_presentation(void) {
     allstar_game_shutdown(&game);
     printf("[Test] PASSED: CPU release, defender recovery, $09 rim, "
            "$0C/$0D gameplay, and $0F/$0E roster cues\n");
+    return 0;
+}
+
+int allstar_cli_test_free_throw(void) {
+    AllStarFreeThrowState state;
+    AllStarFreeThrowDebugState debug;
+    AllStarGame game;
+    uint32_t events;
+    int frame;
+    int make_frame = -1, net_frame = -1, score_frame = -1;
+    int attempt;
+
+    printf("[Test] ROM Free Throw mode ($0C8E/$100F)...\n");
+    allstar_free_throw_init(&state, 5, 0x00, 0);
+    if (state.aim_x != 0x5b00 || state.aim_y != 0x3800 ||
+        state.aim_vx != 0x0045 || state.aim_vy != 0x0040) {
+        fprintf(stderr, "[Test] FAILED: $18E7 RNG row 0 mismatch\n");
+        return 1;
+    }
+    allstar_free_throw_aim_init_18e7(&state, 0x40);
+    if (state.aim_x != 0x4700 || state.aim_y != 0x3400 ||
+        state.aim_vx != 0x0050 || state.aim_vy != (int16_t)0xffb0) {
+        fprintf(stderr, "[Test] FAILED: $18E7 RNG row 1 mismatch\n");
+        return 1;
+    }
+    allstar_free_throw_aim_init_18e7(&state, 0x90);
+    if (state.aim_x != 0x5600 || state.aim_y != 0x4300) {
+        fprintf(stderr, "[Test] FAILED: $18E7 RNG row 2 mismatch\n");
+        return 1;
+    }
+    allstar_free_throw_aim_init_18e7(&state, 0xe0);
+    if (state.aim_x != 0x4900 || state.aim_y != 0x3300) {
+        fprintf(stderr, "[Test] FAILED: $18E7 RNG row 3 mismatch\n");
+        return 1;
+    }
+
+    state.aim_x = 0x5000;
+    state.aim_y = 0x3f00;
+    state.aim_vx = 0;
+    state.aim_vy = 0;
+    state.aim_timer = 2;
+    allstar_free_throw_aim_input_1942(
+        &state, ALLSTAR_BTN_RIGHT | ALLSTAR_BTN_DOWN);
+    allstar_free_throw_aim_step_1986(&state);
+    if (state.aim_vx != 5 || state.aim_vy != 5 ||
+        state.aim_x != 0x5005 || state.aim_y != 0x3f05) {
+        fprintf(stderr, "[Test] FAILED: $1942/$1986 aim integration mismatch\n");
+        return 1;
+    }
+
+    allstar_free_throw_init(&state, 5, 0x00, 0);
+    allstar_free_throw_set_test_aim(&state, 0x52, 0x3c);
+    if (!allstar_free_throw_launch_1caa_7c58(&state, 0xff) ||
+        state.ball.vx != -36 || state.ball.vy != -160 ||
+        state.ball.vz != 484 || state.attempts_remaining != 4) {
+        fprintf(stderr,
+            "[Test] FAILED: $1CAA/$7C58 center vector got (%d,%d,%d)\n",
+            state.ball.vx, state.ball.vy, state.ball.vz);
+        return 1;
+    }
+    allstar_free_throw_init(&state, 5, 0, 0);
+    allstar_free_throw_set_test_aim(&state, 0x48, 0x36);
+    if (!allstar_free_throw_launch_1caa_7c58(&state, 0x00) ||
+        state.ball.vx != -36 || state.ball.vy != -160 ||
+        state.ball.vz != 484) {
+        fprintf(stderr, "[Test] FAILED: $1CAA 19/256 assist did not snap\n");
+        return 1;
+    }
+    allstar_free_throw_init(&state, 5, 0, 0);
+    allstar_free_throw_set_test_aim(&state, 0x52, 0x3c);
+    allstar_free_throw_launch_1caa_7c58(&state, 0xff);
+    for (frame = 1; frame <= ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; frame++) {
+        events = allstar_free_throw_tick_100f(&state, 0, 0, 0xff);
+        if ((events & ALLSTAR_FREE_THROW_EVENT_MAKE) && make_frame < 0)
+            make_frame = frame;
+        if ((events & ALLSTAR_FREE_THROW_EVENT_NET) && net_frame < 0)
+            net_frame = frame;
+        if ((events & ALLSTAR_FREE_THROW_EVENT_SCORE) && score_frame < 0)
+            score_frame = frame;
+    }
+    printf("  traced center shot: make=%d net=$08@%d score=$05@%d next=%u\n",
+           make_frame, net_frame, score_frame,
+           (unsigned)state.attempts_remaining);
+    if (state.phase != ALLSTAR_FREE_THROW_AIMING ||
+        state.attempts_remaining != 4 || state.makes != 1 ||
+        make_frame < 0 || net_frame - make_frame != 27 ||
+        score_frame - make_frame != 71) {
+        fprintf(stderr,
+            "[Test] FAILED: $17E2/$1A31/$1C61 shot lifecycle mismatch\n");
+        return 1;
+    }
+
+    allstar_free_throw_init(&state, 5, 0, 0);
+    allstar_free_throw_set_test_aim(&state, 0x39, 0x28);
+    if (!allstar_free_throw_launch_1caa_7c58(&state, 0xff)) return 1;
+    for (frame = 0; frame < ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; frame++)
+        allstar_free_throw_tick_100f(&state, 0, 0, 0xff);
+    if (state.makes != 0 || state.phase != ALLSTAR_FREE_THROW_AIMING) {
+        fprintf(stderr, "[Test] FAILED: off-target Free Throw did not miss\n");
+        return 1;
+    }
+
+    allstar_free_throw_init(&state, 5, 0, 0);
+
+    for (attempt = 0; attempt < 5; ++attempt) {
+        allstar_free_throw_set_test_aim(&state, 0x52, 0x3c);
+        if (!allstar_free_throw_launch_1caa_7c58(&state, 0xff)) return 1;
+        for (frame = 0; frame < ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; frame++)
+            allstar_free_throw_tick_100f(&state, 0, 0, 0xff);
+    }
+    if (state.phase != ALLSTAR_FREE_THROW_RESULT ||
+        state.attempts_taken != 5 || state.attempts_remaining != 0 ||
+        state.makes != 5) {
+        fprintf(stderr,
+            "[Test] FAILED: $0C8E five-attempt result got phase=%u tries=%u left=%u makes=%u\n",
+            (unsigned)state.phase, (unsigned)state.attempts_taken,
+            (unsigned)state.attempts_remaining, (unsigned)state.makes);
+        return 1;
+    }
+
+    if (!allstar_game_init(&game, NULL)) return 1;
+    game.settings.free_throw_attempts = 5;
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
+    for (attempt = 0; attempt < 5; attempt++) {
+        allstar_scene_free_throw_set_test_aim(
+            game.active_scene, 0x52, 0x3c);
+        allstar_input_update(&game.input, ALLSTAR_BTN_A);
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        allstar_input_update(&game.input, 0);
+        for (frame = 0; frame < ALLSTAR_FREE_THROW_PRESENTATION_FRAMES;
+             frame++)
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    if (!allstar_scene_free_throw_get_debug_state(game.active_scene, &debug) ||
+        debug.phase != ALLSTAR_FREE_THROW_RESULT || debug.makes != 5 ||
+        debug.attempts_remaining != 0) {
+        fprintf(stderr,
+            "[Test] FAILED: native Free Throw scene did not reach 5/5 results\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    if (!game.active_scene || game.active_scene->id != ALLSTAR_SCENE_INTRO) {
+        fprintf(stderr,
+            "[Test] FAILED: Free Throw result did not return to intro\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_shutdown(&game);
+    printf("[Test] PASSED: Free Throw aim, launch, rim/net score, five attempts, result\n");
     return 0;
 }
 
@@ -3334,9 +3521,45 @@ int allstar_cli_dump_screenshots(const char *out_dir,
 
     /* 6. Free Throw */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_FREE_THROW);
+    allstar_input_update(&game.input, 0);
     for (int i = 0; i < 10; i++) allstar_game_tick(&game, 1.0f / 60.0f);
     snprintf(path, sizeof(path), "%s\\06_free_throw.bmp", out_dir);
     save_bmp_file(path, game.renderer->pixels, ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+
+    /* 6a-6d. Fixed $1942/$1986 aim, $1CAA/$7C58 flight,
+       $1A31->$1C05 make, $1C61 net, and $0C8E five-attempt results. */
+    allstar_scene_free_throw_set_test_aim(game.active_scene, 0x52, 0x3c);
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (int i = 0; i < 60; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\06a_free_throw_flight.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    for (int i = 60; i < 118; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\06b_free_throw_make.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    for (int i = 118; i < 145; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    snprintf(path, sizeof(path), "%s\\06c_free_throw_net.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
+    for (int i = 145; i < ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; i++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    for (int attempt = 1; attempt < 5; attempt++) {
+        allstar_scene_free_throw_set_test_aim(game.active_scene, 0x52, 0x3c);
+        allstar_input_update(&game.input, ALLSTAR_BTN_A);
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        allstar_input_update(&game.input, 0);
+        for (int i = 0; i < ALLSTAR_FREE_THROW_PRESENTATION_FRAMES; i++)
+            allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    }
+    snprintf(path, sizeof(path), "%s\\06d_free_throw_result.bmp", out_dir);
+    save_bmp_file(path, game.renderer->pixels,
+                  ALLSTAR_GB_WIDTH, ALLSTAR_GB_HEIGHT);
 
     /* 7. HORSE */
     allstar_game_change_scene(&game, ALLSTAR_SCENE_HORSE);
@@ -3364,6 +3587,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_one_on_one_lifecycle();
     failed += allstar_cli_test_one_on_one_shooting();
     failed += allstar_cli_test_one_on_one_presentation();
+    failed += allstar_cli_test_free_throw();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -3411,6 +3635,14 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_export_rom_sfx(
             argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
             argv[9]);
+    } else if (strcmp(cmd, "--export-free-throw-sfx") == 0) {
+        if (argc < 5) {
+            fprintf(stderr, "Error: --export-free-throw-sfx requires "
+                    "<pack>, <08.wav>, and <0A.wav>\n");
+            return 1;
+        }
+        return allstar_cli_export_free_throw_sfx(
+            argv[2], argv[3], argv[4]);
     } else if (strcmp(cmd, "--dump-screenshots") == 0) {
         if (argc < 3) {
             fprintf(stderr, "Error: --dump-screenshots requires <out_dir> path\n");
@@ -3431,6 +3663,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_one_on_one_shooting();
     } else if (strcmp(cmd, "--test-one-on-one-presentation") == 0) {
         return allstar_cli_test_one_on_one_presentation();
+    } else if (strcmp(cmd, "--test-free-throw") == 0) {
+        return allstar_cli_test_free_throw();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {

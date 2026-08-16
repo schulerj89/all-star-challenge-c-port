@@ -328,7 +328,7 @@ static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
 /* Fixed $3014->$32A9->$3327/$3334->$347B consumes the command table at
    $2FB0, program pointers at $3849, instrument records at $3888, duration
    table $312B, frequency tables $3159/$31C6, and pitch cycle $3244.
-   This intentionally decodes the seven focused square/noise programs used by
+   This intentionally decodes the focused square/noise programs used by
    fouls, score, rim contact, dribble-ground contact, movement, roster
    navigation, and roster accept. */
 static bool decode_rom_square_stream(const AllStarRom *rom,
@@ -435,12 +435,16 @@ static bool decode_rom_noise_stream(const AllStarRom *rom,
         if (cursor + 1 >= rom->size) return false;
         note = rom->data[cursor++];
         duration_code = rom->data[cursor++];
-        (void)note;
         if ((size_t)duration_code + 0x312bu >= rom->size) return false;
         duration = rom->data[0x312b + duration_code];
         if (duration == 0 || output_frame + duration >
                 ALLSTAR_ROM_SFX_MAX_FRAMES) return false;
-        polynomial = (uint8_t)(rom->data[descriptor + 5] & 0x7f);
+        /* Free Throw net command $08 treats its note byte as successive
+           NR43 clock-shift values ($10,$20,$30,$40). Other decoded noise
+           streams use the descriptor's fixed polynomial, as $09 does. */
+        polynomial = program->command == 0x08
+            ? (uint8_t)((note - 1u) << 4)
+            : (uint8_t)(rom->data[descriptor + 5] & 0x7f);
         for (local_frame = 0; local_frame < duration; local_frame++) {
             AllStarRomSfxFrame *frame =
                 &program->frames[output_frame + local_frame];
@@ -456,10 +460,10 @@ static bool decode_rom_noise_stream(const AllStarRom *rom,
     return true;
 }
 
-static bool extract_one_on_one_audio(AllStarAssetPack *pack,
-                                     const AllStarRom *rom) {
+static bool extract_gameplay_audio(AllStarAssetPack *pack,
+                                   const AllStarRom *rom) {
     static const uint8_t commands[ALLSTAR_ROM_SFX_PROGRAM_COUNT] =
-        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04};
+        {0x0d, 0x05, 0x0c, 0x0f, 0x0e, 0x09, 0x04, 0x08, 0x0a};
     size_t i;
     if (!pack || !rom || rom->size <= 0x3fa5) return false;
     memset(pack->rom_sfx_programs, 0, sizeof(pack->rom_sfx_programs));
@@ -476,7 +480,7 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         program->stream_pointer_1 = stream;
         program->source_checksum = fnv1a_bytes(
             rom->data + 0x2fb0, 0x3fa6 - 0x2fb0);
-        if (command == 0x09) {
+        if (command == 0x09 || command == 0x08) {
             if (!decode_rom_noise_stream(
                     rom, stream, program, &next_stream)) return false;
         } else if (!decode_rom_square_stream(
@@ -563,15 +567,33 @@ static bool extract_one_on_one_audio(AllStarAssetPack *pack,
         pack->rom_sfx_programs[6].square2_duty_length != 0x48 ||
         pack->rom_sfx_programs[6].square2_envelope != 0xa2 ||
         pack->rom_sfx_programs[6].frames[0].square1_frequency != 0x07c1 ||
-        pack->rom_sfx_programs[6].frames[0].square2_frequency != 0x07be)
+        pack->rom_sfx_programs[6].frames[0].square2_frequency != 0x07be ||
+        pack->rom_sfx_programs[7].command != 0x08 ||
+        pack->rom_sfx_programs[7].program_id != 0x05 ||
+        pack->rom_sfx_programs[7].priority_frames != 0x23 ||
+        pack->rom_sfx_programs[7].stream_pointer_1 != 0x3eac ||
+        pack->rom_sfx_programs[7].frame_count != 57 ||
+        pack->rom_sfx_programs[7].noise_length != 0xc6 ||
+        pack->rom_sfx_programs[7].noise_envelope != 0xf1 ||
+        pack->rom_sfx_programs[7].noise_control != 0xa0 ||
+        pack->rom_sfx_programs[7].frames[0].noise_polynomial != 0x10 ||
+        pack->rom_sfx_programs[8].command != 0x0a ||
+        pack->rom_sfx_programs[8].program_id != 0x0d ||
+        pack->rom_sfx_programs[8].priority_frames != 0x1c ||
+        pack->rom_sfx_programs[8].stream_pointer_1 != 0x3f0a ||
+        pack->rom_sfx_programs[8].frame_count != 12 ||
+        pack->rom_sfx_programs[8].square1_sweep != 0xff ||
+        pack->rom_sfx_programs[8].square1_duty_length != 0x7f ||
+        pack->rom_sfx_programs[8].square1_envelope != 0xf1 ||
+        pack->rom_sfx_programs[8].frames[0].square1_frequency != 0)
         return false;
     pack->header.audio_sequence_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
     pack->header.rom_sfx_program_count = ALLSTAR_ROM_SFX_PROGRAM_COUNT;
-    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO;
     return true;
 }
 
-static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
+static bool validate_gameplay_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *movement;
     const AllStarRomSfxProgram *score;
     const AllStarRomSfxProgram *dribble;
@@ -579,6 +601,8 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     const AllStarRomSfxProgram *confirm;
     const AllStarRomSfxProgram *rim;
     const AllStarRomSfxProgram *foul;
+    const AllStarRomSfxProgram *free_throw_net;
+    const AllStarRomSfxProgram *free_throw_contact;
     if (!pack || pack->header.rom_sfx_program_count !=
             ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
     movement = &pack->rom_sfx_programs[0];
@@ -588,6 +612,8 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
     confirm = &pack->rom_sfx_programs[4];
     rim = &pack->rom_sfx_programs[5];
     foul = &pack->rom_sfx_programs[6];
+    free_throw_net = &pack->rom_sfx_programs[7];
+    free_throw_contact = &pack->rom_sfx_programs[8];
     return movement->command == 0x0d && movement->program_id == 0x11 &&
         movement->priority_frames == 0x14 && movement->frame_count == 3 &&
         movement->stream_pointer_1 == 0x3fa2 &&
@@ -650,7 +676,30 @@ static bool validate_one_on_one_audio(const AllStarAssetPack *pack) {
         foul->square2_envelope == 0xa2 &&
         foul->frames[0].square1_frequency == 0x07c1 &&
         foul->frames[0].square2_frequency == 0x07be &&
-        movement->source_checksum == foul->source_checksum;
+        movement->source_checksum == foul->source_checksum &&
+        free_throw_net->command == 0x08 &&
+        free_throw_net->program_id == 0x05 &&
+        free_throw_net->priority_frames == 0x23 &&
+        free_throw_net->frame_count == 57 &&
+        free_throw_net->stream_pointer_1 == 0x3eac &&
+        free_throw_net->noise_length == 0xc6 &&
+        free_throw_net->noise_envelope == 0xf1 &&
+        free_throw_net->noise_control == 0xa0 &&
+        free_throw_net->frames[0].noise_polynomial == 0x10 &&
+        free_throw_net->frames[3].noise_polynomial == 0x20 &&
+        free_throw_net->frames[6].noise_polynomial == 0x30 &&
+        free_throw_net->frames[9].noise_polynomial == 0x40 &&
+        free_throw_contact->command == 0x0a &&
+        free_throw_contact->program_id == 0x0d &&
+        free_throw_contact->priority_frames == 0x1c &&
+        free_throw_contact->frame_count == 12 &&
+        free_throw_contact->stream_pointer_1 == 0x3f0a &&
+        free_throw_contact->square1_sweep == 0xff &&
+        free_throw_contact->square1_duty_length == 0x7f &&
+        free_throw_contact->square1_envelope == 0xf1 &&
+        free_throw_contact->frames[0].square1_frequency == 0 &&
+        movement->source_checksum == free_throw_net->source_checksum &&
+        movement->source_checksum == free_throw_contact->source_checksum;
 }
 
 void allstar_asset_pack_init_default(AllStarAssetPack *pack) {
@@ -720,7 +769,7 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
         return false;
     }
-    if (!extract_one_on_one_audio(pack, rom)) {
+    if (!extract_gameplay_audio(pack, rom)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One $3014 audio streams\n");
         return false;
     }
@@ -848,13 +897,13 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
           pack->header.court_tile_count != 0 ||
            pack->header.net_tile_count != 0)) ||
         ((pack->header.feature_flags &
-             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) != 0 &&
+             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) != 0 &&
          (pack->header.rom_sfx_program_count !=
               ALLSTAR_ROM_SFX_PROGRAM_COUNT ||
           pack->header.audio_sequence_count !=
               ALLSTAR_ROM_SFX_PROGRAM_COUNT)) ||
         ((pack->header.feature_flags &
-             ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) == 0 &&
+             ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) == 0 &&
          pack->header.rom_sfx_program_count != 0)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One asset counts\n");
         fclose(f);
@@ -901,8 +950,8 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
     }
 
     if ((pack->header.feature_flags &
-            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) != 0 &&
-        !validate_one_on_one_audio(pack)) {
+            ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) != 0 &&
+        !validate_gameplay_audio(pack)) {
         fprintf(stderr, "[AssetPack] Invalid decoded One-on-One audio\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);

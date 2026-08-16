@@ -96,7 +96,9 @@
       "id": "behavior.free_throw",
       "group": "gameplay",
       "description": "Free Throw timing, attempts, scoring, results, and exit flow match the ROM.",
-      "status": "scaffolded"
+      "status": "verified",
+      "evidence": ["docs/parity/FREE_THROW.md", "docs/parity/FREE_THROW_COVERAGE.json", "include/allstar_free_throw.h", "src/gameplay/allstar_free_throw.c", "src/scenes/scene_free_throw.c", "tools/emulator/trace_free_throw.lua"],
+      "verification_command": ".\\build\\allstar_port.exe --test-free-throw"
     },
     {
       "id": "behavior.tournament",
@@ -230,6 +232,13 @@
       "total": 25,
       "percent": 44.0,
       "note": "Completed the shared $702D player controller and full $7170 CPU synthetic-input controller, including mode dispatch, offense/defense routes, 8/4/1 hysteresis, contact response, loose-ball chase, and record-gated shooting, with native fixtures and Mesen traces."
+    },
+    {
+      "date": "2026-08-15",
+      "verified": 12,
+      "total": 25,
+      "percent": 48.0,
+      "note": "Replaced the Free Throw gauge prototype with the traced $0C8E/$100F mode: exact 8.8 aim and launch, $1A31 rim/make sequence, $1C61 delayed net/score, 5/10/20 attempts, result/exit flow, and ROM-derived $08/$0A audio."
     }
   ]
 }

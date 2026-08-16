@@ -11,15 +11,16 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Win32 runtime and 160×144 framebuffer | Implemented | Builds and runs natively. |
 | Intro, menu, settings, and roster screens | Settings verified | ROM defaults and cycles persist for the session and feed the relevant native modes; screen-art parity remains partial. |
 | One-on-One | 100% of both fixed manifests | All 50 gameplay requirements and all 50 RNG/animation-asset/contact requirements are verified. This is Ghidra/manual-grounded mode coverage, not a claim of frame-perfect timing. |
-| Free Throws | Prototype | Gauge and ball flight exist, but scoring parameters and completion flow need correction. |
+| Free Throws | Gameplay verified | `$0C8E/$100F` lifecycle, 8.8 reticle and launch, `$1A31` rim/make path, `$1C61` net/delayed score, 5/10/20 attempts, results, and exit are playable and regression-tested. Exact mode-background tile extraction remains presentation work. |
 | H-O-R-S-E | Prototype | Does not yet implement called-shot matching or a complete turn/win loop. |
 | Accuracy/three-point scene | Prototype | Correctly routed and consumes time/position settings, but remains a simplified unverified five-position contest. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
-| Audio | Partial project-wide | Win32 PCM mixer works; focused One-on-One `$04/$05/$09/$0C/$0D/$0E/$0F` programs are decoded from the ROM's `$3014` data and synthesized from recovered square/sweep/noise state. The complete music/APU sequencer is not ported. |
-| ROM asset pack | Partial project-wide | Version 11 contains One-on-One court, animated net, shared player animation art, ball/shadow, all 24 `$6C60` lists, and seven focused decoded audio programs including the transposed `$0F` roster cue, `$04` foul, and `$09` rim cues; other screens, portraits, music, and remaining sound programs still need migration. |
-| Ghidra-to-C routine coverage | 38/118 verified | All 118 reviewed bank-aware functions recover and decompile cleanly; 26 mappings remain candidates and 54 are unmapped. `$702D/$714D` player control and `$7170/$74BB` CPU control are now fully verified. |
-| Verified project milestones | 44.00% | 11 of 25 strict milestones; analysis is 6/7 and gameplay parity is 5/11. |
+| Audio | Partial project-wide | Win32 PCM mixer works; focused `$04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F` programs are decoded from the ROM's `$3014` data, including Free Throw net/contact cues. The complete music/APU sequencer is not ported. |
+| ROM asset pack | Partial project-wide | Version 12 contains One-on-One court/net/player/ball assets, all 24 `$6C60` lists, and nine focused decoded audio programs, including Free Throw `$08/$0A`; other mode backgrounds, portraits, music, and remaining sound programs still need migration. |
+| Ghidra-to-C routine coverage | 47/132 verified | All 132 reviewed bank-aware functions recover and decompile cleanly; 31 mappings remain candidates and 54 are unmapped. Free Throw adds nine conservative whole-routine mappings; shared/multi-mode and incomplete presentation helpers remain candidates. |
+| Verified project milestones | 48.00% | 12 of 25 strict milestones; analysis is 6/7 and gameplay parity is 6/11. |
+| Scoped Free Throw gameplay | 100.00% | 20 of 20 behavioral requirements; exact bank-3 background/OAM tile extraction is explicitly outside this gameplay denominator. |
 | Scoped One-on-One parity | 100.00% | 50 of 50 Ghidra/manual-grounded gameplay requirements. |
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
 | One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-state sequence is complete; the native presentation intentionally plays it at 3× speed for a roughly 1.43-second score-to-inbound transition. |
@@ -39,6 +40,7 @@ The focused One-on-One parity denominator is reported separately:
 python tools\check_one_on_one_coverage.py
 python tools\check_one_on_one_remaining_coverage.py
 python tools\check_one_on_one_presentation_audio_coverage.py
+python tools\check_free_throw_coverage.py
 ```
 
 For future commit decisions, compare the working tree with the currently committed manifest:
@@ -66,7 +68,7 @@ Banks 1–3 all execute in the Game Boy switchable CPU window at `$4000..$7FFF`.
 .\build.ps1
 ```
 
-To build the executable and regenerate its local One-on-One asset pack in one
+To build the executable and regenerate its local gameplay asset pack in one
 step, provide the user-owned ROM:
 
 ```powershell
@@ -95,9 +97,9 @@ The current MSVC build succeeds without warnings.
 .\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
-Version 11 extracts the One-on-One court tiles/map, the separate 17-tile score-net stream, three shared player action-family tile stores, 60 frame maps, ball/shadow tiles and descriptors, all 24 animation-control lists, and decoded command-`$04/$05/$09/$0C/$0D/$0E/$0F` square/noise programs from the ROM. `$2DD2->$21FA` proves that selected players reuse the shared gameplay body art and differ through exact roster-record OBJ palettes; there is no per-player gameplay body-sheet table to extract. Portraits, other-mode graphics, music, and the remaining sound programs are still outside the pack.
+Version 12 extracts the One-on-One court tiles/map, the separate 17-tile score-net stream, three shared player action-family tile stores, 60 frame maps, ball/shadow tiles and descriptors, all 24 animation-control lists, and decoded command-`$04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F` square/noise programs from the ROM. `$08/$0A` are the Free Throw net and ball-contact cues. `$2DD2->$21FA` proves that selected players reuse the shared gameplay body art and differ through exact roster-record OBJ palettes; there is no per-player gameplay body-sheet table to extract. Portraits, other-mode graphics, music, and the remaining sound programs are still outside the pack.
 
-The Win32 game requires a valid version-11 `build\allstar.assetpack` and now
+The Win32 game requires a valid version-12 `build\allstar.assetpack` and now
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 
@@ -113,7 +115,7 @@ procedural test fallback.
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, the complete `$7170-$761A` CPU controller, `$702D/$714D` shared player control, `$71EE` contest limits, `$71B3/$762C` steal thresholds, `$0A78/$2B14` steal transfers, `$6A8C/$6C60` animation records, shot-gather `$6B72` movement, direct movement/contact latches, charging/blocking, defensive jumps and recovery locks, exact player/ball composition, routing, settings, lifecycle, `$7F37` origins, `$077D` recovery, traveling, score-ball delayed gravity/bounces, tournament flow, and input-free scene ticking. Broader whole-game and frame-perfect parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch tables and vectors, `$1CED/$1E77` contacts, `$798B/$FFD6` 2/3-point regions, the complete `$7170-$761A` CPU controller, `$702D/$714D` shared player control, One-on-One contact/recovery/presentation, and the Free Throw `$0C8E/$100F/$18E7/$1942/$1986/$1CAA/$1A31/$1C61` lifecycle through five attempts, results, and exit. Broader whole-game and frame-perfect parity remain unverified.
 
 For manual comparison with the original ROM:
 
@@ -121,7 +123,7 @@ For manual comparison with the original ROM:
 .\tools\scripts\Launch-Emulator-Comparison.ps1 -Emulator mgba
 ```
 
-Automated Mesen traces cover shot input and movement during gather, complete run/shot record playback, `$2DD2->$21FA` selected-roster palettes, `$7138` shot facing on both sidelines, `$2B14/$2B88` steals, `$2CCA->$05A3->$0C49->$20F7` foul presentation, both offense and defense halves of `$7170`, made-basket/net flow, focused `$04/$05/$09/$0C/$0D/$0E/$0F` APU programs, final `$6F2A` ball placement, rim/boundary recovery, defense transitions, exact RNG, contact rules, and extracted One-on-One graphics plus ball/shadow OAM composition. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the controller conversion](docs/parity/ONE_ON_ONE_CONTROLLERS.md), [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), [live-flow evidence](docs/parity/ONE_ON_ONE_LIVE_FLOW.md), [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md), [shooting evidence](docs/parity/ONE_ON_ONE_SHOOTING.md), [animation parity note](docs/parity/ONE_ON_ONE_ANIMATION.md), and [player-collision note](docs/parity/ONE_ON_ONE_PLAYER_COLLISION.md).
+Automated Mesen traces cover One-on-One control, animation, assets, collisions, CPU behavior, made-basket flow, focused APU programs, and the Free Throw `$0C8E->$100F->$1CAA/$7C58->$1A31->$1C61` shot path with live `$08/$0A` APU writes. Broader whole-game WRAM snapshots and frame-difference tests remain to be implemented. See [the Free Throw conversion](docs/parity/FREE_THROW.md), [the controller conversion](docs/parity/ONE_ON_ONE_CONTROLLERS.md), [the exact Ghidra-to-C path](docs/parity/ONE_ON_ONE_GHIDRA_PATH.md), and [presentation/audio evidence](docs/parity/ONE_ON_ONE_PRESENTATION_AUDIO.md).
 
 ## Reverse Engineering
 

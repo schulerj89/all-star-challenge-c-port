@@ -121,3 +121,12 @@ cycle and through shot gather. It asserts all run display frames, continued
 `trace_one_on_one_cpu_decision.lua` awards the live ball to the CPU and traces
 `$7170->$72EA->$74BB->$732C->$755D->$756C->$7C58`. It requires two target
 stages and a nonzero, record-gated gather delay before release.
+
+`trace_free_throw.lua` selects menu mode `$01` and follows the Free Throw
+dispatcher `$0C8E->$17AA->$100F`. It forces a deterministic `$52/$3C` target,
+asserts the `$1CAA->$7C58` vector `(-36,-160,484)`, records the exact
+`$1B59->$1B93->$1B53->$1B99->$1B59->$1C05` rim sequence, verifies the made
+basket at release +118, command `$08` at +145, command `$05` at +189, and the
+next attempt at +292. It also captures live `$08/$0A` APU writes used to
+validate the version-12 asset-pack programs. Require exit code `0` and
+`TRACE PASSED: $0C8E/$1082/$18E7/$1942/$1986/$1CAA/$7C58 Free Throw lifecycle`.

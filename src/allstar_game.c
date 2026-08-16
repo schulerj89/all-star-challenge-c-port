@@ -201,7 +201,7 @@ bool allstar_game_init(AllStarGame *game, const char *asset_pack_path) {
     /* Initialize Audio & Controls */
     allstar_audio_init(&game->audio);
     if ((game->asset_pack->header.feature_flags &
-            ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO) != 0 &&
+            ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO) != 0 &&
         !allstar_audio_bind_rom_sfx(&game->audio, game->asset_pack)) {
         fprintf(stderr, "[Game] Invalid decoded One-on-One ROM audio\n");
         return false;

@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 11
+#define ALLSTAR_ASSET_VERSION 12
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -18,10 +18,10 @@
 #define ALLSTAR_BALL_OAM_PAIR_COUNT 32
 #define ALLSTAR_COURT_TILE_COUNT 86
 #define ALLSTAR_NET_TILE_COUNT 17
-#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 7
+#define ALLSTAR_ROM_SFX_PROGRAM_COUNT 9
 #define ALLSTAR_ROM_SFX_MAX_FRAMES 72
 #define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_ART (1u << 0)
-#define ALLSTAR_ASSET_FEATURE_ONE_ON_ONE_AUDIO (1u << 1)
+#define ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO (1u << 1)
 
 #define ALLSTAR_ROM_SFX_CHANNEL_1 (1u << 0)
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
@@ -56,8 +56,8 @@ typedef struct {
     uint8_t extra_right_tile;
 } AllStarRomOamPair;
 
-/* Focused $3014 APU-program decode for One-on-One commands
-   $04/$05/$09/$0C/$0D/$0E/$0F.
+/* Focused $3014 APU-program decode for gameplay commands
+   $04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F.
    Frequencies are the DMG 11-bit NR13/NR14 and NR23/NR24 values after the
    ROM's $3244 pitch modulation has been applied for that 59.7 Hz frame. */
 typedef struct {

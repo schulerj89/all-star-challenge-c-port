@@ -14,8 +14,8 @@
       "basis": "Fixed-bank boot anchors and routines reached from reviewed cross-bank code paths.",
       "addresses": [
         "0100", "0150", "0444", "045e", "047e", "0496", "04b1", "050f",
-        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "10a5",
-        "10ad", "10fa", "1638", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
+        "053c", "06c0", "0714", "072f", "0749", "077d", "0a78", "0ac5", "0b35", "0b80", "0b9a", "0c8e", "100f", "10a5",
+        "10ad", "10fa", "1638", "17aa", "17e2", "1884", "18e7", "1942", "1986", "1a25", "1a31", "1c1d", "1c61", "1caa", "1cbd", "1ced", "1f33", "1f4d", "1f7a", "1fe1", "1ffa",
         "20d0", "20f7", "21fa", "2219", "2243", "22ef", "2639", "2729", "276d", "27c7", "27ea",
         "28e1", "2933", "293d", "2945", "2a2b", "2ab5", "2ae2", "2b14", "2b6c", "2c50", "2c72", "2c95", "2cca", "2d85", "2dd2", "2e70", "2e73", "2e8c", "2f79",
         "2d08", "2f88", "3014"
@@ -53,6 +53,90 @@
     }
   ],
   "native_mappings": {
+    "rom_b00_0c8e": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_init",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The selected-side attempt counter, per-attempt reset, BCD-equivalent 5/10/20 decrement loop, 292-frame presentation, score carry, result entry, and native result exit are Mesen- and deterministic-tested."
+    },
+    "rom_b00_100f": {
+      "status": "candidate",
+      "native_symbol": "allstar_free_throw_tick_100f",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The complete mode-1 dispatch order is represented and tested; the same ROM routine also dispatches other modes, so whole-function credit is withheld."
+    },
+    "rom_b00_17aa": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_reset_attempt_17aa",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "Ball $4F/$E0/$72 origin, net timer/state, target reset, and owner-ready reentry are deterministic-tested for every attempt."
+    },
+    "rom_b00_17e2": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_tick_100f",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The frozen preflight, $50/$79 presentation coordinates, +3 Z handoff, 180+100 live-flight calls, and 292-frame next-attempt boundary match the live trace."
+    },
+    "rom_b00_1884": {
+      "status": "candidate",
+      "native_symbol": "allstar_free_throw_ball_screen_1884",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "Exact X and Y-Z-$18 screen coordinates are ported, but the mode-specific four-OAM tile table is not yet extracted."
+    },
+    "rom_b00_18e7": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_aim_init_18e7",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "All four $FFFB threshold rows and exact 8.8 target/velocity seeds are deterministic-tested."
+    },
+    "rom_b00_1942": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_aim_input_1942",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "Held D-pad bits apply exact signed one-unit changes to the two 8.8 aim velocities."
+    },
+    "rom_b00_1986": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_aim_step_1986",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "Center attraction, six-count acceleration, 8.8 integration, and $39..$68/$28..$57 boundary velocity stops are ported."
+    },
+    "rom_b00_1a25": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_tick_100f",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The final mode-1 step stores the current integer aim Y/X pair as the previous background-reticle coordinates."
+    },
+    "rom_b00_1a31": {
+      "status": "candidate",
+      "native_symbol": "rim_contact_1a31",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The complete traced Free Throw y-clamp, eleven X groups, $0039 bounce, $C164 double-contact make, profile latch, cooldown, and score path are native; other mode branches prevent whole-routine credit."
+    },
+    "rom_b00_1c1d": {
+      "status": "candidate",
+      "native_symbol": "free_throw_draw",
+      "source": "src/scenes/scene_free_throw.c",
+      "note": "Native layer ordering represents ball/net priority, but the original four-entry sprite-priority mutation is not reproduced byte-for-byte."
+    },
+    "rom_b00_1c61": {
+      "status": "verified",
+      "native_symbol": "net_step_1c61",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "The 16/11-frame seven-state net table, command $08 at state 2, and delayed command $05 plus score increment at state 6 match Mesen at make+27/make+71."
+    },
+    "rom_b00_1caa": {
+      "status": "verified",
+      "native_symbol": "allstar_free_throw_launch_1caa_7c58",
+      "source": "src/gameplay/allstar_free_throw.c",
+      "note": "New-A release, 19/256 assist window, exact target snapshot, possession release, and $7C58/$7EA9 vector formula are native-tested; center yields (-36,-160,484)."
+    },
+    "rom_b00_1cbd": {
+      "status": "candidate",
+      "native_symbol": "draw_free_throw_court",
+      "source": "src/scenes/scene_free_throw.c",
+      "note": "A playable native Free Throw court and HUD exist, but the bank-3 mode-specific background stream is not yet extracted into the pack."
+    },
     "rom_b00_0714": {
       "status": "verified",
       "native_symbol": "allstar_rom_rng_end_frame_0714",
@@ -223,15 +307,15 @@
     },
     "rom_b00_2f88": {
       "status": "candidate",
-      "native_symbol": "extract_one_on_one_audio",
+      "native_symbol": "extract_gameplay_audio",
       "source": "src/allstar_asset_pack.c",
-      "note": "Focused partial mapping: exact command-table words for $05/$09/$0C/$0D/$0E/$0F are extracted and live-traced, including $09->$230B. Other command priorities and dispatch behavior keep whole-routine credit withheld."
+      "note": "Focused partial mapping: exact command-table words for $04/$05/$08/$09/$0A/$0C/$0D/$0E/$0F are extracted and live-traced, including Free Throw $08/$0A. Other command priorities and dispatch behavior keep whole-routine credit withheld."
     },
     "rom_b00_3014": {
       "status": "candidate",
       "native_symbol": "allstar_audio_bind_rom_sfx",
       "source": "src/audio/allstar_audio.c",
-      "note": "Focused partial mapping: six One-on-One programs are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep/noise PCM; command $09 program $0B includes its exact 24-frame noise registers. Remaining programs, channels, and music keep whole-routine credit withheld."
+      "note": "Focused partial mapping: nine gameplay programs are decoded through $2FB0/$3849/$3888/$312B/$3159/$31C6/$3244 and rendered as square/sweep/noise PCM; Free Throw $08/$0A and One-on-One $09 include live APU proof. Remaining programs, channels, and music keep whole-routine credit withheld."
     },
     "rom_b00_0b80": {
       "status": "candidate",

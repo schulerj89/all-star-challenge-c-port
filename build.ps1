@@ -41,6 +41,7 @@ $CommonSources = @(
     "src\gameplay\allstar_rng.c",
     "src\gameplay\allstar_ai.c",
     "src\gameplay\allstar_one_on_one.c",
+    "src\gameplay\allstar_free_throw.c",
     "src\audio\allstar_audio.c",
     "src\scenes\scene_intro.c",
     "src\scenes\scene_menu.c",
@@ -93,7 +94,7 @@ if ($RomPath -and (Test-Path -LiteralPath $RomPath)) {
 }
 
 if ($AssetRomPath) {
-    Write-Host "Building One-on-One asset pack from the local ROM..."
+    Write-Host "Building gameplay asset pack from the local ROM..."
     & $ConsoleExePath --build-assetpack $AssetRomPath $DefaultAssetPack
     if ($LASTEXITCODE -ne 0) {
         throw "Asset-pack build failed with exit code $LASTEXITCODE"
@@ -104,5 +105,5 @@ if ($AssetRomPath) {
         Write-Warning "build\allstar.assetpack is stale or invalid. Re-run with -RomPath <game.gb>."
     }
 } else {
-    Write-Warning "No One-on-One asset pack was built. Re-run with -RomPath <game.gb> or set ALLSTAR_ROM_PATH."
+    Write-Warning "No gameplay asset pack was built. Re-run with -RomPath <game.gb> or set ALLSTAR_ROM_PATH."
 }

@@ -41,6 +41,15 @@ before this; `--test-pad` now asserts each of them against the layout the
 hardware read produces, and they all agree. Note that this is **not**
 `AllStarButtonMask`, which is very nearly its reverse.
 
+### The title music is measured, not inferred
+
+`$029C`'s `$DD73 = $81` starts song `$01`, and `parity/TITLE_MUSIC.md` records a
+frame-by-frame diff of the decoded program against a Mesen capture of the
+cartridge's own APU writes: 901 audio frames, zero divergences on frequency,
+envelope, note timing, rests, noise and NR51. The routing was the one thing the
+port had been discarding -- `$35B6` puts square 1 hard right and square 2 hard
+left, and the renderer had been summing all four voices to mono.
+
 ## Executive Result
 
 For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **67/145 (46.21%)**. All 145 entry points have stable bank-aware symbols and decompile successfully; 40 are explicitly unmapped, 38 have candidate native analogues, and 67 mappings are verified by deterministic tests and traces. Accuracy now includes the independently recovered `$7749/$7765/$7790/$77A1` HUD writers in addition to fixed `$0B20/$0E51` and its `$6C9B/$6CA2/$6D57` controller helpers. This is a reviewed subset, not a claim that the entire ROM contains only 145 functions.

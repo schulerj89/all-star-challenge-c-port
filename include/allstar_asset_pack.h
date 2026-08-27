@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 17
+#define ALLSTAR_ASSET_VERSION 18
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -126,6 +126,15 @@ typedef struct {
     uint8_t noise_envelope;
     uint8_t noise_polynomial;
     uint8_t noise_control;
+    /*
+     * The NR51 ($FF25) routing the cartridge would be holding on this frame.
+     * $35B6 takes each voice's pan code from bits 2-3 of its instrument
+     * descriptor and ORs in $3777/$377B/$377F/$3783 -- right, left, or both --
+     * while $3587 ANDs a resting voice's bits back off.  The title theme puts
+     * square 1 hard right and square 2 hard left, so ignoring this collapses
+     * the arrangement into the middle.
+     */
+    uint8_t panning;
 } AllStarRomMusicFrame;
 
 typedef struct {
@@ -213,6 +222,16 @@ typedef struct {
 
 bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom *rom);
 bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *filepath);
+/*
+ * $35B6 routes a starting voice through NR51: bits 2-3 of its instrument
+ * descriptor's first byte give a pan code, and the voice's four-entry table
+ * ($3777, $377B, $377F, $3783) turns that into NR51 bits -- 0 neither side,
+ * 1 right, 2 left, 3 both.  All four tables are the same pair of bits shifted
+ * by the voice index, which is what this returns.
+ */
+uint8_t allstar_asset_pack_rom_music_voice_panning(uint8_t descriptor_flags,
+                                                   int voice);
+
 bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath);
 void allstar_asset_pack_init_default(AllStarAssetPack *pack);
 

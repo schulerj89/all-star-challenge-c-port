@@ -153,3 +153,12 @@ It verifies the original `$9821/$982E` clock and `$9862/$986F` score tile
 destinations after both a miss and a make, then expires the clock at `$0FDE`.
 Command `$02` must write
 `NR10..14=$88/$00/$FF/$5B/$BE` and `NR21..24=$3F/$6F/$41/$BE`.
+
+`trace_title_music.lua` holds the cartridge on the title screen and logs every
+APU register write, tagged with the audio frame, from the moment `$02AC` posts
+`$81` into `$DD73`. It presses no input, so the `$0960` attract countdown never
+expires during the capture. Redirect stdout to a file and diff it against the
+port's decoded song; `docs/parity/TITLE_MUSIC.md` records the result, which is
+zero divergences over 901 frames on frequency, envelope, note timing, noise and
+NR51 routing. Require exit code `0` and `TRACE PASSED: $029C title music APU
+program`. `ALLSTAR_TITLE_FRAMES` overrides the 900-frame capture length.

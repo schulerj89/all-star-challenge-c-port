@@ -849,6 +849,30 @@ static uint16_t music_track_frequency(const AllStarRom *rom,
     return (uint16_t)frequency & 0x07ffu;
 }
 
+/*
+ * $35B6 routes a starting voice: it takes bits 2-3 of the instrument
+ * descriptor's first byte, clears that voice's two NR51 bits, and ORs in the
+ * entry from the voice's four-entry table.  All four tables agree on the
+ * meaning of the code -- 0 neither side, 1 right, 2 left, 3 both -- so one
+ * shifted mask covers them.  $3587 ANDs the same two bits back off when the
+ * voice rests, which is why a resting voice contributes nothing here.
+ */
+uint8_t allstar_asset_pack_rom_music_voice_panning(uint8_t descriptor_flags,
+                                                   int voice) {
+    uint8_t code = (uint8_t)((descriptor_flags >> 2) & 0x03u);
+    if (voice < 0 || voice > 3) return 0;
+    /* $3777[code] for voice 0; the other tables are the same bits shifted. */
+    return (uint8_t)(((code & 0x01u) | ((code & 0x02u) << 3)) << voice);
+}
+
+static uint8_t music_voice_panning(const AllStarRom *rom,
+                                   const RomMusicTrackState *track,
+                                   int voice) {
+    if (!rom || !track || track->descriptor == 0) return 0;
+    return allstar_asset_pack_rom_music_voice_panning(
+        rom->data[track->descriptor], voice);
+}
+
 static bool music_snapshot(const AllStarRom *rom,
                            const RomMusicSequencerState *state,
                            AllStarRomMusicFrame *frame) {
@@ -883,6 +907,14 @@ static bool music_snapshot(const AllStarRom *rom,
         frame->wave_table = rom->data[wave->descriptor + 2] & 0x0f;
         frame->wave_output_level = rom->data[wave->descriptor + 4];
     }
+    if (square1->active && square1->note != 0)
+        frame->panning |= music_voice_panning(rom, square1, 0);
+    if (square2->active && square2->note != 0)
+        frame->panning |= music_voice_panning(rom, square2, 1);
+    if (wave->active && wave->note != 0)
+        frame->panning |= music_voice_panning(rom, wave, 2);
+    if (noise->active && noise->note != 0)
+        frame->panning |= music_voice_panning(rom, noise, 3);
     if (noise->active && noise->note != 0) {
         size_t polynomial = 0x3233u + noise->note;
         if (polynomial >= rom->size) return false;
@@ -989,6 +1021,7 @@ static bool extract_title_music(AllStarAssetPack *pack,
         program->frames[0].square1_frequency != 0x069e ||
         program->frames[0].square2_frequency != 0x0627 ||
         program->frames[0].wave_frequency != 0x053b ||
+        program->frames[0].panning != 0xed ||
         (program->frames[0].flags &
             (ALLSTAR_ROM_MUSIC_SQUARE1 | ALLSTAR_ROM_MUSIC_TRIGGER1 |
              ALLSTAR_ROM_MUSIC_SQUARE2 | ALLSTAR_ROM_MUSIC_TRIGGER2 |

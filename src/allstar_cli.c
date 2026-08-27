@@ -88,6 +88,7 @@ static void print_usage(const char *prog_name) {
     printf("                                        Export Free Throw net/contact cues\n");
     printf("  --export-horse-sfx <pack> <07.wav> Export ROM Horse letter cue\n");
     printf("  --export-accuracy-sfx <pack> <02.wav> Export Accuracy result cue\n");
+    printf("  --export-title-music <pack> <wav>  Render the ROM title song to a WAV\n");
     printf("  --dump-screenshots <out_dir> [pack] Render all game scenes to BMP screenshots\n");
     printf("  --test-roster                      Verify roster data tables\n");
     printf("  --test-physics                     Run physics simulation unit tests\n");
@@ -2263,6 +2264,163 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM title-screen music, from the $029C -> $DD73 -> $3014 -> $35B6 path.
+ *
+ * $02A7 posts $81 into the sound-command mailbox.  $30A0 sees bit 7, takes
+ * song index $01 from $3849/$3823/$386F, and the four music voices then run
+ * every frame.  When a voice starts a note, $35B6 reads bits 2-3 of its
+ * instrument descriptor and ORs the matching entry of $3777/$377B/$377F/$3783
+ * into NR51; when a voice rests, $3587 ANDs those same bits back off.
+ *
+ * The cartridge's title theme uses that to place square 1 hard right and
+ * square 2 hard left.  The port decoded every note correctly but threw the
+ * routing away and summed all four voices to mono, which collapses the two
+ * lead voices on top of each other.
+ *
+ * Verified against a Mesen capture of the cartridge's own APU writes
+ * (tools/emulator/trace_title_music.lua): 901 audio frames, zero mismatches
+ * on frequency, envelope, note timing and NR51.
+ */
+int allstar_cli_test_title_music_rom(void) {
+    static const uint8_t ROM_NR51_FRAMES[][2] = {
+        /* frame, NR51 -- read from the Mesen capture of the cartridge. */
+        {0u, 0xEDu}, {7u, 0xEDu}, {14u, 0xCCu}, {28u, 0xEDu},
+        {42u, 0xCCu}, {55u, 0xCCu}, {56u, 0xEDu}, {70u, 0xCCu},
+        {77u, 0xEDu}, {98u, 0xEDu}, {126u, 0xEDu}, {168u, 0xEDu},
+        {210u, 0xCCu}, {224u, 0xEDu}
+    };
+    AllStarAssetPack *pack;
+    const AllStarRomMusicProgram *song;
+    size_t i;
+    int voice;
+    int code;
+    int frames_with_square1 = 0;
+    int frames_with_square2 = 0;
+
+    printf("[Test] Running ROM Title Music Tests ($029C/$35B6)...\n");
+
+    /* $3777/$377B/$377F/$3783 are the same two bits shifted per voice. */
+    for (voice = 0; voice < 4; voice++) {
+        static const uint8_t expected[4] = {0x00u, 0x01u, 0x10u, 0x11u};
+        for (code = 0; code < 4; code++) {
+            uint8_t descriptor = (uint8_t)(code << 2);
+            uint8_t want = (uint8_t)(expected[code] << voice);
+            uint8_t got = allstar_asset_pack_rom_music_voice_panning(
+                descriptor, voice);
+            if (got != want) {
+                fprintf(stderr,
+                        "[Test] $35B6 voice %d pan code %d gave $%02X, "
+                        "expected $%02X\n", voice, code, got, want);
+                return 1;
+            }
+        }
+        /* Only bits 2-3 of the descriptor select the routing. */
+        if (allstar_asset_pack_rom_music_voice_panning(0xF3u, voice) != 0 ||
+            allstar_asset_pack_rom_music_voice_panning(0xFFu, voice) !=
+                (uint8_t)(0x11u << voice)) {
+            fprintf(stderr,
+                    "[Test] $35B6 read outside descriptor bits 2-3\n");
+            return 1;
+        }
+    }
+
+    pack = (AllStarAssetPack *)calloc(1, sizeof(*pack));
+    if (!pack) {
+        fprintf(stderr, "[Test] Could not allocate an asset pack\n");
+        return 1;
+    }
+    if (!allstar_asset_pack_load_file(pack, "build/allstar.assetpack") ||
+        pack->header.rom_music_program_count !=
+            ALLSTAR_ROM_MUSIC_PROGRAM_COUNT) {
+        /* The ROM is never committed, so a pack may legitimately be absent. */
+        free(pack);
+        printf("  $3777/$377B/$377F/$3783 routing verified\n");
+        printf("  (no build/allstar.assetpack -- skipped the decoded song)\n");
+        printf("[Test] PASSED: $35B6\n");
+        return 0;
+    }
+    song = &pack->rom_music_programs[0];
+
+    /* $3849+2/$3823+2/$386F+1 are song $01's three parameters. */
+    if (song->song_id != 1u || song->program_pointer != 0x3b25u ||
+        song->offset_pointer != 0x3aabu || song->update_skip != 7u) {
+        fprintf(stderr, "[Test] $30A0 latched the wrong song parameters\n");
+        free(pack);
+        return 1;
+    }
+
+    /* The exact NR51 the cartridge holds on these frames. */
+    for (i = 0; i < sizeof(ROM_NR51_FRAMES) / sizeof(ROM_NR51_FRAMES[0]);
+         i++) {
+        uint8_t frame = ROM_NR51_FRAMES[i][0];
+        uint8_t want = ROM_NR51_FRAMES[i][1];
+        if (song->frames[frame].panning != want) {
+            fprintf(stderr,
+                    "[Test] frame %u routed $%02X, the cartridge routes "
+                    "$%02X\n", frame, song->frames[frame].panning, want);
+            free(pack);
+            return 1;
+        }
+    }
+
+    /*
+     * The arrangement itself: whenever square 1 sounds it is on the right
+     * only, and whenever square 2 sounds it is on the left only.  This is the
+     * assertion the mono renderer could not have satisfied.
+     */
+    for (i = 0; i < song->frame_count; i++) {
+        const AllStarRomMusicFrame *f = &song->frames[i];
+        uint8_t pan = f->panning;
+        if ((f->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
+            frames_with_square1++;
+            if ((pan & 0x01u) == 0 || (pan & 0x10u) != 0) {
+                fprintf(stderr,
+                        "[Test] frame %u put square 1 at $%02X, not hard "
+                        "right\n", (unsigned)i, pan);
+                free(pack);
+                return 1;
+            }
+        } else if ((pan & 0x11u) != 0) {
+            fprintf(stderr,
+                    "[Test] frame %u routed a resting square 1 ($3587)\n",
+                    (unsigned)i);
+            free(pack);
+            return 1;
+        }
+        if ((f->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
+            frames_with_square2++;
+            if ((pan & 0x20u) == 0 || (pan & 0x02u) != 0) {
+                fprintf(stderr,
+                        "[Test] frame %u put square 2 at $%02X, not hard "
+                        "left\n", (unsigned)i, pan);
+                free(pack);
+                return 1;
+            }
+        } else if ((pan & 0x22u) != 0) {
+            fprintf(stderr,
+                    "[Test] frame %u routed a resting square 2 ($3587)\n",
+                    (unsigned)i);
+            free(pack);
+            return 1;
+        }
+    }
+    if (frames_with_square1 == 0 || frames_with_square2 == 0) {
+        fprintf(stderr, "[Test] The decoded song has no square voices\n");
+        free(pack);
+        return 1;
+    }
+
+    printf("  $3777/$377B/$377F/$3783 routing verified\n");
+    printf("  song $01 routes square 1 hard right (%d frames) and square 2 "
+           "hard left (%d frames)\n", frames_with_square1,
+           frames_with_square2);
+    printf("  a resting voice contributes no NR51 bits, as $3587 requires\n");
+    printf("[Test] PASSED: $029C, $35B6, $3587\n");
+    free(pack);
     return 0;
 }
 
@@ -7802,6 +7960,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_session_rom();
     failed += allstar_cli_test_pad_rom();
     failed += allstar_cli_test_defense_jump_rom();
+    failed += allstar_cli_test_title_music_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7946,6 +8105,17 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_pad_rom();
     } else if (strcmp(cmd, "--test-defense-jump") == 0) {
         return allstar_cli_test_defense_jump_rom();
+    } else if (strcmp(cmd, "--test-title-music") == 0) {
+        return allstar_cli_test_title_music_rom();
+    } else if (strcmp(cmd, "--export-title-music") == 0) {
+        AllStarAssetPack pack;
+        if (argc < 4) {
+            fprintf(stderr,
+                    "Error: --export-title-music <pack> <out.wav>\n");
+            return 1;
+        }
+        if (!allstar_asset_pack_load_file(&pack, argv[2])) return 1;
+        return allstar_audio_export_rom_music_wav(&pack, argv[3]) ? 0 : 1;
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

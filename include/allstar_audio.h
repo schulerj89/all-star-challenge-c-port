@@ -55,6 +55,8 @@ void allstar_audio_shutdown(AllStarAudioEngine *audio);
    fallbacks and an optional external title WAV. */
 bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
                                 const AllStarAssetPack *pack);
+bool allstar_audio_export_rom_music_wav(const AllStarAssetPack *pack,
+                                        const char *filepath);
 bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
                                       uint8_t command,
                                       const char *filepath);

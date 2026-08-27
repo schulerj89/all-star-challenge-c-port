@@ -472,7 +472,8 @@ static bool generate_rom_music(PcmSound *out,
     double next_envelope2 = 1.0e30;
     double next_noise_envelope = 1.0e30;
     double next_sweep_time = 1.0e30;
-    float high_pass_capacitor = 0.0f;
+    float high_pass_left = 0.0f;
+    float high_pass_right = 0.0f;
     if (!out || !program || program->frame_count == 0 ||
         program->frame_count > ALLSTAR_ROM_MUSIC_MAX_FRAMES ||
         program->loop_frame >= program->frame_count) return false;
@@ -488,7 +489,8 @@ static bool generate_rom_music(PcmSound *out,
         double time = (double)sample / MIX_SAMPLE_RATE;
         uint32_t frame_index = (uint32_t)(time / frame_seconds);
         const AllStarRomMusicFrame *frame;
-        float mixed = 0.0f;
+        float mixed_left = 0.0f;
+        float mixed_right = 0.0f;
         if (frame_index >= program->frame_count)
             frame_index = program->frame_count - 1;
         frame = &program->frames[frame_index];
@@ -569,18 +571,26 @@ static bool generate_rom_music(PcmSound *out,
             unsigned sub_sample;
             const float oversampled_rate =
                 (float)(MIX_SAMPLE_RATE * DMG_AUDIO_OVERSAMPLE);
+            /* NR51: low nibble is the right side, high nibble the left. */
+            const uint8_t panning = frame->panning;
             for (sub_sample = 0; sub_sample < DMG_AUDIO_OVERSAMPLE;
                  sub_sample++) {
-                float sub_mix = 0.0f;
+                float sub_left = 0.0f;
+                float sub_right = 0.0f;
+                float voice;
                 if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE1) != 0) {
-                    sub_mix += (phase1 < duty1 ? 1.0f : -1.0f) *
+                    voice = (phase1 < duty1 ? 1.0f : -1.0f) *
                         ((float)volume1 / 15.0f);
+                    if ((panning & 0x10u) != 0) sub_left += voice;
+                    if ((panning & 0x01u) != 0) sub_right += voice;
                     phase1 += dmg_square_hz(frequency1) / oversampled_rate;
                     if (phase1 >= 1.0f) phase1 -= floorf(phase1);
                 }
                 if ((frame->flags & ALLSTAR_ROM_MUSIC_SQUARE2) != 0) {
-                    sub_mix += (phase2 < duty2 ? 1.0f : -1.0f) *
+                    voice = (phase2 < duty2 ? 1.0f : -1.0f) *
                         ((float)volume2 / 15.0f);
+                    if ((panning & 0x20u) != 0) sub_left += voice;
+                    if ((panning & 0x02u) != 0) sub_right += voice;
                     phase2 += dmg_square_hz(frequency2) / oversampled_rate;
                     if (phase2 >= 1.0f) phase2 -= floorf(phase2);
                 }
@@ -595,7 +605,9 @@ static bool generate_rom_music(PcmSound *out,
                         [wave_sample >> 1];
                     uint8_t nibble = (wave_sample & 1u) != 0
                         ? packed & 0x0f : packed >> 4;
-                    sub_mix += (((float)nibble - 7.5f) / 7.5f) * scale;
+                    voice = (((float)nibble - 7.5f) / 7.5f) * scale;
+                    if ((panning & 0x40u) != 0) sub_left += voice;
+                    if ((panning & 0x04u) != 0) sub_right += voice;
                     wave_phase += dmg_wave_hz(wave_frequency) /
                         oversampled_rate;
                     if (wave_phase >= 1.0f)
@@ -621,25 +633,31 @@ static bool generate_rom_music(PcmSound *out,
                         }
                         noise_phase -= 1.0f;
                     }
-                    sub_mix += (noise_lfsr & 1u ? 1.0f : -1.0f) *
+                    voice = (noise_lfsr & 1u ? 1.0f : -1.0f) *
                         ((float)noise_volume / 15.0f);
+                    if ((panning & 0x80u) != 0) sub_left += voice;
+                    if ((panning & 0x08u) != 0) sub_right += voice;
                 }
-                mixed += sub_mix;
+                mixed_left += sub_left;
+                mixed_right += sub_right;
             }
-            mixed /= DMG_AUDIO_OVERSAMPLE;
+            mixed_left /= DMG_AUDIO_OVERSAMPLE;
+            mixed_right /= DMG_AUDIO_OVERSAMPLE;
         }
         {
-            float high_passed = mixed - high_pass_capacitor;
-            high_pass_capacitor = mixed - high_passed * 0.996337f;
-            mixed = high_passed;
+            float passed = mixed_left - high_pass_left;
+            high_pass_left = mixed_left - passed * 0.996337f;
+            mixed_left = passed;
+            passed = mixed_right - high_pass_right;
+            high_pass_right = mixed_right - passed * 0.996337f;
+            mixed_right = passed;
         }
-        if (mixed > 3.4f) mixed = 3.4f;
-        if (mixed < -3.4f) mixed = -3.4f;
-        {
-            int16_t value = (int16_t)(mixed * 4800.0f);
-            out->samples[sample * 2] = value;
-            out->samples[sample * 2 + 1] = value;
-        }
+        if (mixed_left > 3.4f) mixed_left = 3.4f;
+        if (mixed_left < -3.4f) mixed_left = -3.4f;
+        if (mixed_right > 3.4f) mixed_right = 3.4f;
+        if (mixed_right < -3.4f) mixed_right = -3.4f;
+        out->samples[sample * 2] = (int16_t)(mixed_left * 4800.0f);
+        out->samples[sample * 2 + 1] = (int16_t)(mixed_right * 4800.0f);
     }
     out->sample_count = total_samples;
     out->loaded = true;
@@ -1170,7 +1188,61 @@ bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,
         free_pcm_sound(&sound);
         return false;
     }
-    data_size = sound.sample_count * MIX_CHANNELS * sizeof(int16_t);
+    data_size = (uint32_t)(sound.sample_count * MIX_CHANNELS *
+                           sizeof(int16_t));
+    riff_size = 36 + data_size;
+    fwrite("RIFF", 1, 4, file);
+    fwrite(&riff_size, sizeof(riff_size), 1, file);
+    fwrite("WAVEfmt ", 1, 8, file);
+    {
+        uint32_t fmt_size = 16;
+        fwrite(&fmt_size, sizeof(fmt_size), 1, file);
+    }
+    fwrite(&format, sizeof(format), 1, file);
+    fwrite(&channels, sizeof(channels), 1, file);
+    {
+        uint32_t sample_rate = MIX_SAMPLE_RATE;
+        fwrite(&sample_rate, sizeof(sample_rate), 1, file);
+    }
+    fwrite(&byte_rate, sizeof(byte_rate), 1, file);
+    fwrite(&block_align, sizeof(block_align), 1, file);
+    fwrite(&bits, sizeof(bits), 1, file);
+    fwrite("data", 1, 4, file);
+    fwrite(&data_size, sizeof(data_size), 1, file);
+    fwrite(sound.samples, 1, data_size, file);
+    fclose(file);
+    free_pcm_sound(&sound);
+    return true;
+}
+
+/*
+ * The title song rendered straight out of the decoded program, so the
+ * cartridge's stereo image can be listened to and measured.  $35B6 puts the
+ * two square voices on opposite sides, which is why this is not mono.
+ */
+bool allstar_audio_export_rom_music_wav(const AllStarAssetPack *pack,
+                                        const char *filepath) {
+    PcmSound sound = {0};
+    FILE *file;
+    uint32_t data_size;
+    uint32_t riff_size;
+    uint32_t byte_rate = MIX_SAMPLE_RATE * MIX_CHANNELS * sizeof(int16_t);
+    uint16_t format = 1;
+    uint16_t channels = MIX_CHANNELS;
+    uint16_t block_align = MIX_CHANNELS * sizeof(int16_t);
+    uint16_t bits = 16;
+    if (!pack || !filepath ||
+        pack->header.rom_music_program_count !=
+            ALLSTAR_ROM_MUSIC_PROGRAM_COUNT) return false;
+    if (!generate_rom_music(&sound, &pack->rom_music_programs[0]))
+        return false;
+    file = open_binary_file(filepath, "wb");
+    if (!file) {
+        free_pcm_sound(&sound);
+        return false;
+    }
+    data_size = (uint32_t)(sound.sample_count * MIX_CHANNELS *
+                           sizeof(int16_t));
     riff_size = 36 + data_size;
     fwrite("RIFF", 1, 4, file);
     fwrite(&riff_size, sizeof(riff_size), 1, file);

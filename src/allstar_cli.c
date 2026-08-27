@@ -24,6 +24,7 @@
 #include "allstar_apu_program.h"
 #include "allstar_boot.h"
 #include "allstar_handshake.h"
+#include "allstar_session.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2261,6 +2262,112 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM game session driver, from the $0214..$0265 disassembly.
+ */
+int allstar_cli_test_session_rom(void) {
+    static const AllStarSessionStep FULL[9] = {
+        ALLSTAR_SESSION_CLEAR_FLAG, ALLSTAR_SESSION_MENU, ALLSTAR_SESSION_SETTINGS,
+        ALLSTAR_SESSION_LOAD_TILES, ALLSTAR_SESSION_PICK_PLAYER, ALLSTAR_SESSION_PREPARE,
+        ALLSTAR_SESSION_RUN_MODE, ALLSTAR_SESSION_POSTGAME, ALLSTAR_SESSION_RESET
+    };
+    AllStarSessionStep steps[12];
+    const uint16_t *modes;
+    int count;
+    int i;
+    int j;
+
+    printf("[Test] Running ROM Session Tests ($0214)...\n");
+
+    /* $023D: the tournament is the only mode that skips the player pick. */
+    if (!allstar_session_picks_player(0x00u) || !allstar_session_picks_player(0x01u) ||
+        !allstar_session_picks_player(0x02u) || !allstar_session_picks_player(0x03u) ||
+        allstar_session_picks_player(ALLSTAR_SESSION_TOURNAMENT)) {
+        fprintf(stderr, "[Test] $023B player-pick gate diverged\n");
+        return 1;
+    }
+
+    /* Every other mode runs all nine steps in order. */
+    count = allstar_session_sequence(0x00u, steps, 12);
+    if (count != 9) {
+        fprintf(stderr, "[Test] $0214 ran %d steps, expected 9\n", count);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (steps[i] != FULL[i]) {
+            fprintf(stderr, "[Test] $0214 step %d was %s, expected %s\n", i,
+                    allstar_session_step_name(steps[i]),
+                    allstar_session_step_name(FULL[i]));
+            return 1;
+        }
+    }
+
+    /* The tournament runs eight, with the pick dropped and nothing reordered. */
+    count = allstar_session_sequence(ALLSTAR_SESSION_TOURNAMENT, steps, 12);
+    if (count != 8) {
+        fprintf(stderr, "[Test] tournament ran %d steps, expected 8\n", count);
+        return 1;
+    }
+    j = 0;
+    for (i = 0; i < 9; i++) {
+        if (FULL[i] == ALLSTAR_SESSION_PICK_PLAYER) continue;
+        if (steps[j] != FULL[i]) {
+            fprintf(stderr, "[Test] tournament step %d diverged\n", j);
+            return 1;
+        }
+        j++;
+    }
+
+    /* The menu and settings run from bank 3, the pick from bank 2. */
+    if (allstar_session_bank(ALLSTAR_SESSION_MENU) != 3u ||
+        allstar_session_bank(ALLSTAR_SESSION_SETTINGS) != 3u ||
+        allstar_session_bank(ALLSTAR_SESSION_PICK_PLAYER) != 2u ||
+        allstar_session_bank(ALLSTAR_SESSION_RUN_MODE) != 1u ||
+        allstar_session_bank(ALLSTAR_SESSION_POSTGAME) != 1u) {
+        fprintf(stderr, "[Test] $0218/$023F bank switching diverged\n");
+        return 1;
+    }
+
+    /*
+     * $0255 dispatches through the same $0267 table the tournament driver
+     * documents, and $0263 hands control to the reset vector rather than
+     * returning -- so a finished game wipes RAM every time.
+     */
+    if (ALLSTAR_SESSION_MODE_TABLE != 0x0267u) {
+        fprintf(stderr, "[Test] $0255 mode table address diverged\n");
+        return 1;
+    }
+    if (ALLSTAR_SESSION_RESET_VECTOR != 0x0156u) {
+        fprintf(stderr, "[Test] $0263 must return to the reset vector\n");
+        return 1;
+    }
+    /* That vector is the one the boot path treats as a soft reset. */
+    if (allstar_boot_entry(false, 0u, 0u) != ALLSTAR_BOOT_RESET) {
+        fprintf(stderr, "[Test] $0156 is not the boot path's reset entry\n");
+        return 1;
+    }
+
+    /* The mode the session dispatches is the mode the postgame table indexes. */
+    modes = allstar_postgame_mode_table(&count);
+    if (count != 5) {
+        fprintf(stderr, "[Test] the mode space is not five wide\n");
+        return 1;
+    }
+    if (ALLSTAR_SESSION_TOURNAMENT >= (uint8_t)count) {
+        fprintf(stderr, "[Test] the tournament index falls outside the mode space\n");
+        return 1;
+    }
+    if (modes[ALLSTAR_SESSION_TOURNAMENT] != 0x12A6u) {
+        fprintf(stderr, "[Test] the tournament postgame handler moved\n");
+        return 1;
+    }
+
+    printf("  every mode but the tournament picks one player through the bank 2 selector\n");
+    printf("  a finished game jumps to $0156, so the RAM wipe runs after every game\n");
+    printf("[Test] PASSED: $0214\n");
     return 0;
 }
 
@@ -7383,6 +7490,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_apu_program_rom();
     failed += allstar_cli_test_boot_rom();
     failed += allstar_cli_test_handshake_rom();
+    failed += allstar_cli_test_session_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7521,6 +7629,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_boot_rom();
     } else if (strcmp(cmd, "--test-handshake") == 0) {
         return allstar_cli_test_handshake_rom();
+    } else if (strcmp(cmd, "--test-session") == 0) {
+        return allstar_cli_test_session_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

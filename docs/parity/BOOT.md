@@ -103,8 +103,34 @@ the `$2D85` CPU auto-pick, so attract drives the entrant screen by itself. Skill
 The test asserts both of those couplings rather than just the constants, so the
 attract countdown and the watchdog cannot drift apart.
 
+## A session, `$0214`
+
+The outer loop calls this to play one game, and it is where the whole control
+flow joins up:
+
+```
+$C270 = 0 -> bank 3 -> menu $038F -> settings $22EF
+          -> bank 1 -> load $640F into $8C00 -> $0A91
+          -> bank 2 -> $0B35, select one player through $4000   (skipped in mode $04)
+          -> bank 1 -> $1FFA -> dispatch through $0267
+          -> BGP $E4 -> postgame $10A5 -> jp $0156
+```
+
+Two things follow from that.
+
+**The tournament is the only mode that does not pick a player here.** Every
+other mode calls the bank 2 selector with a count of one; mode `$04` jumps
+straight past, because `$2890` runs its own eight-entrant selection later.
+
+**A finished game does not return.** `$0263` jumps to `$0156`, the soft-reset
+vector — so every completed game wipes work RAM, the sound state and HRAM. That
+recasts the seed preservation above: it is not a rare path taken when someone
+holds four buttons, it runs after *every* game. Without it the second game of a
+session would replay the first.
+
 ## Scope
 
 This ports the wipe layout, the preserved words, the reset notification, the
-title toggle, the confirm branch, both handshake entries and the attract setup.
+title toggle, the confirm branch, both handshake entries, the attract setup and
+the session sequence.
 The bank 2 selector's own attract behaviour was ported earlier as `$2D85`.

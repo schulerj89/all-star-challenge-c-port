@@ -280,6 +280,37 @@ static float dmg_square_hz(uint16_t frequency) {
 /* Render the exact per-frame register program extracted from $3014's ROM
    data. Timing uses one Game Boy frame (70224 clocks at 4194304 Hz), and
    square-1 sweep reproduces NR10 for command $0D between register writes. */
+static void step_envelope(uint8_t envelope, uint8_t *volume,
+                          double time, double *next_time) {
+    uint8_t pace = envelope & 7u;
+    if (!volume || !next_time || pace == 0) return;
+    while (time >= *next_time) {
+        if ((envelope & 0x08) != 0) {
+            if (*volume < 15) (*volume)++;
+        } else if (*volume > 0) {
+            (*volume)--;
+        }
+        *next_time += (double)pace / 64.0;
+    }
+}
+
+/*
+ * The DMG envelope level `seconds` into a note, from the NR12/NR22/NR42 byte:
+ * bits 7-4 the starting level, bit 3 the direction, bits 2-0 the pace in
+ * 1/64s units.  A pace of zero means the level never moves.
+ *
+ * This is what the renderers step incrementally, exposed so a test can pin the
+ * curve rather than eyeballing a waveform.
+ */
+uint8_t allstar_audio_rom_envelope_level(uint8_t envelope, double seconds) {
+    uint8_t volume = (uint8_t)(envelope >> 4);
+    uint8_t pace = envelope & 7u;
+    double next = pace != 0 ? (double)pace / 64.0 : 1.0e30;
+    if (seconds < 0.0) return volume;
+    step_envelope(envelope, &volume, seconds, &next);
+    return volume;
+}
+
 static bool generate_rom_program(PcmSound *out,
                                  const AllStarRomSfxProgram *program) {
     const double frame_seconds = 70224.0 / 4194304.0;
@@ -299,8 +330,10 @@ static bool generate_rom_program(PcmSound *out,
     double next_noise_envelope_time = 0.0;
     float duty1;
     float duty2;
-    float volume1;
-    float volume2;
+    uint8_t volume1;
+    uint8_t volume2;
+    double next_envelope1 = 1.0e30;
+    double next_envelope2 = 1.0e30;
     if (!out || !program || program->frame_count == 0 ||
         program->frame_count > ALLSTAR_ROM_SFX_MAX_FRAMES) return false;
     total_samples = (uint32_t)ceil(
@@ -310,8 +343,13 @@ static bool generate_rom_program(PcmSound *out,
     if (!out->samples) return false;
     duty1 = dmg_square_duty(program->square1_duty_length);
     duty2 = dmg_square_duty(program->square2_duty_length);
-    volume1 = (float)(program->square1_envelope >> 4) / 15.0f;
-    volume2 = (float)(program->square2_envelope >> 4) / 15.0f;
+    /* NR12/NR22 bits 7-4 are the starting level; the low three bits
+       are the pace the envelope steps at, and bit 3 its direction.
+       $0F's descriptor gives NR12 = $F1 -- level 15, decreasing, pace
+       one -- so the cue decays to silence in fifteen 1/64s steps.
+       Holding it flat instead makes a short blip a sustained tone. */
+    volume1 = (uint8_t)(program->square1_envelope >> 4);
+    volume2 = (uint8_t)(program->square2_envelope >> 4);
 
     for (sample = 0; sample < total_samples; sample++) {
         double time = (double)sample / MIX_SAMPLE_RATE;
@@ -324,9 +362,13 @@ static bool generate_rom_program(PcmSound *out,
         if (frame_index != previous_frame) {
             if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_1) != 0) {
                 if ((frame->flags & ALLSTAR_ROM_SFX_TRIGGER_1) != 0) {
+                    uint8_t pace1 = program->square1_envelope & 7u;
                     frequency1 = frame->square1_frequency;
                     sweep_shadow = frequency1;
                     phase1 = 0.0f;
+                    volume1 = (uint8_t)(program->square1_envelope >> 4);
+                    next_envelope1 = pace1 != 0
+                        ? time + (double)pace1 / 64.0 : 1.0e30;
                     if ((program->square1_sweep & 0x70) != 0)
                         next_sweep_time = time +
                             ((program->square1_sweep >> 4) & 7u) / 128.0;
@@ -337,8 +379,13 @@ static bool generate_rom_program(PcmSound *out,
             }
             if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_2) != 0) {
                 frequency2 = frame->square2_frequency;
-                if ((frame->flags & ALLSTAR_ROM_SFX_TRIGGER_2) != 0)
+                if ((frame->flags & ALLSTAR_ROM_SFX_TRIGGER_2) != 0) {
+                    uint8_t pace2 = program->square2_envelope & 7u;
                     phase2 = 0.0f;
+                    volume2 = (uint8_t)(program->square2_envelope >> 4);
+                    next_envelope2 = pace2 != 0
+                        ? time + (double)pace2 / 64.0 : 1.0e30;
+                }
             }
             if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_4) != 0) {
                 noise_polynomial = frame->noise_polynomial;
@@ -368,13 +415,20 @@ static bool generate_rom_program(PcmSound *out,
             }
         }
 
+        step_envelope(program->square1_envelope, &volume1,
+                      time, &next_envelope1);
+        step_envelope(program->square2_envelope, &volume2,
+                      time, &next_envelope2);
+
         if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_1) != 0) {
-            mixed += (phase1 < duty1 ? 1.0f : -1.0f) * volume1;
+            mixed += (phase1 < duty1 ? 1.0f : -1.0f) *
+                ((float)volume1 / 15.0f);
             phase1 += dmg_square_hz(frequency1) / MIX_SAMPLE_RATE;
             if (phase1 >= 1.0f) phase1 -= floorf(phase1);
         }
         if ((frame->flags & ALLSTAR_ROM_SFX_CHANNEL_2) != 0) {
-            mixed += (phase2 < duty2 ? 1.0f : -1.0f) * volume2;
+            mixed += (phase2 < duty2 ? 1.0f : -1.0f) *
+                ((float)volume2 / 15.0f);
             phase2 += dmg_square_hz(frequency2) / MIX_SAMPLE_RATE;
             if (phase2 >= 1.0f) phase2 -= floorf(phase2);
         }
@@ -425,20 +479,6 @@ static bool generate_rom_program(PcmSound *out,
 static float dmg_wave_hz(uint16_t frequency) {
     if (frequency >= 2048) return 0.0f;
     return 65536.0f / (float)(2048u - frequency);
-}
-
-static void step_envelope(uint8_t envelope, uint8_t *volume,
-                          double time, double *next_time) {
-    uint8_t pace = envelope & 7u;
-    if (!volume || !next_time || pace == 0) return;
-    while (time >= *next_time) {
-        if ((envelope & 0x08) != 0) {
-            if (*volume < 15) (*volume)++;
-        } else if (*volume > 0) {
-            (*volume)--;
-        }
-        *next_time += (double)pace / 64.0;
-    }
 }
 
 static bool generate_rom_music(PcmSound *out,
@@ -1156,6 +1196,43 @@ bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
 #endif
     audio->rom_sfx_bound = true;
     audio->rom_sfx_source_checksum = movement->source_checksum;
+    return true;
+}
+
+/*
+ * The loudest sample the rendered cue reaches between two times.  This renders
+ * through exactly the path the game plays, so a renderer that stops applying
+ * the envelope shows up here rather than only in a helper's return value.
+ */
+bool allstar_audio_rom_sfx_peak(const AllStarAssetPack *pack, uint8_t command,
+                                double start_seconds, double end_seconds,
+                                int *peak) {
+    const AllStarRomSfxProgram *program = NULL;
+    PcmSound sound = {0};
+    size_t i;
+    uint32_t first;
+    uint32_t last;
+    int loudest = 0;
+    if (!pack || !peak || end_seconds <= start_seconds) return false;
+    if (pack->header.rom_sfx_program_count !=
+            ALLSTAR_ROM_SFX_PROGRAM_COUNT) return false;
+    for (i = 0; i < pack->header.rom_sfx_program_count; i++) {
+        if (pack->rom_sfx_programs[i].command == command) {
+            program = &pack->rom_sfx_programs[i];
+            break;
+        }
+    }
+    if (!program || !generate_rom_program(&sound, program)) return false;
+    first = (uint32_t)(start_seconds * MIX_SAMPLE_RATE);
+    last = (uint32_t)(end_seconds * MIX_SAMPLE_RATE);
+    if (last > sound.sample_count) last = sound.sample_count;
+    for (i = first; i < last; i++) {
+        int value = sound.samples[i * MIX_CHANNELS];
+        if (value < 0) value = -value;
+        if (value > loudest) loudest = value;
+    }
+    *peak = loudest;
+    free_pcm_sound(&sound);
     return true;
 }
 

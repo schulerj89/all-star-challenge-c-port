@@ -109,6 +109,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-cpu-head                    Verify the ROM $73C9 steering head\n");
     printf("  --test-captions                    Verify the ROM $07E3 caption script\n");
     printf("  --test-kernel                      Verify the ROM vector table and helpers\n");
+    printf("  --test-sfx-envelope                Verify the ROM NR12 cue envelopes\n");
     printf("  --test-title-music                 Verify the ROM $35B6 title-music routing\n");
     printf("  --test-defense-jump                Verify the ROM $6C27 defensive jump lift\n");
     printf("  --test-pad                         Verify the ROM $2639 joypad poll\n");
@@ -2274,6 +2275,213 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM sound-effect envelopes, from $2AB5 -> $2F88 -> $2FB0 and the NR12 byte
+ * each program carries.
+ *
+ * The cue the roster selector plays when it moves between players is command
+ * $0F: bank 2 $411D calls $2AB5, which is `ld a,$0F / jp $2F88`.  $2F88 maps it
+ * through $2FB0 to program $07 with a $19-frame priority window, and the
+ * program's descriptor supplies NR12 = $F1 -- level 15, decreasing, pace one.
+ *
+ * Captured from the cartridge (tools/emulator/trace_navigation_sfx.lua) the cue
+ * is a SINGLE channel-1 trigger:
+ *
+ *     NR10=$08  NR11=$88  NR12=$F1  NR13=$B1  NR14=$BF
+ *
+ * NR14 bit 6 is clear, so no length counter runs; the note is silenced purely
+ * by that envelope, fifteen steps of 1/64s -- about 234 ms.  Rendering it at a
+ * flat level instead turns a short blip into a 402 ms sustained tone.
+ */
+int allstar_cli_test_sfx_envelope_rom(void) {
+    AllStarAssetPack *pack;
+    const AllStarRomSfxProgram *navigation = NULL;
+    size_t i;
+    int step;
+
+    printf("[Test] Running ROM SFX Envelope Tests ($2AB5/$0F)...\n");
+
+    /* NR12 = $F1: fifteen decreasing steps, one 1/64s apart. */
+    if (allstar_audio_rom_envelope_level(0xF1u, 0.0) != 15u) {
+        fprintf(stderr, "[Test] $F1 did not start at level 15\n");
+        return 1;
+    }
+    for (step = 1; step <= 15; step++) {
+        /* Just past the step boundary, the level has dropped once more. */
+        double t = (double)step / 64.0 + 0.0005;
+        uint8_t want = (uint8_t)(15 - step);
+        if (allstar_audio_rom_envelope_level(0xF1u, t) != want) {
+            fprintf(stderr,
+                    "[Test] $F1 at %.4fs is level %u, expected %u\n", t,
+                    allstar_audio_rom_envelope_level(0xF1u, t), want);
+            return 1;
+        }
+    }
+    /* Silent from 15/64s onward, and it must not wrap back up. */
+    if (allstar_audio_rom_envelope_level(0xF1u, 15.0 / 64.0) != 0u ||
+        allstar_audio_rom_envelope_level(0xF1u, 0.402) != 0u ||
+        allstar_audio_rom_envelope_level(0xF1u, 5.0) != 0u) {
+        fprintf(stderr, "[Test] $F1 did not stay silent after decaying\n");
+        return 1;
+    }
+    /* A pace of zero never moves, whatever the direction bit says. */
+    if (allstar_audio_rom_envelope_level(0xF0u, 1.0) != 15u ||
+        allstar_audio_rom_envelope_level(0x80u, 1.0) != 8u) {
+        fprintf(stderr, "[Test] a pace of zero stepped anyway\n");
+        return 1;
+    }
+    /* Bit 3 set counts upwards and clamps at 15. */
+    if (allstar_audio_rom_envelope_level(0x09u, 0.0) != 0u ||
+        allstar_audio_rom_envelope_level(0x09u, 0.0161) != 1u ||
+        allstar_audio_rom_envelope_level(0x09u, 5.0) != 15u) {
+        fprintf(stderr, "[Test] the rising envelope diverged\n");
+        return 1;
+    }
+
+    pack = (AllStarAssetPack *)calloc(1, sizeof(*pack));
+    if (!pack) {
+        fprintf(stderr, "[Test] Could not allocate an asset pack\n");
+        return 1;
+    }
+    if (!allstar_asset_pack_load_file(pack, "build/allstar.assetpack") ||
+        pack->header.rom_sfx_program_count != ALLSTAR_ROM_SFX_PROGRAM_COUNT) {
+        /* The ROM is never committed, so a pack may legitimately be absent. */
+        free(pack);
+        printf("  the NR12 envelope curve is verified\n");
+        printf("  (no build/allstar.assetpack -- skipped the cue itself)\n");
+        printf("[Test] PASSED: the DMG envelope\n");
+        return 0;
+    }
+    for (i = 0; i < pack->header.rom_sfx_program_count; i++) {
+        if (pack->rom_sfx_programs[i].command == 0x0Fu) {
+            navigation = &pack->rom_sfx_programs[i];
+            break;
+        }
+    }
+    if (!navigation) {
+        fprintf(stderr, "[Test] the pack has no command $0F program\n");
+        free(pack);
+        return 1;
+    }
+
+    /* $2FB0 maps command $0F to program $07 with a $19-frame window. */
+    if (navigation->program_id != 0x07u ||
+        navigation->priority_frames != 0x19u ||
+        navigation->stream_pointer_1 != 0x3EBCu) {
+        fprintf(stderr,
+                "[Test] $2FB0 mapping for $0F diverged (program $%02X "
+                "window $%02X)\n", navigation->program_id,
+                navigation->priority_frames);
+        free(pack);
+        return 1;
+    }
+    /* The exact register program the cartridge writes on the trigger. */
+    if (navigation->square1_sweep != 0x08u ||
+        navigation->square1_duty_length != 0x88u ||
+        navigation->square1_envelope != 0xF1u ||
+        navigation->frames[0].square1_frequency != 0x07B1u) {
+        fprintf(stderr,
+                "[Test] the $0F trigger diverged (NR10=$%02X NR11=$%02X "
+                "NR12=$%02X freq=$%04X)\n", navigation->square1_sweep,
+                navigation->square1_duty_length, navigation->square1_envelope,
+                navigation->frames[0].square1_frequency);
+        free(pack);
+        return 1;
+    }
+    /* NR10's pace field is zero, so the sweep is inert -- the pitch holds. */
+    if ((navigation->square1_sweep & 0x70u) != 0) {
+        fprintf(stderr, "[Test] $08 was read as an active sweep\n");
+        free(pack);
+        return 1;
+    }
+
+    /*
+     * The program runs 24 frames but the envelope silences it after fifteen
+     * 1/64s steps, so most of the tail is quiet.  That gap is the whole
+     * difference between a blip and a sustained tone.
+     */
+    {
+        const double frame_seconds = 70224.0 / 4194304.0;
+        double total = navigation->frame_count * frame_seconds;
+        double silent_at = 15.0 / 64.0;
+        if (navigation->frame_count != 24u) {
+            fprintf(stderr, "[Test] the $0F program is %u frames\n",
+                    navigation->frame_count);
+            free(pack);
+            return 1;
+        }
+        if (silent_at >= total) {
+            fprintf(stderr,
+                    "[Test] the envelope outlasts the program (%.3fs of "
+                    "%.3fs)\n", silent_at, total);
+            free(pack);
+            return 1;
+        }
+        if (allstar_audio_rom_envelope_level(
+                navigation->square1_envelope, total) != 0u) {
+            fprintf(stderr,
+                    "[Test] the cue is still sounding at its last frame\n");
+            free(pack);
+            return 1;
+        }
+        printf("  command $0F decays to silence at %.0f ms of a %.0f ms "
+               "program\n", silent_at * 1000.0, total * 1000.0);
+
+        /*
+         * And the renderer has to actually apply it.  Rendered through the
+         * path the game plays, the cue must be loud at the attack and silent
+         * once the envelope has run out -- which the flat-volume renderer
+         * this replaced could not satisfy.
+         */
+        {
+            int head = 0;
+            int tail = 0;
+            if (!allstar_audio_rom_sfx_peak(pack, 0x0Fu, 0.0, 0.02, &head) ||
+                !allstar_audio_rom_sfx_peak(pack, 0x0Fu, silent_at + 0.01,
+                                            total, &tail)) {
+                fprintf(stderr, "[Test] could not render command $0F\n");
+                free(pack);
+                return 1;
+            }
+            if (head < 2000) {
+                fprintf(stderr,
+                        "[Test] the cue opens at peak %d, far too quiet\n",
+                        head);
+                free(pack);
+                return 1;
+            }
+            if (tail != 0) {
+                fprintf(stderr,
+                        "[Test] the cue still sounds at peak %d after its "
+                        "envelope ran out -- the renderer is holding it "
+                        "flat\n", tail);
+                free(pack);
+                return 1;
+            }
+            printf("  rendered: peak %d at the attack, silent from %.0f ms\n",
+                   head, (silent_at + 0.01) * 1000.0);
+        }
+    }
+
+    /* Every square cue in the pack carries a real envelope pace. */
+    for (i = 0; i < pack->header.rom_sfx_program_count; i++) {
+        const AllStarRomSfxProgram *p = &pack->rom_sfx_programs[i];
+        if (p->square1_envelope == 0u) continue;
+        if ((p->square1_envelope & 7u) == 0u) {
+            fprintf(stderr,
+                    "[Test] command $%02X has a pace-zero NR12 ($%02X)\n",
+                    p->command, p->square1_envelope);
+            free(pack);
+            return 1;
+        }
+    }
+
+    free(pack);
+    printf("  a pace of zero holds, bit 3 rises and clamps at 15\n");
+    printf("[Test] PASSED: $2AB5, $2F88, $2FB0 and the NR12 envelope\n");
     return 0;
 }
 
@@ -8903,6 +9111,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_cpu_head_rom();
     failed += allstar_cli_test_caption_rom();
     failed += allstar_cli_test_kernel_rom();
+    failed += allstar_cli_test_sfx_envelope_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -9057,6 +9266,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_caption_rom();
     } else if (strcmp(cmd, "--test-kernel") == 0) {
         return allstar_cli_test_kernel_rom();
+    } else if (strcmp(cmd, "--test-sfx-envelope") == 0) {
+        return allstar_cli_test_sfx_envelope_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

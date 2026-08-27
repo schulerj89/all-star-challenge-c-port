@@ -55,6 +55,14 @@ void allstar_audio_shutdown(AllStarAudioEngine *audio);
    fallbacks and an optional external title WAV. */
 bool allstar_audio_bind_rom_sfx(AllStarAudioEngine *audio,
                                 const AllStarAssetPack *pack);
+uint8_t allstar_audio_rom_envelope_level(uint8_t envelope, double seconds);
+
+/* The loudest rendered sample of a cue between two times, for regression
+   tests that need the renderer's real output rather than a helper's. */
+bool allstar_audio_rom_sfx_peak(const AllStarAssetPack *pack, uint8_t command,
+                                double start_seconds, double end_seconds,
+                                int *peak);
+
 bool allstar_audio_export_rom_music_wav(const AllStarAssetPack *pack,
                                         const char *filepath);
 bool allstar_audio_export_rom_sfx_wav(const AllStarAssetPack *pack,

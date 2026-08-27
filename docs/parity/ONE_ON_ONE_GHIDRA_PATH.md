@@ -112,7 +112,7 @@ forces and verifies charging, blocking, and protected shot action `$0A`.
 | `$7F37 -> $7FC7/$7FCB -> $6F2A/$6FEA` | `$7F37` supplies identical `{+7,-2}/{+10,-2}` held rows for both shot actions; final ordinary held-ball presentation reads exact player `+$05/+$06` and uses action-, facing-, and record-indexed `$6F2A` placement. |
 | `$6945 -> $69F5 -> $6A4C/$6A5C` | `allstar_renderer_rom_ball_presentation_6945` selects eight X phases, rear-side rotation, exact `Y-Z`, and all three shadow tiers. |
 
-The extracted bytes exist only in a user-built version-15 asset pack. The old
+The extracted bytes exist only in a user-built asset pack. The old
 tracked `allstar_court_art.h` derived-art array was removed, and the renderer
 uses a source-free procedural fallback when no pack is supplied.
 

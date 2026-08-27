@@ -175,7 +175,7 @@ The mode has no replacement background song. Fixed `$0C8E` begins with
 mode entry therefore stops the roster/title BGM rather than letting it loop
 under Free Throw gameplay. The Mesen trace reaches `$0C92` with `$DD73=$00`.
 
-The expanded version-15 asset pack decodes two mode-specific `$3014` programs
+The asset pack decodes two mode-specific `$3014` programs
 directly from the user-owned ROM:
 
 | Command | Program | Priority | Stream | Frames | First live APU state |

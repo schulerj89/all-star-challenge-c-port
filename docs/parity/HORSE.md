@@ -109,7 +109,7 @@ instead of substituting the final replacement before animation begins.
 
 ## Audio proof
 
-`$0E26` selects command `$07`. Asset-pack version 15 adds that exact focused
+`$0E26` selects command `$07`. The asset pack carries that exact focused
 program to the existing `$3014` decoder:
 
 | Command | Program | Priority | Stream | Frames | Instrument/register proof |

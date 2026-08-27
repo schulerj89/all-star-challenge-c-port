@@ -4,6 +4,11 @@ One document per ROM subsystem. Each records what the cartridge's own code
 does, what the port does about it, and how that was verified — usually a
 `--test-*` suite, and for the audio work a Mesen capture of the hardware.
 
+These documents deliberately do not name an asset-pack version number.  The
+current one is `ALLSTAR_ASSET_VERSION` in `include/allstar_asset_pack.h`, and
+the loader rejects anything else -- five documents drifted to stale version
+numbers before that rule was adopted.
+
 `docs/GHIDRA_COVERAGE.md` holds the authoritative coverage figure. The
 documents here each quote the running total at the time they were written, so
 prefer that file for the current number.

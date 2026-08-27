@@ -5,7 +5,7 @@
 The One-on-One renderer no longer includes extracted court/player/ball art in
 the executable. `--build-assetpack` reads these regions from the user's ROM,
 validates every decoded length and index, and stores decoded tiles plus the
-small composition maps in a version-16 pack. Version 16 contains the focused
+small composition maps in the asset pack, added in version 16, which contains the focused
 One-on-One `$04/$05/$09/$0D/$0C/$0F/$0E` audio programs plus Free Throw `$08/$0A`;
 the graphics payload itself is unchanged from v10. The decoder also applies `$347B`'s per-instrument
 descriptor `+$01` note transpose before frequency-table lookup.

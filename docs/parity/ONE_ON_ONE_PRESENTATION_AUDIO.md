@@ -88,7 +88,7 @@ The builder follows `$2F88->$3014` data instead of embedding guessed notes:
   source region in the verified USA/Europe image.
 
 The runtime never uses the old generic three-note/two-note fallbacks when a
-valid version-15 user pack is loaded. The proof WAVs are reproducible from the
+valid user pack is loaded. The proof WAVs are reproducible from the
 serialized decoded frames:
 
 ```powershell

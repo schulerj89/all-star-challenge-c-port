@@ -17,6 +17,8 @@
 #include "allstar_status_panel.h"
 #include "allstar_menu.h"
 #include "allstar_voice_state.h"
+#include "allstar_settings_screen.h"
+#include "allstar_system.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2254,6 +2256,207 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM settings-screen cursor and shell helpers, from the $231E..$23A3,
+ * $0ADA..$0B4E and $2D1B..$2D4E disassembly.
+ */
+int allstar_cli_test_shell_rom(void) {
+    static const uint16_t SETTINGS[ALLSTAR_SETTINGS_SLOTS] = {
+        0x232Bu, 0x235Fu, 0x236Au, 0x2374u, 0x2330u
+    };
+    static const uint16_t PROBES[ALLSTAR_PROBE_SLOTS] = {
+        0x0AE1u, 0x0B01u, 0x0AEAu, 0x0621u, 0x1900u
+    };
+    AllStarSettingsScreen screen;
+    AllStarProbe probe;
+    const uint16_t *table;
+    uint8_t cursor;
+    uint8_t flag;
+    uint16_t countdown;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Shell Tests ($231E/$0ADB/$2D1B)...\n");
+
+    table = allstar_settings_table(&count);
+    if (count != ALLSTAR_SETTINGS_SLOTS) {
+        fprintf(stderr, "[Test] $2321 has %d slots\n", count);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != SETTINGS[i]) {
+            fprintf(stderr, "[Test] $2321 slot %d is $%04X, expected $%04X\n", i, table[i], SETTINGS[i]);
+            return 1;
+        }
+    }
+
+    /* Each mode has its own cursor table and row count. */
+    if (!allstar_settings_screen(0x00u, &screen) || screen.cursor_table != 0x2AC8u ||
+        screen.rows != 4u || !screen.wraps_with_mask) {
+        fprintf(stderr, "[Test] $232B screen diverged\n");
+        return 1;
+    }
+    if (!allstar_settings_screen(0x04u, &screen) || screen.cursor_table != 0x2ADAu ||
+        screen.rows != 4u) {
+        fprintf(stderr, "[Test] $2330 screen diverged\n");
+        return 1;
+    }
+    if (!allstar_settings_screen(0x03u, &screen) || screen.cursor_table != 0x2AD4u ||
+        screen.rows != 3u || screen.wraps_with_mask) {
+        fprintf(stderr, "[Test] $2374 screen diverged\n");
+        return 1;
+    }
+    if (!allstar_settings_screen(0x01u, &screen) || screen.rows != 1u ||
+        !allstar_settings_screen(0x02u, &screen) || screen.rows != 1u) {
+        fprintf(stderr, "[Test] $235F/$236A single-row screens diverged\n");
+        return 1;
+    }
+
+    /* $2342/$2347: Down steps forward, Up steps back, four rows wrap by mask. */
+    cursor = 0u;
+    if (allstar_settings_step(0x00u, ALLSTAR_SETTINGS_DOWN_MASK, &cursor) != ALLSTAR_SETTINGS_MOVED ||
+        cursor != 1u) {
+        fprintf(stderr, "[Test] $2344 Down diverged\n");
+        return 1;
+    }
+    cursor = 3u;
+    if (allstar_settings_step(0x00u, ALLSTAR_SETTINGS_DOWN_MASK, &cursor) != ALLSTAR_SETTINGS_MOVED ||
+        cursor != 0u) {
+        fprintf(stderr, "[Test] $234A mask wrap forward diverged, cursor %u\n", cursor);
+        return 1;
+    }
+    if (allstar_settings_step(0x00u, ALLSTAR_SETTINGS_UP_MASK, &cursor) != ALLSTAR_SETTINGS_MOVED ||
+        cursor != 3u) {
+        fprintf(stderr, "[Test] $234A mask wrap back diverged, cursor %u\n", cursor);
+        return 1;
+    }
+    /* Up wins when both are pressed, because $233A is tested first. */
+    cursor = 1u;
+    if (allstar_settings_step(0x00u, 0xC0u, &cursor) != ALLSTAR_SETTINGS_MOVED || cursor != 0u) {
+        fprintf(stderr, "[Test] $233A did not take priority over $233E\n");
+        return 1;
+    }
+    /* Mode $03 has three rows and wraps with explicit compares. */
+    cursor = 2u;
+    if (allstar_settings_step(0x03u, ALLSTAR_SETTINGS_DOWN_MASK, &cursor) != ALLSTAR_SETTINGS_MOVED ||
+        cursor != 0u) {
+        fprintf(stderr, "[Test] $238B three-row wrap forward diverged, cursor %u\n", cursor);
+        return 1;
+    }
+    if (allstar_settings_step(0x03u, ALLSTAR_SETTINGS_UP_MASK, &cursor) != ALLSTAR_SETTINGS_MOVED ||
+        cursor != 2u) {
+        fprintf(stderr, "[Test] $2395 three-row wrap back diverged, cursor %u\n", cursor);
+        return 1;
+    }
+    /* Neither direction leaves the cursor alone. */
+    cursor = 1u;
+    if (allstar_settings_step(0x00u, 0x01u, &cursor) != ALLSTAR_SETTINGS_IDLE || cursor != 1u) {
+        fprintf(stderr, "[Test] $2340 moved on an unrelated button\n");
+        return 1;
+    }
+
+    /* $0ADB: three probes, two on the X field and one on Y. */
+    table = allstar_probe_table(&count);
+    for (i = 0; i < ALLSTAR_PROBE_SLOTS; i++) {
+        if (table[i] != PROBES[i]) {
+            fprintf(stderr, "[Test] $0ADB slot %d is $%04X, expected $%04X\n", i, table[i], PROBES[i]);
+            return 1;
+        }
+    }
+    if (!allstar_probe_shape(0x0AE1u, &probe) || probe.field != ALLSTAR_PROBE_FIELD_X ||
+        probe.delta != 12) {
+        fprintf(stderr, "[Test] $0AE6 probe diverged\n");
+        return 1;
+    }
+    if (!allstar_probe_shape(0x0AEAu, &probe) || probe.field != ALLSTAR_PROBE_FIELD_X ||
+        probe.delta != -12) {
+        fprintf(stderr, "[Test] $0AEF probe diverged\n");
+        return 1;
+    }
+    if (!allstar_probe_shape(0x0B01u, &probe) || probe.field != ALLSTAR_PROBE_FIELD_Y ||
+        probe.delta != -8) {
+        fprintf(stderr, "[Test] $0B06 probe diverged\n");
+        return 1;
+    }
+    if (allstar_probe_result(0x40u, 0x40u) != ALLSTAR_PROBE_OK ||
+        allstar_probe_result(0x40u, 0x41u) != ALLSTAR_PROBE_BLOCKED) {
+        fprintf(stderr, "[Test] $0AFD probe verdict diverged\n");
+        return 1;
+    }
+
+    /* $0B20 and $0B29 are BCD counters that carry between the bytes. */
+    if (allstar_bcd_increment(0x0000u) != 0x0001u ||
+        allstar_bcd_increment(0x0009u) != 0x0010u ||
+        allstar_bcd_increment(0x0099u) != 0x0100u ||
+        allstar_bcd_increment(0x0199u) != 0x0200u) {
+        fprintf(stderr, "[Test] $0B21 BCD increment diverged, 99 gave $%04X\n",
+                allstar_bcd_increment(0x0099u));
+        return 1;
+    }
+    if (allstar_bcd_decrement(0x0001u) != 0x0000u ||
+        allstar_bcd_decrement(0x0010u) != 0x0009u ||
+        allstar_bcd_decrement(0x0100u) != 0x0099u ||
+        allstar_bcd_decrement(0x0200u) != 0x0199u) {
+        fprintf(stderr, "[Test] $0B29 BCD decrement diverged, 100 gave $%04X\n",
+                allstar_bcd_decrement(0x0100u));
+        return 1;
+    }
+
+    /* $0B44: the serial flag is consumed once. */
+    flag = 0u;
+    if (allstar_serial_ready(&flag)) {
+        fprintf(stderr, "[Test] $0B47 reported ready with the flag clear\n");
+        return 1;
+    }
+    flag = 1u;
+    if (!allstar_serial_ready(&flag) || flag != 0u) {
+        fprintf(stderr, "[Test] $0B4A did not consume the serial flag\n");
+        return 1;
+    }
+
+    /* $2D25: all four buttons held at once is the soft reset. */
+    if (allstar_watchdog(0u, 0u, ALLSTAR_RESET_COMBO, 0u, 0u, NULL) != ALLSTAR_WATCHDOG_RESET) {
+        fprintf(stderr, "[Test] $2D2B soft reset did not fire\n");
+        return 1;
+    }
+    if (allstar_watchdog(0u, 0u, 0x0Eu, 0u, 0u, NULL) != ALLSTAR_WATCHDOG_CONTINUE) {
+        fprintf(stderr, "[Test] $2D29 fired on a partial combo\n");
+        return 1;
+    }
+    if (allstar_watchdog(0u, 1u, ALLSTAR_RESET_COMBO, 0u, 0u, NULL) != ALLSTAR_WATCHDOG_CONTINUE) {
+        fprintf(stderr, "[Test] $2D24 suppression did not block the reset\n");
+        return 1;
+    }
+    /* $2D2F: attract mode counts down instead, and Select or Start cuts it short. */
+    countdown = 3u;
+    if (allstar_watchdog(1u, 0u, 0u, 1u, 0u, &countdown) != ALLSTAR_WATCHDOG_CONTINUE ||
+        countdown != 2u) {
+        fprintf(stderr, "[Test] $2D39 attract countdown diverged\n");
+        return 1;
+    }
+    countdown = 1u;
+    if (allstar_watchdog(1u, 0u, 0u, 1u, 0u, &countdown) != ALLSTAR_WATCHDOG_RESET) {
+        fprintf(stderr, "[Test] $2D44 attract expiry did not reset\n");
+        return 1;
+    }
+    countdown = 9u;
+    if (allstar_watchdog(1u, 0u, 0u, 1u, ALLSTAR_RESET_ATTRACT, &countdown) != ALLSTAR_WATCHDOG_RESET) {
+        fprintf(stderr, "[Test] $2D4B attract button did not reset\n");
+        return 1;
+    }
+    countdown = 9u;
+    if (allstar_watchdog(1u, 0u, 0u, 0u, 0u, &countdown) != ALLSTAR_WATCHDOG_CONTINUE ||
+        countdown != 9u) {
+        fprintf(stderr, "[Test] $2D32 counted down while disarmed\n");
+        return 1;
+    }
+
+    printf("  four-row modes wrap with and $03, mode $03 wraps three rows by compare\n");
+    printf("  A+B+Select+Start is the soft reset, and attract adds a countdown\n");
+    printf("[Test] PASSED: $231E, $232B, $2330, $235F, $236A, $2374, $0ADB, $0AE1, $0AEA, $0B01, $0B20, $0B29, $0B44, $2D1B\n");
     return 0;
 }
 
@@ -6295,6 +6498,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_game_clock_rom();
     failed += allstar_cli_test_status_panel_rom();
     failed += allstar_cli_test_menu_voice_rom();
+    failed += allstar_cli_test_shell_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -6421,6 +6625,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_status_panel_rom();
     } else if (strcmp(cmd, "--test-menu-voice") == 0) {
         return allstar_cli_test_menu_voice_rom();
+    } else if (strcmp(cmd, "--test-shell") == 0) {
+        return allstar_cli_test_shell_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

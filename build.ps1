@@ -52,6 +52,8 @@ $CommonSources = @(
     "src\gameplay\allstar_game_clock.c",
     "src\gameplay\allstar_status_panel.c",
     "src\gameplay\allstar_menu.c",
+    "src\gameplay\allstar_settings_screen.c",
+    "src\gameplay\allstar_system.c",
     "src\audio\allstar_voice_state.c",
     "src\audio\allstar_audio.c",
     "src\scenes\scene_intro.c",

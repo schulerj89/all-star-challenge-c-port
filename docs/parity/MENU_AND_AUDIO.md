@@ -50,6 +50,23 @@ The third and fourth entries swap. Reproduce that or two of the six fields land
 in each other's slots — which would survive a round trip through both routines
 and only show up as wrong sound.
 
+## Correction: there are four mode dispatchers, not three
+
+An earlier note called `$2578` "the third and last mode-indexed dispatcher".
+There are **four**. A scan of every `ldh a,[$ff8f]` followed by `rst $08` in
+discovered code finds:
+
+| site | table | targets |
+|---|---|---|
+| `$10E1` | `$10E4` | `$10EE $1121 $11D5 $1209 $12A6` |
+| `$231E` | `$2321` | `$232B $235F $236A $2374 $2330` |
+| `$2578` | `$257B` | `$2585 $25ED $2607 $2608 $2585` |
+| bank 1 `$7182` | `$7185` | `$7190 $718F $74A8 $718F $7190` |
+
+`$231E` is the settings-screen cursor and `$7182` is a bank 1 gameplay
+dispatcher. `$147B` and `$10D9` are two more `rst $08` tables, but they index on
+`$C181` and `$FF8D` rather than the mode.
+
 ## Correction: `$7391` and `$73AD` are data, not routines
 
 Earlier reporting called `bank1 $73AD` "251 bytes, the largest unported routine
@@ -83,8 +100,10 @@ pointer-table target that holds data rather than code:
 - the four `$7DD1` sub-tables in bank 1 (35 bytes)
 - `$7391` (28 bytes)
 - the first 28 bytes of `$73AD`
+- the four cursor tables `$2AD0`, `$2AD2`, `$2AD4` and `$2ADA` (18 bytes),
+  which hold the `(y,x)` pairs `$2A9E` positions the settings cursor with
 
-That is roughly 91 bytes, about half a percent, so the coverage percentages are
+That is roughly 109 bytes, about two thirds of a percent, so the coverage percentages are
 close but not exact. Every such case is a `rst $10` or `rst $08` table whose
 entries are data; a stricter plausibility check on table targets would catch
 them, at the cost of possibly rejecting real code.

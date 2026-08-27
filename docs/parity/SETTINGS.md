@@ -44,9 +44,11 @@ The suite checks ROM defaults, exact time/attempt cycles, the `8/4/1`-frame skil
 
 ## The `$2578` status panel
 
-Added **2026-08-26**. `$2578` is the **third and last mode-indexed dispatcher**
-in the cartridge, after `$10D9`/`$10E4` and `$147B`. With it ported, every
-`ldh a,[$ff8f]` followed by `rst $08` in the ROM is accounted for.
+Added **2026-08-26**. `$2578` is one of **four** mode-indexed dispatchers in the
+cartridge, alongside `$10E1`, `$231E` and bank 1 `$7182`. (An earlier revision
+of this section called it the third and last; that was wrong, and the count is
+corrected in `MENU_AND_AUDIO.md`.) `$147B` and `$10D9` are two further `rst $08`
+tables that index on `$C181` and `$FF8D` rather than on the mode.
 
 | mode | `$257B` target |
 |---|---|
@@ -87,4 +89,32 @@ Run:
 
 ```powershell
 .\build\allstar_port.exe --test-status-panel
+```
+
+
+## The `$231E` settings-screen cursor
+
+The fourth mode dispatcher. Its table at `$2321` gives each mode its own cursor
+table, row count and row-handler list:
+
+| mode | handler | cursor table | rows | wrap |
+|---|---|---|---|---|
+| 0 One-on-One | `$232B` | `$2AC8` | 4 | `and $03` |
+| 1 Free Throw | `$235F` | `$2AD0` | 1 | none |
+| 2 H-O-R-S-E | `$236A` | `$2AD2` | 1 | none |
+| 3 Accuracy | `$2374` | `$2AD4` | 3 | explicit compares |
+| 4 Tournament | `$2330` | `$2ADA` | 4 | `and $03` |
+
+`$232B` and `$2330` differ only in which table they load and then share the body
+at `$2333`; `$2AC8` and `$2ADA` happen to hold the same four `(y,x)` pairs. Up
+(`$FFAE` bit 6) is tested before Down (bit 7), so pressing both moves up.
+
+The two four-row modes wrap with `and $03`, while the three-row mode compares
+against `$03` going forward and `$FF` going back — two different wrap idioms in
+handlers that are otherwise identical.
+
+Run:
+
+```powershell
+.uildllstar_port.exe --test-shell
 ```

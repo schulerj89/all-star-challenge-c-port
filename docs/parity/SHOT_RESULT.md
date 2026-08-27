@@ -129,3 +129,47 @@ Run:
 ```powershell
 .\build\allstar_port.exe --test-court-state
 ```
+
+## The court clocks, `$79EE` and `$7A71`
+
+Three clocks, each a little-endian pair with **BCD seconds in the low byte and
+BCD minutes in the high byte**, each gated by one bit of `$C0BD`:
+
+| clock | enable bit |
+|---|---|
+| `$C0B6/$C0B7` game | 0 |
+| `$C0B8/$C0B9` player 1 | 1 |
+| `$C0BA/$C0BB` player 2 | 2 |
+
+`$C0BC` counts twenty calls between ticks. `$FFEB` or `$C12E` stops everything.
+
+Possession in `$FFCF` decides which player clock runs. The player *without* the
+ball has theirs reset to `$24` — twenty-four seconds, the shot clock — and its
+enable bit cleared, so only one of the two ever advances. Accuracy (`$FF8F ==
+$03`) or a loose ball resets both. Bit 0 is preserved through all of it, because
+the game clock is enabled elsewhere.
+
+`$7A71` is the shared step: seconds down by one in BCD, wrapping to `$59` with a
+minute borrow, and a clock already reading `00:00` is left alone. Both `daa`
+sites are reached with carry clear and with a non-zero operand, so the only
+adjustment that ever fires is the half-carry subtract of six.
+
+The warning at `$7A38` plays sound `$0B` while the game clock shows no minutes
+and its seconds read below `$12` — but not at exactly 1.
+
+### A latent ROM bug
+
+`$7A3A` and `$7A3E` test for modes `$01` and `$02` and branch to `$7A5A`, which
+is a `pop hl` with **no matching `push`**. On the cartridge that would take the
+return address into HL and then return through whatever was underneath it.
+
+It is unreachable in practice: bit 0 of `$C0BD` is never set in Free Throw or
+H-O-R-S-E, so `$7A34` always branches away before those tests run. The port
+reproduces the branch — no warning for those modes — without the stack damage,
+which is identical behaviour everywhere the ROM can actually reach.
+
+Run:
+
+```powershell
+.\build\allstar_port.exe --test-game-clock
+```

@@ -13,6 +13,7 @@
 #include "allstar_select.h"
 #include "allstar_shot_result.h"
 #include "allstar_court_state.h"
+#include "allstar_game_clock.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2250,6 +2251,124 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM court clocks, from the bank 1 $79EE..$7A70 and $7A71..$7A8F
+ * disassembly.
+ */
+int allstar_cli_test_game_clock_rom(void) {
+    AllStarClockOwnership own;
+    uint8_t counter;
+    int i;
+
+    printf("[Test] Running ROM Court Clock Tests ($79EE/$7A71)...\n");
+
+    /* $79EE: either flag stops the clocks. */
+    if (allstar_clock_suppressed(0u, 0u) ||
+        !allstar_clock_suppressed(1u, 0u) ||
+        !allstar_clock_suppressed(0u, 1u)) {
+        fprintf(stderr, "[Test] $79F1 suppression diverged\n");
+        return 1;
+    }
+
+    /* $79FC: Accuracy resets both clocks and runs neither. */
+    allstar_clock_ownership(0x03u, 1u, ALLSTAR_CLOCK_ENABLE_GAME, &own);
+    if (!own.resets_player_1 || !own.resets_player_2 ||
+        own.enable != ALLSTAR_CLOCK_ENABLE_GAME) {
+        fprintf(stderr, "[Test] $7A05 accuracy path gave enable $%02X\n", own.enable);
+        return 1;
+    }
+    /* No possession does the same in any mode. */
+    allstar_clock_ownership(0x00u, 0u, ALLSTAR_CLOCK_ENABLE_GAME, &own);
+    if (!own.resets_player_1 || !own.resets_player_2 ||
+        own.enable != ALLSTAR_CLOCK_ENABLE_GAME) {
+        fprintf(stderr, "[Test] $7A03 loose-ball path diverged\n");
+        return 1;
+    }
+    /* Player 1 holding: player 2's clock resets, player 1's runs. */
+    allstar_clock_ownership(0x00u, 0x01u, ALLSTAR_CLOCK_ENABLE_GAME, &own);
+    if (own.resets_player_1 || !own.resets_player_2 ||
+        own.enable != (ALLSTAR_CLOCK_ENABLE_GAME | ALLSTAR_CLOCK_ENABLE_PLAYER_1)) {
+        fprintf(stderr, "[Test] $7A15 player 1 possession gave enable $%02X\n", own.enable);
+        return 1;
+    }
+    /* Player 2 holding is the mirror. */
+    allstar_clock_ownership(0x00u, 0x02u, ALLSTAR_CLOCK_ENABLE_GAME, &own);
+    if (!own.resets_player_1 || own.resets_player_2 ||
+        own.enable != (ALLSTAR_CLOCK_ENABLE_GAME | ALLSTAR_CLOCK_ENABLE_PLAYER_2)) {
+        fprintf(stderr, "[Test] $7A1E player 2 possession gave enable $%02X\n", own.enable);
+        return 1;
+    }
+    /* $7A25 keeps bit 0 and replaces bits 1 and 2, whatever they were. */
+    allstar_clock_ownership(0x00u, 0x01u, 0x07u, &own);
+    if (own.enable != (ALLSTAR_CLOCK_ENABLE_GAME | ALLSTAR_CLOCK_ENABLE_PLAYER_1)) {
+        fprintf(stderr, "[Test] $7A26 did not mask the old enable bits\n");
+        return 1;
+    }
+    allstar_clock_ownership(0x00u, 0x01u, 0x00u, &own);
+    if (own.enable != ALLSTAR_CLOCK_ENABLE_PLAYER_1) {
+        fprintf(stderr, "[Test] $7A26 invented a game-clock bit\n");
+        return 1;
+    }
+
+    /* $7A2A: twenty calls per tick. */
+    counter = ALLSTAR_CLOCK_TICK_RELOAD;
+    for (i = 0; i < ALLSTAR_CLOCK_TICK_RELOAD - 1; i++) {
+        if (allstar_clock_tick(&counter)) {
+            fprintf(stderr, "[Test] $7A2E ticked early at call %d\n", i);
+            return 1;
+        }
+    }
+    if (!allstar_clock_tick(&counter) || counter != ALLSTAR_CLOCK_TICK_RELOAD) {
+        fprintf(stderr, "[Test] $7A2F reload diverged, counter %u\n", counter);
+        return 1;
+    }
+
+    /* $7A71: BCD seconds step down. */
+    if (allstar_clock_decrement(0x0024u) != 0x0023u ||
+        allstar_clock_decrement(0x0020u) != 0x0019u ||
+        allstar_clock_decrement(0x0010u) != 0x0009u ||
+        allstar_clock_decrement(0x0001u) != 0x0000u) {
+        fprintf(stderr, "[Test] $7A7E BCD seconds decrement diverged\n");
+        return 1;
+    }
+    /* A minute borrow wraps the seconds to $59. */
+    if (allstar_clock_decrement(0x0100u) != 0x0059u ||
+        allstar_clock_decrement(0x1000u) != 0x0959u) {
+        fprintf(stderr, "[Test] $7A83 minute borrow gave $%04X\n",
+                allstar_clock_decrement(0x0100u));
+        return 1;
+    }
+    /* A clock already at zero is left alone. */
+    if (allstar_clock_decrement(0x0000u) != 0x0000u) {
+        fprintf(stderr, "[Test] $7A78 decremented a stopped clock\n");
+        return 1;
+    }
+
+    /* $7A4E: the warning fires below $12, but never at exactly 1. */
+    if (allstar_clock_warns(0x00u, 0x0012u) ||
+        !allstar_clock_warns(0x00u, 0x0011u) ||
+        !allstar_clock_warns(0x00u, 0x0002u) ||
+        allstar_clock_warns(0x00u, 0x0001u)) {
+        fprintf(stderr, "[Test] $7A52 warning window diverged\n");
+        return 1;
+    }
+    /* Any minutes left means no warning. */
+    if (allstar_clock_warns(0x00u, 0x0105u)) {
+        fprintf(stderr, "[Test] $7A4B warned with minutes remaining\n");
+        return 1;
+    }
+    /* Modes $01 and $02 take the branch that skips the sound. */
+    if (allstar_clock_warns(0x01u, 0x0005u) || allstar_clock_warns(0x02u, 0x0005u)) {
+        fprintf(stderr, "[Test] $7A3C mode branch diverged\n");
+        return 1;
+    }
+
+    printf("  possession resets the other player's clock to $24 and clears its enable bit\n");
+    printf("  $7A71 steps BCD seconds down, wrapping to $59 with a minute borrow\n");
+    printf("[Test] PASSED: $79EE, $7A71\n");
     return 0;
 }
 
@@ -5863,6 +5982,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_select_records_rom();
     failed += allstar_cli_test_shot_result_rom();
     failed += allstar_cli_test_court_state_rom();
+    failed += allstar_cli_test_game_clock_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5983,6 +6103,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_shot_result_rom();
     } else if (strcmp(cmd, "--test-court-state") == 0) {
         return allstar_cli_test_court_state_rom();
+    } else if (strcmp(cmd, "--test-game-clock") == 0) {
+        return allstar_cli_test_game_clock_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

@@ -79,3 +79,17 @@ Run:
 ```powershell
 .\build\allstar_port.exe --test-link
 ```
+
+## The outgoing half starts at `$2639`
+
+`$2FD0` transmits `$C16E`, and `$C16E` is written by the joypad poll at
+`$2666`: in a link game the freshly polled byte is swapped into it and the
+previous byte is carried on in C. See `JOYPAD.md`. The full round trip is
+
+```
+$2639 polls -> $C16E -> $2FD0 sends -> the peer's $007B receives into $C19B
+      -> $267F injects it into the other pad slot
+```
+
+`--test-pad` proves the coupling by feeding the dispatch result straight into
+`allstar_link_transmit` rather than by comparing constants.

@@ -31,6 +31,16 @@ source file references its address. `parity/TOURNAMENT.md` records what the
 disassembly established, including several behaviours the earlier scaffolding
 had wrong.
 
+### The button packing is now settled from hardware
+
+`$2639`, the joypad poll, is ported (`parity/JOYPAD.md`). It selects the
+direction row, `swap`s it into the high nibble, then ORs the button row in low,
+so the assembled byte is bit 0 A, 1 B, 2 Select, 3 Start, 4 Right, 5 Left,
+6 Up, 7 Down. Every raw mask elsewhere in the port was inferred from usage
+before this; `--test-pad` now asserts each of them against the layout the
+hardware read produces, and they all agree. Note that this is **not**
+`AllStarButtonMask`, which is very nearly its reverse.
+
 ## Executive Result
 
 For the current reviewed function inventory, verified Ghidra-to-C routine coverage is **67/145 (46.21%)**. All 145 entry points have stable bank-aware symbols and decompile successfully; 40 are explicitly unmapped, 38 have candidate native analogues, and 67 mappings are verified by deterministic tests and traces. Accuracy now includes the independently recovered `$7749/$7765/$7790/$77A1` HUD writers in addition to fixed `$0B20/$0E51` and its `$6C9B/$6CA2/$6D57` controller helpers. This is a reviewed subset, not a claim that the entire ROM contains only 145 functions.

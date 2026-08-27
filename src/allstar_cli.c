@@ -25,6 +25,7 @@
 #include "allstar_boot.h"
 #include "allstar_handshake.h"
 #include "allstar_session.h"
+#include "allstar_pad.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2262,6 +2263,143 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM joypad poll, from the $2639..$267D disassembly.
+ */
+int allstar_cli_test_pad_rom(void) {
+    AllStarPadDispatch dispatch;
+
+    printf("[Test] Running ROM Joypad Tests ($2639)...\n");
+
+    /* $263D and $264B settle the two rows differently. */
+    if (allstar_pad_settle_reads(ALLSTAR_PAD_SELECT_DIRECTIONS) != 2 ||
+        allstar_pad_settle_reads(ALLSTAR_PAD_SELECT_BUTTONS) != 6) {
+        fprintf(stderr, "[Test] $264B settle counts diverged\n");
+        return 1;
+    }
+
+    /* $2641: both rows are active-low, so nothing pressed reads as $00. */
+    if (allstar_pad_assemble(0x0Fu, 0x0Fu) != 0x00u) {
+        fprintf(stderr, "[Test] $2642 idle pad did not read zero\n");
+        return 1;
+    }
+    if (allstar_pad_assemble(0x00u, 0x00u) != 0xFFu) {
+        fprintf(stderr, "[Test] $2658 all-pressed did not read $FF\n");
+        return 1;
+    }
+
+    /*
+     * $2644: the direction row is swapped into the high nibble and the button
+     * row stays low.  That is what puts A at bit 0 and Right at bit 4.
+     */
+    if (allstar_pad_assemble(0x0Fu, 0x0Eu) != ALLSTAR_PAD_A) {
+        fprintf(stderr, "[Test] A landed at $%02X, expected bit 0\n",
+                allstar_pad_assemble(0x0Fu, 0x0Eu));
+        return 1;
+    }
+    if (allstar_pad_assemble(0x0Fu, 0x07u) != ALLSTAR_PAD_START) {
+        fprintf(stderr, "[Test] Start landed at $%02X, expected bit 3\n",
+                allstar_pad_assemble(0x0Fu, 0x07u));
+        return 1;
+    }
+    if (allstar_pad_assemble(0x0Eu, 0x0Fu) != ALLSTAR_PAD_RIGHT) {
+        fprintf(stderr, "[Test] Right landed at $%02X, expected bit 4\n",
+                allstar_pad_assemble(0x0Eu, 0x0Fu));
+        return 1;
+    }
+    if (allstar_pad_assemble(0x07u, 0x0Fu) != ALLSTAR_PAD_DOWN) {
+        fprintf(stderr, "[Test] Down landed at $%02X, expected bit 7\n",
+                allstar_pad_assemble(0x07u, 0x0Fu));
+        return 1;
+    }
+
+    /*
+     * The masks other routines use have to agree with that layout, or every
+     * one of them is reading the wrong buttons.
+     */
+    if (ALLSTAR_SELECT_CONFIRM_MASK != (ALLSTAR_PAD_SELECT | ALLSTAR_PAD_START)) {
+        fprintf(stderr, "[Test] $410F does not confirm on Select or Start\n");
+        return 1;
+    }
+    if (ALLSTAR_SELECT_MOVE_MASK !=
+        (ALLSTAR_PAD_A | ALLSTAR_PAD_B | ALLSTAR_PAD_RIGHT | ALLSTAR_PAD_LEFT)) {
+        fprintf(stderr, "[Test] $4119 does not move on A, B, Right or Left\n");
+        return 1;
+    }
+    if (ALLSTAR_SELECT_BACK_MASK != (ALLSTAR_PAD_B | ALLSTAR_PAD_LEFT)) {
+        fprintf(stderr, "[Test] $4127 does not step back on B or Left\n");
+        return 1;
+    }
+    if (ALLSTAR_COURT_PAUSE_BUTTON != ALLSTAR_PAD_START) {
+        fprintf(stderr, "[Test] $2BC6 does not pause on Start\n");
+        return 1;
+    }
+    if (ALLSTAR_SETTINGS_UP_MASK != ALLSTAR_PAD_UP ||
+        ALLSTAR_SETTINGS_DOWN_MASK != ALLSTAR_PAD_DOWN) {
+        fprintf(stderr, "[Test] $233A does not move on Up and Down\n");
+        return 1;
+    }
+    if (ALLSTAR_MENU_CONFIRM_MASK != ALLSTAR_PAD_START) {
+        fprintf(stderr, "[Test] $03D4 does not confirm on Start\n");
+        return 1;
+    }
+    if (ALLSTAR_RESET_COMBO !=
+        (ALLSTAR_PAD_A | ALLSTAR_PAD_B | ALLSTAR_PAD_SELECT | ALLSTAR_PAD_START)) {
+        fprintf(stderr, "[Test] $2D25 is not the four-button combo\n");
+        return 1;
+    }
+
+    /* $2663: a solo game keeps the byte and sends nothing. */
+    allstar_pad_dispatch(0u, 0u, 0x3Cu, 0x11u, &dispatch);
+    if (dispatch.route != ALLSTAR_PAD_ROUTE_LOCAL || dispatch.stores_outgoing ||
+        dispatch.calls_link_update) {
+        fprintf(stderr, "[Test] $2664 solo path diverged\n");
+        return 1;
+    }
+
+    /*
+     * $2666: the fresh byte is swapped into $C16E and the previous one carried
+     * on.  $C16E is exactly what $2FD0 transmits for roles $02 and $03.
+     */
+    allstar_pad_dispatch(0x01u, 0u, 0x3Cu, 0x11u, &dispatch);
+    if (!dispatch.stores_outgoing || dispatch.outgoing != 0x3Cu ||
+        dispatch.carried != 0x11u) {
+        fprintf(stderr, "[Test] $266E swap diverged, out $%02X carried $%02X\n",
+                dispatch.outgoing, dispatch.carried);
+        return 1;
+    }
+    {
+        AllStarLinkTransmit tx;
+        allstar_link_transmit(1u, 0x02u, dispatch.outgoing, 0u, &tx);
+        if (tx.kind != ALLSTAR_LINK_TX_STATE || tx.byte != 0x3Cu) {
+            fprintf(stderr, "[Test] $2FF1 did not send the byte $2639 stored\n");
+            return 1;
+        }
+    }
+
+    /* $266F: the link update only runs in a link game. */
+    if (dispatch.calls_link_update) {
+        fprintf(stderr, "[Test] $2673 ran the link update outside a link game\n");
+        return 1;
+    }
+    allstar_pad_dispatch(0x01u, 1u, 0x3Cu, 0x11u, &dispatch);
+    if (!dispatch.calls_link_update || dispatch.route != ALLSTAR_PAD_ROUTE_LINK) {
+        fprintf(stderr, "[Test] $2673 link update diverged\n");
+        return 1;
+    }
+    /* $2679: role $03 takes the other exit. */
+    allstar_pad_dispatch(0x03u, 1u, 0x3Cu, 0x11u, &dispatch);
+    if (dispatch.route != ALLSTAR_PAD_ROUTE_LINK_ROLE_3) {
+        fprintf(stderr, "[Test] $267B role 3 exit diverged\n");
+        return 1;
+    }
+
+    printf("  directions swap into the high nibble, buttons stay low: A is bit 0, Right bit 4\n");
+    printf("  every raw mask in the port is checked against that layout, not just described\n");
+    printf("[Test] PASSED: $2639\n");
     return 0;
 }
 
@@ -7491,6 +7629,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_boot_rom();
     failed += allstar_cli_test_handshake_rom();
     failed += allstar_cli_test_session_rom();
+    failed += allstar_cli_test_pad_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7631,6 +7770,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_handshake_rom();
     } else if (strcmp(cmd, "--test-session") == 0) {
         return allstar_cli_test_session_rom();
+    } else if (strcmp(cmd, "--test-pad") == 0) {
+        return allstar_cli_test_pad_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

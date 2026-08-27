@@ -31,6 +31,7 @@ tools/GhidraBoy/
 *.sav
 *.sgm
 *.wav
+*.html
 assets/audio/
 build/assets/audio/
 

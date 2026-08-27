@@ -128,3 +128,56 @@ bool allstar_cpu_spot(uint8_t ball_height, uint8_t value, AllStarCpuTarget *out)
     *out = table[index];
     return true;
 }
+
+/* $7476 and $749E */
+void allstar_cpu_steer_source(AllStarCpuSteer which, uint16_t *coarse, uint16_t *fine) {
+    if (which == ALLSTAR_CPU_STEER_BALL) {
+        if (coarse) *coarse = ALLSTAR_CPU_BALL_COARSE;              /* $7476 */
+        if (fine) *fine = ALLSTAR_CPU_BALL_FINE;                    /* $747A */
+        return;
+    }
+    if (coarse) *coarse = ALLSTAR_CPU_TARGET_X;                     /* $749E */
+    if (fine) *fine = ALLSTAR_CPU_TARGET_Y;                         /* $74A2 */
+}
+
+/* $7481..$7495 */
+bool allstar_cpu_requests_action(uint8_t gate, uint8_t ball_state,
+                                 uint8_t roll, uint8_t threshold) {
+    if (gate == 0) return false;                                    /* $7484-$7485 */
+    if (ball_state < ALLSTAR_CPU_BALL_MIN) return false;            /* $7489-$748B */
+    return roll < threshold;                                        /* $7494-$7495 */
+}
+
+/* $7496..$749D */
+uint8_t allstar_cpu_action_request(uint8_t base) {
+    return (uint8_t)(base | ALLSTAR_CPU_REQUEST_BIT);
+}
+
+/* $7443..$7473 */
+bool allstar_cpu_face_opponent(uint8_t roll, uint8_t own_coarse, uint8_t other_coarse,
+                               AllStarCpuFacing *out) {
+    if (!out) return false;
+    if (roll >= ALLSTAR_CPU_FACE_ROLL_MAX) return false;            /* $7445-$7447 */
+
+    /* $745A: `cp [hl]` compares the opponent against us. */
+    out->facing = (other_coarse < own_coarse) ? 0x01u : 0x02u;
+    out->commit_frames = ALLSTAR_CPU_FACE_COMMIT;                   /* $7468 */
+    return true;
+}
+
+/* $7431..$7441 */
+AllStarCpuHold allstar_cpu_hold(uint8_t *frames) {
+    if (!frames) return ALLSTAR_CPU_HOLD_EXPIRED;
+    if (*frames == 0) return ALLSTAR_CPU_HOLD_EXPIRED;              /* $7434-$7435 */
+    *frames = (uint8_t)(*frames - 1u);                              /* $7437-$743A */
+    return ALLSTAR_CPU_HOLD_RUNNING;
+}
+
+/* $7411..$742D */
+bool allstar_cpu_release(uint8_t field_0f, uint8_t roll, uint8_t counter) {
+    if (field_0f != ALLSTAR_CPU_RELEASE_STATE &&                    /* $7416-$7418 */
+        roll < ALLSTAR_CPU_RELEASE_ROLL) {                          /* $741C-$741E */
+        return true;                                                /* $7425 */
+    }
+    return counter == 1u;                                           /* $7420-$7424 */
+}

@@ -2447,9 +2447,115 @@ int allstar_cli_test_cpu_target_rom(void) {
         return 1;
     }
 
+
+    /* $7476 and $749E hand $74BB two different pairs. */
+    {
+        uint16_t coarse;
+        uint16_t fine;
+        allstar_cpu_steer_source(ALLSTAR_CPU_STEER_BALL, &coarse, &fine);
+        if (coarse != ALLSTAR_CPU_BALL_COARSE || fine != ALLSTAR_CPU_BALL_FINE) {
+            fprintf(stderr, "[Test] $7476 steer source diverged\n");
+            return 1;
+        }
+        allstar_cpu_steer_source(ALLSTAR_CPU_STEER_TARGET, &coarse, &fine);
+        if (coarse != ALLSTAR_CPU_TARGET_X || fine != ALLSTAR_CPU_TARGET_Y) {
+            fprintf(stderr, "[Test] $749E did not consume the stored target\n");
+            return 1;
+        }
+    }
+
+    /* $7481: three gates, each of which alone blocks the request. */
+    if (!allstar_cpu_requests_action(1u, 0x30u, 0x05u, 0x19u)) {
+        fprintf(stderr, "[Test] $7495 refused a request that should pass\n");
+        return 1;
+    }
+    if (allstar_cpu_requests_action(0u, 0x30u, 0x05u, 0x19u)) {
+        fprintf(stderr, "[Test] $7485 passed with the gate clear\n");
+        return 1;
+    }
+    if (allstar_cpu_requests_action(1u, 0x27u, 0x05u, 0x19u)) {
+        fprintf(stderr, "[Test] $748B passed below the $28 ball state\n");
+        return 1;
+    }
+    if (allstar_cpu_requests_action(1u, 0x28u, 0x19u, 0x19u)) {
+        fprintf(stderr, "[Test] $7495 passed on a roll equal to the threshold\n");
+        return 1;
+    }
+
+    /* $7499 forces bit 0 on without disturbing the rest. */
+    if (allstar_cpu_action_request(0x00u) != 0x01u ||
+        allstar_cpu_action_request(0x0Eu) != 0x0Fu ||
+        allstar_cpu_action_request(0x01u) != 0x01u) {
+        fprintf(stderr, "[Test] $7499 request byte diverged\n");
+        return 1;
+    }
+
+    /* $7443: a high roll skips the facing decision entirely. */
+    {
+        AllStarCpuFacing facing;
+        if (allstar_cpu_face_opponent(ALLSTAR_CPU_FACE_ROLL_MAX, 0x40u, 0x20u, &facing)) {
+            fprintf(stderr, "[Test] $7447 did not skip on a high roll\n");
+            return 1;
+        }
+        /* An opponent below us faces $01, above us faces $02. */
+        if (!allstar_cpu_face_opponent(0x00u, 0x40u, 0x20u, &facing) ||
+            facing.facing != 0x01u || facing.commit_frames != ALLSTAR_CPU_FACE_COMMIT) {
+            fprintf(stderr, "[Test] $7461 facing diverged, got %u\n", facing.facing);
+            return 1;
+        }
+        if (!allstar_cpu_face_opponent(0x00u, 0x20u, 0x40u, &facing) || facing.facing != 0x02u) {
+            fprintf(stderr, "[Test] $745D facing diverged\n");
+            return 1;
+        }
+        /* Equal positions take the $02 branch, since `cp` clears carry. */
+        if (!allstar_cpu_face_opponent(0x00u, 0x40u, 0x40u, &facing) || facing.facing != 0x02u) {
+            fprintf(stderr, "[Test] $745B equal case diverged\n");
+            return 1;
+        }
+    }
+
+    /* $7431: the commit counts down before anything else may run. */
+    {
+        uint8_t frames = 2u;
+        if (allstar_cpu_hold(&frames) != ALLSTAR_CPU_HOLD_RUNNING || frames != 1u) {
+            fprintf(stderr, "[Test] $7437 hold did not tick\n");
+            return 1;
+        }
+        if (allstar_cpu_hold(&frames) != ALLSTAR_CPU_HOLD_RUNNING || frames != 0u) {
+            fprintf(stderr, "[Test] $7437 hold ended early\n");
+            return 1;
+        }
+        if (allstar_cpu_hold(&frames) != ALLSTAR_CPU_HOLD_EXPIRED || frames != 0u) {
+            fprintf(stderr, "[Test] $7435 hold did not expire\n");
+            return 1;
+        }
+    }
+
+    /* $7411: an immediate release, or a wait on the $C0FF counter. */
+    if (!allstar_cpu_release(0x00u, 0x05u, 0x00u)) {
+        fprintf(stderr, "[Test] $7425 immediate release diverged\n");
+        return 1;
+    }
+    if (allstar_cpu_release(ALLSTAR_CPU_RELEASE_STATE, 0x05u, 0x00u)) {
+        fprintf(stderr, "[Test] $7418 state $0D must fall through to the counter\n");
+        return 1;
+    }
+    if (!allstar_cpu_release(ALLSTAR_CPU_RELEASE_STATE, 0x05u, 0x01u)) {
+        fprintf(stderr, "[Test] $7423 counter of one did not release\n");
+        return 1;
+    }
+    if (allstar_cpu_release(0x00u, 0x0Au, 0x02u)) {
+        fprintf(stderr, "[Test] $741E a roll of $0A must fall through to the counter\n");
+        return 1;
+    }
+    if (!allstar_cpu_release(0x00u, 0x0Au, 0x01u)) {
+        fprintf(stderr, "[Test] $7423 counter release under a high roll diverged\n");
+        return 1;
+    }
+
     printf("  the first set direction bit wins, and stepping down clamps at zero\n");
     printf("  $7626 gets easier with skill while $7629 gets harder -- they slope opposite ways\n");
-    printf("[Test] PASSED: $7182, $7190, $761B\n");
+    printf("[Test] PASSED: $7182, $7190, $7411, $742E, $7476, $7496, $749E, $761B\n");
     return 0;
 }
 

@@ -88,9 +88,39 @@ Run:
 .\build\allstar_port.exe --test-cpu-target
 ```
 
+## The exits, `$73C9..$74A7`
+
+`$7190`'s three jump targets all live in the block that follows the coordinate
+tables at `$73AD`. They are what finally acts on the target.
+
+**`$749E`** loads `$C102`/`$C101` and hands them to `$74BB`. That is what
+consumes the stored target every other path in this routine computes.
+
+**`$7476`** hands `$74BB` the *ball* instead — `$C0A3`/`$C0A7` — and then puts
+three gates in front of requesting an action: `$C0FD` must be set, `$C0AB` must
+have reached `$28`, and the roll in `$FFFE` must come in under the skill-scaled
+threshold from `$7629`. Passing all three falls through into `$7496`, which sets
+`$FFD2` to the `$C0FE` base with bit 0 forced on.
+
+**`$742E`** is the defensive branch. A commit counter in `$C0F9` counts down
+first and short-circuits to `$749E` while it runs. Once it expires, a roll of
+`$07` or more just steers; below that the two entities' coarse fields are
+compared and the result — `$01` when the opponent is below us, `$02` otherwise,
+with equality taking `$02` because `cp` clears carry — is written to our facing
+field and held for `$32` frames.
+
+**`$7411`** releases immediately when the record field at `$0F` is not `$0D`
+*and* the roll is under `$0A`; otherwise it waits for the `$C0FF` counter to
+reach one.
+
 ## Scope
 
 This ports the decision structure: the dispatch, the entry comparison, the
-cleared state, the three target computations and the difficulty tables. The
-routine also calls `$75CD`, `$74BB`, `$7476` and `$7496`, which remain unported;
-those are named as exits rather than reproduced.
+cleared state, the three target computations, the difficulty tables and the
+three exits above.
+
+`$74BB`, `$75CD` and `$74A8` are **not** included here because they were already
+ported by the earlier Ghidra-backed AI work — `$74BB`'s four-pixel dead zone,
+`$75CD`'s defender threshold and fourteenth-contact response, and `$74A8`'s
+mode-2 target path all have existing tests in `allstar_cli.c`. An earlier note in
+this session listed them as the next thing to port; that was wrong.

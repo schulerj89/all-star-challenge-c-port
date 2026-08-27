@@ -81,4 +81,62 @@ int allstar_cpu_spot_index(uint8_t value);
 /* $7309..$7312: the chosen spot, ready for $C101/$C102. */
 bool allstar_cpu_spot(uint8_t ball_height, uint8_t value, AllStarCpuTarget *out);
 
+/* ---- $73C9..$74A7: the exits $7190 jumps to ---- */
+
+#define ALLSTAR_CPU_BALL_COARSE   0xC0A3u  /* $7476 */
+#define ALLSTAR_CPU_BALL_FINE     0xC0A7u
+#define ALLSTAR_CPU_BALL_MIN      0x28u    /* $7489 */
+#define ALLSTAR_CPU_FACE_COMMIT   0x32u    /* $7468 writes this to $C0F9 */
+#define ALLSTAR_CPU_FACE_ROLL_MAX 0x07u    /* $7445 */
+#define ALLSTAR_CPU_RELEASE_STATE 0x0Du    /* $7416 */
+#define ALLSTAR_CPU_RELEASE_ROLL  0x0Au    /* $741C */
+#define ALLSTAR_CPU_REQUEST_BIT   0x01u    /* $7499 */
+
+typedef enum {
+    ALLSTAR_CPU_STEER_BALL = 0,   /* $7476 aims at $C0A3/$C0A7 */
+    ALLSTAR_CPU_STEER_TARGET      /* $749E aims at $C102/$C101 */
+} AllStarCpuSteer;
+
+/* Which pair $74BB is handed.  $749E is what consumes the stored target. */
+void allstar_cpu_steer_source(AllStarCpuSteer which, uint16_t *coarse, uint16_t *fine);
+
+/*
+ * $7481..$7495.  Three gates stand between chasing the ball and asking for an
+ * action: $C0FD must be set, $C0AB must have reached $28, and the roll in
+ * $FFFE must come in under the skill-scaled threshold from $7629.
+ */
+bool allstar_cpu_requests_action(uint8_t gate, uint8_t ball_state,
+                                 uint8_t roll, uint8_t threshold);
+
+/* $7496..$749D: the request byte is the $C0FE base with bit 0 forced on. */
+uint8_t allstar_cpu_action_request(uint8_t base);
+
+typedef struct {
+    uint8_t facing;         /* $01 when the opponent is below us, else $02 */
+    uint8_t commit_frames;  /* $C0F9 */
+} AllStarCpuFacing;
+
+/*
+ * $7443..$7473.  A roll of $07 or more skips this entirely and just steers.
+ * Otherwise the two coarse fields are compared and the loser's side decides
+ * which way we face, held for $32 frames.
+ */
+bool allstar_cpu_face_opponent(uint8_t roll, uint8_t own_coarse, uint8_t other_coarse,
+                               AllStarCpuFacing *out);
+
+typedef enum {
+    ALLSTAR_CPU_HOLD_RUNNING = 0,  /* $7437, still committed */
+    ALLSTAR_CPU_HOLD_EXPIRED       /* $7443, free to choose again */
+} AllStarCpuHold;
+
+/* $7431..$7441: the $C0F9 commit counts down before anything else happens. */
+AllStarCpuHold allstar_cpu_hold(uint8_t *frames);
+
+/*
+ * $7411..$742D.  The release fires immediately when the record field at $0F is
+ * not $0D and the roll is under $0A; otherwise it waits for the $C0FF counter
+ * to reach one.
+ */
+bool allstar_cpu_release(uint8_t field_0f, uint8_t roll, uint8_t counter);
+
 #endif /* ALLSTAR_CPU_TARGET_H */

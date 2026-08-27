@@ -298,4 +298,62 @@ typedef struct {
 
 void allstar_postgame_bracket(uint8_t stage, AllStarPostgameBracket *out);
 
+/* ---- $147B family: the bracket chooser ($FF8D == $03, dispatched on $C181) ---- */
+
+#define ALLSTAR_POSTGAME_CHOOSER_MASK      0xCBu  /* buttons $1533 accepts   */
+#define ALLSTAR_POSTGAME_CHOOSER_CONFIRM   0x08u  /* $1537, Start            */
+#define ALLSTAR_POSTGAME_CHOOSER_MAX_NAMES 4
+#define ALLSTAR_POSTGAME_CHOOSER_CELLS     6
+#define ALLSTAR_POSTGAME_CHOOSER_ROWS      3
+#define ALLSTAR_POSTGAME_CHOOSER_COLUMN    0x0Bu
+
+/* The four $147B entry points, in table order. */
+typedef enum {
+    ALLSTAR_POSTGAME_CHOOSER_R1_BY_PICKER = 0,  /* $1483 */
+    ALLSTAR_POSTGAME_CHOOSER_R1_RIGHT,          /* $14B6 */
+    ALLSTAR_POSTGAME_CHOOSER_R2_BY_PICKER,      /* $1493 */
+    ALLSTAR_POSTGAME_CHOOSER_R2_RIGHT           /* $14BD */
+} AllStarPostgameChooserEntry;
+
+typedef struct {
+    uint16_t slot;   /* bracket byte, walked backwards from the list end */
+    uint8_t d;
+    uint8_t e;
+} AllStarPostgameChooserName;
+
+typedef struct {
+    uint16_t list_end;    /* HL on entry                                    */
+    bool pair_only;       /* B: false lists four names, true lists two      */
+    uint8_t sound;        /* $0F, $10, $11 or $12                           */
+    uint8_t count;
+    AllStarPostgameChooserName names[ALLSTAR_POSTGAME_CHOOSER_MAX_NAMES];
+} AllStarPostgameChooser;
+
+/* $1483/$14B6/$1493/$14BD into the shared $14C2..$150C body. */
+void allstar_postgame_chooser(AllStarPostgameChooserEntry entry, uint8_t player_count,
+                              uint8_t picker, AllStarPostgameChooser *out);
+
+/* $1521..$1531: whose new-input byte the loop reads. */
+uint8_t allstar_postgame_chooser_buttons(uint8_t player_count, uint8_t picker,
+                                         uint8_t player_1_new, uint8_t player_2_new);
+
+typedef enum {
+    ALLSTAR_POSTGAME_CHOOSER_IDLE = 0,
+    ALLSTAR_POSTGAME_CHOOSER_TOGGLED,
+    ALLSTAR_POSTGAME_CHOOSER_CONFIRMED
+} AllStarPostgameChooserInput;
+
+/* $151B..$1553: one pass of the selection loop. */
+AllStarPostgameChooserInput allstar_postgame_chooser_step(uint8_t hold_lock, uint8_t buttons,
+                                                          uint8_t *selection);
+
+typedef struct {
+    uint16_t source;   /* the row art the ROM points HL at */
+    uint8_t d;
+    uint8_t e;
+} AllStarPostgameChooserCell;
+
+/* $1554..$15AA: two three-row boxes that swap rows as the selection moves. */
+int allstar_postgame_chooser_layout(uint8_t selection, AllStarPostgameChooserCell *out, int max);
+
 #endif /* ALLSTAR_POSTGAME_H */

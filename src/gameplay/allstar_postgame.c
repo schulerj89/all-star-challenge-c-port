@@ -584,3 +584,128 @@ void allstar_postgame_bracket(uint8_t stage, AllStarPostgameBracket *out) {
         out->entries[i].e = (uint8_t)(first_row + (uint8_t)(i * 2u));
     }
 }
+
+/*
+ * $1483/$14B6/$1493/$14BD.  Each entry point picks a bracket list end in HL and
+ * a flag in B, then falls into the shared body.  B decides how many names get
+ * drawn: zero lists four, walking HL backwards into rows 10, 8, 6 and 4; one
+ * lists just the pair in rows 6 and 4.  $C184 selects which side the two
+ * "by picker" entries look at, and the sound differs only for one player.
+ */
+void allstar_postgame_chooser(AllStarPostgameChooserEntry entry, uint8_t player_count,
+                              uint8_t picker, AllStarPostgameChooser *out) {
+    bool picker_is_first;
+    bool one_player;
+    uint8_t i;
+
+    if (!out) return;
+
+    picker_is_first = (picker == 0x01u);
+    one_player = (player_count == 0x01u);
+
+    switch (entry) {
+    case ALLSTAR_POSTGAME_CHOOSER_R1_BY_PICKER:                     /* $1483 */
+        out->list_end = picker_is_first ? 0xC0C2u : 0xC0C6u;
+        out->pair_only = false;
+        out->sound = one_player ? 0x0Fu : (picker_is_first ? 0x11u : 0x12u);
+        break;
+    case ALLSTAR_POSTGAME_CHOOSER_R1_RIGHT:                         /* $14B6 */
+        out->list_end = 0xC0C6u;
+        out->pair_only = false;
+        out->sound = one_player ? 0x10u : (picker_is_first ? 0x11u : 0x12u);
+        break;
+    case ALLSTAR_POSTGAME_CHOOSER_R2_BY_PICKER:                     /* $1493 */
+        out->list_end = picker_is_first ? 0xC0CCu : 0xC0CEu;
+        out->pair_only = true;
+        out->sound = one_player ? 0x0Fu : (picker_is_first ? 0x11u : 0x12u);
+        break;
+    default:                                                        /* $14BD */
+        out->list_end = 0xC0CEu;
+        out->pair_only = true;
+        out->sound = one_player ? 0x10u : (picker_is_first ? 0x11u : 0x12u);
+        break;
+    }
+
+    out->count = out->pair_only ? 2u : 4u;                          /* $14DC-$14DD */
+    for (i = 0; i < out->count; i++) {
+        /* $14DF..$150A: rows count down by two as HL counts down by one. */
+        out->names[i].slot = (uint16_t)(out->list_end - i);
+        out->names[i].d = 0x03u;
+        out->names[i].e = (uint8_t)((out->count * 2u) + 2u - (uint8_t)(i * 2u));
+    }
+    for (i = out->count; i < ALLSTAR_POSTGAME_CHOOSER_MAX_NAMES; i++) {
+        out->names[i].slot = 0;
+        out->names[i].d = 0;
+        out->names[i].e = 0;
+    }
+}
+
+/* $1521..$1531 */
+uint8_t allstar_postgame_chooser_buttons(uint8_t player_count, uint8_t picker,
+                                         uint8_t player_1_new, uint8_t player_2_new) {
+    if (player_count == 0x01u) return player_1_new;                 /* $1524-$1527 */
+    if (picker == 0x01u) return player_1_new;                       /* $1529-$152D */
+    return player_2_new;                                            /* $152F */
+}
+
+/* $151B..$1553 */
+AllStarPostgameChooserInput allstar_postgame_chooser_step(uint8_t hold_lock, uint8_t buttons,
+                                                          uint8_t *selection) {
+    uint8_t accepted;
+
+    if (!selection) return ALLSTAR_POSTGAME_CHOOSER_IDLE;
+    if (hold_lock != 0) return ALLSTAR_POSTGAME_CHOOSER_IDLE;       /* $151C-$151F */
+
+    accepted = (uint8_t)(buttons & ALLSTAR_POSTGAME_CHOOSER_MASK);  /* $1533 */
+    if (accepted == 0) return ALLSTAR_POSTGAME_CHOOSER_IDLE;
+
+    if ((accepted & ALLSTAR_POSTGAME_CHOOSER_CONFIRM) != 0) {       /* $1537 */
+        return ALLSTAR_POSTGAME_CHOOSER_CONFIRMED;
+    }
+
+    *selection = (uint8_t)(*selection ^ 0x01u);                     /* $153B-$1540 */
+    return ALLSTAR_POSTGAME_CHOOSER_TOGGLED;
+}
+
+/*
+ * $1554..$15AA.  Two three-row boxes at column $0B.  The selected one sits at
+ * row $0C and the other at row $0F, and each box's middle row swaps art with
+ * the selection, so both the position and the highlight move together.
+ */
+int allstar_postgame_chooser_layout(uint8_t selection, AllStarPostgameChooserCell *out, int max) {
+    uint8_t first_row;
+    uint8_t second_row;
+    int count = 0;
+    int i;
+
+    if (!out || max <= 0) return 0;
+
+    first_row = (selection == 0) ? 0x0Cu : 0x0Fu;                   /* $1554-$155A */
+    second_row = (selection == 0) ? 0x0Fu : 0x0Cu;                  /* $1581-$1587 */
+
+    {
+        const uint16_t box_one[ALLSTAR_POSTGAME_CHOOSER_ROWS] = {
+            0x15ABu,                                                /* $155E */
+            (selection == 0) ? 0x15B5u : 0x15BFu,                   /* $1567-$1570 */
+            0x15C9u                                                 /* $1578 */
+        };
+        const uint16_t box_two[ALLSTAR_POSTGAME_CHOOSER_ROWS] = {
+            0x15B0u,                                                /* $158B */
+            (selection == 0) ? 0x15C4u : 0x15BAu,                   /* $1594-$159D */
+            0x15CEu                                                 /* $15A5 */
+        };
+        for (i = 0; i < ALLSTAR_POSTGAME_CHOOSER_ROWS && count < max; i++) {
+            out[count].source = box_one[i];
+            out[count].d = ALLSTAR_POSTGAME_CHOOSER_COLUMN;
+            out[count].e = (uint8_t)(first_row + i);
+            count++;
+        }
+        for (i = 0; i < ALLSTAR_POSTGAME_CHOOSER_ROWS && count < max; i++) {
+            out[count].source = box_two[i];
+            out[count].d = ALLSTAR_POSTGAME_CHOOSER_COLUMN;
+            out[count].e = (uint8_t)(second_row + i);
+            count++;
+        }
+    }
+    return count;
+}

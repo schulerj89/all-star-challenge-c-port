@@ -2251,6 +2251,138 @@ int allstar_cli_test_one_on_one_shooting(void) {
 }
 
 /*
+ * ROM bracket chooser, from the $1483..$1553 and $1554..$15AA disassembly.
+ */
+int allstar_cli_test_postgame_chooser_rom(void) {
+    AllStarPostgameChooser chooser;
+    AllStarPostgameChooserCell cells[8];
+    uint8_t selection;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Bracket Chooser Tests ($1483/$14BD/$1554)...\n");
+
+    /* $1483: $C184 picks the side, four names walk back from the list end. */
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R1_BY_PICKER, 1u, 1u, &chooser);
+    if (chooser.list_end != 0xC0C2u || chooser.pair_only || chooser.count != 4u ||
+        chooser.sound != 0x0Fu) {
+        fprintf(stderr, "[Test] $1483 with $C184 == 1 diverged\n");
+        return 1;
+    }
+    {
+        static const uint16_t SLOTS[4] = { 0xC0C2u, 0xC0C1u, 0xC0C0u, 0xC0BFu };
+        static const uint8_t ROWS[4] = { 10u, 8u, 6u, 4u };
+        for (i = 0; i < 4; i++) {
+            if (chooser.names[i].slot != SLOTS[i] || chooser.names[i].d != 0x03u ||
+                chooser.names[i].e != ROWS[i]) {
+                fprintf(stderr, "[Test] Chooser name %d read $%04X at (%u,%u)\n",
+                        i, chooser.names[i].slot, chooser.names[i].d, chooser.names[i].e);
+                return 1;
+            }
+        }
+    }
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R1_BY_PICKER, 2u, 2u, &chooser);
+    if (chooser.list_end != 0xC0C6u || chooser.sound != 0x12u) {
+        fprintf(stderr, "[Test] $148E with $C184 != 1 diverged\n");
+        return 1;
+    }
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R1_BY_PICKER, 2u, 1u, &chooser);
+    if (chooser.sound != 0x11u) {
+        fprintf(stderr, "[Test] $14AA two-player sound diverged\n");
+        return 1;
+    }
+
+    /* $14B6 and $14BD ignore $C184 and use a different one-player sound. */
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R1_RIGHT, 1u, 1u, &chooser);
+    if (chooser.list_end != 0xC0C6u || chooser.sound != 0x10u || chooser.count != 4u) {
+        fprintf(stderr, "[Test] $14B6 diverged\n");
+        return 1;
+    }
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R2_RIGHT, 1u, 1u, &chooser);
+    if (chooser.list_end != 0xC0CEu || !chooser.pair_only || chooser.count != 2u ||
+        chooser.sound != 0x10u) {
+        fprintf(stderr, "[Test] $14BD diverged\n");
+        return 1;
+    }
+    if (chooser.names[0].slot != 0xC0CEu || chooser.names[0].e != 6u ||
+        chooser.names[1].slot != 0xC0CDu || chooser.names[1].e != 4u) {
+        fprintf(stderr, "[Test] $14F7 pair rows diverged\n");
+        return 1;
+    }
+    allstar_postgame_chooser(ALLSTAR_POSTGAME_CHOOSER_R2_BY_PICKER, 2u, 1u, &chooser);
+    if (chooser.list_end != 0xC0CCu || !chooser.pair_only) {
+        fprintf(stderr, "[Test] $1493 diverged\n");
+        return 1;
+    }
+
+    /* $1521: player 2's input is only read in a two-player game she is picking in. */
+    if (allstar_postgame_chooser_buttons(1u, 2u, 0x01u, 0x02u) != 0x01u ||
+        allstar_postgame_chooser_buttons(2u, 1u, 0x01u, 0x02u) != 0x01u ||
+        allstar_postgame_chooser_buttons(2u, 2u, 0x01u, 0x02u) != 0x02u) {
+        fprintf(stderr, "[Test] $1524 input source selection diverged\n");
+        return 1;
+    }
+
+    /* $1533 accepts mask $CB; Start confirms, anything else toggles. */
+    selection = 0u;
+    if (allstar_postgame_chooser_step(1u, ALLSTAR_POSTGAME_CHOOSER_CONFIRM, &selection)
+            != ALLSTAR_POSTGAME_CHOOSER_IDLE || selection != 0u) {
+        fprintf(stderr, "[Test] $151C did not stall while $FFEC was set\n");
+        return 1;
+    }
+    if (allstar_postgame_chooser_step(0u, 0x04u, &selection) != ALLSTAR_POSTGAME_CHOOSER_IDLE ||
+        selection != 0u) {
+        fprintf(stderr, "[Test] $1533 accepted a button outside the $CB mask\n");
+        return 1;
+    }
+    if (allstar_postgame_chooser_step(0u, 0x01u, &selection) != ALLSTAR_POSTGAME_CHOOSER_TOGGLED ||
+        selection != 1u) {
+        fprintf(stderr, "[Test] $153B did not toggle $C181\n");
+        return 1;
+    }
+    if (allstar_postgame_chooser_step(0u, 0x40u, &selection) != ALLSTAR_POSTGAME_CHOOSER_TOGGLED ||
+        selection != 0u) {
+        fprintf(stderr, "[Test] $153E did not toggle $C181 back\n");
+        return 1;
+    }
+    if (allstar_postgame_chooser_step(0u, ALLSTAR_POSTGAME_CHOOSER_CONFIRM, &selection)
+            != ALLSTAR_POSTGAME_CHOOSER_CONFIRMED || selection != 0u) {
+        fprintf(stderr, "[Test] $1537 Start did not confirm\n");
+        return 1;
+    }
+
+    /* $1554: the two boxes swap rows and middle-row art with the selection. */
+    count = allstar_postgame_chooser_layout(0u, cells, 8);
+    if (count != ALLSTAR_POSTGAME_CHOOSER_CELLS ||
+        cells[0].source != 0x15ABu || cells[0].e != 0x0Cu ||
+        cells[1].source != 0x15B5u || cells[1].e != 0x0Du ||
+        cells[2].source != 0x15C9u || cells[2].e != 0x0Eu ||
+        cells[3].source != 0x15B0u || cells[3].e != 0x0Fu ||
+        cells[4].source != 0x15C4u || cells[4].e != 0x10u ||
+        cells[5].source != 0x15CEu || cells[5].e != 0x11u) {
+        fprintf(stderr, "[Test] $1554 layout for selection 0 diverged\n");
+        return 1;
+    }
+    count = allstar_postgame_chooser_layout(1u, cells, 8);
+    if (cells[0].e != 0x0Fu || cells[1].source != 0x15BFu ||
+        cells[3].e != 0x0Cu || cells[4].source != 0x15BAu) {
+        fprintf(stderr, "[Test] $1554 layout for selection 1 diverged\n");
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (cells[i].d != ALLSTAR_POSTGAME_CHOOSER_COLUMN) {
+            fprintf(stderr, "[Test] $1554 cell %d left column $0B\n", i);
+            return 1;
+        }
+    }
+
+    printf("  names list bottom-up in rows 10/8/6/4, or 6/4 for a pair\n");
+    printf("  mask $CB toggles $C181, Start confirms and returns it\n");
+    printf("[Test] PASSED: $1483, $1493, $14B6, $14BD, $1554\n");
+    return 0;
+}
+
+/*
  * ROM VS screen and bracket display, from the $1343..$139A and $139B..$1463
  * disassembly.
  */
@@ -4959,6 +5091,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_postgame_screens_rom();
     failed += allstar_cli_test_postgame_modes_rom();
     failed += allstar_cli_test_postgame_bracket_rom();
+    failed += allstar_cli_test_postgame_chooser_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5067,6 +5200,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_postgame_modes_rom();
     } else if (strcmp(cmd, "--test-postgame-bracket") == 0) {
         return allstar_cli_test_postgame_bracket_rom();
+    } else if (strcmp(cmd, "--test-postgame-chooser") == 0) {
+        return allstar_cli_test_postgame_chooser_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

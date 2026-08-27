@@ -166,6 +166,31 @@ Both lists **interleave the two sides** — `$C0BF`, `$C0C3`, `$C0C0`, `$C0C4`, 
 slot goes through `$1464`, which writes the id to `$FFF6` and calls bank 2
 `$2DD2` to load the record. The screen then holds for `$0384` frames.
 
+### Bracket chooser (chunk 7)
+
+`$146F` dispatches on `$C181` into four entry points that share one body. Each
+picks a bracket list end in HL and a flag in B:
+
+| entry | HL | B | one-player sound |
+|---|---|---|---|
+| `$1483` | `$C0C2` if `$C184 == 1`, else `$C0C6` | 0 | `$0F` |
+| `$14B6` | `$C0C6` | 0 | `$10` |
+| `$1493` | `$C0CC` if `$C184 == 1`, else `$C0CE` | 1 | `$0F` |
+| `$14BD` | `$C0CE` | 1 | `$10` |
+
+With two players the sound is `$11` or `$12` by `$C184` instead. B decides the
+list length: zero draws four names in rows 10, 8, 6, 4; one draws the pair in
+rows 6 and 4 — always column 3, and always **walking HL backwards**, so the
+list reads bottom-up.
+
+The body then runs a two-option toggle. `$1521` reads player 1's new input
+unless this is a two-player game where `$C184` says player 2 is choosing, and
+`$1533` masks it with `$CB`. Start (`$08`) confirms and returns `$C181`;
+any other accepted bit flips `$C181` between 0 and 1, redraws through `$1554`
+and blips `$2AB5`. `$1554` draws two three-row boxes at column `$0B`, the
+selected one at row `$0C` and the other at row `$0F`, swapping the middle-row
+art so position and highlight move together.
+
 Run:
 
 ```powershell
@@ -174,6 +199,7 @@ Run:
 .\build\allstar_port.exe --test-postgame-screens
 .\build\allstar_port.exe --test-postgame-modes
 .\build\allstar_port.exe --test-postgame-bracket
+.\build\allstar_port.exe --test-postgame-chooser
 python tools\check_tournament_rom_coverage.py
 ```
 

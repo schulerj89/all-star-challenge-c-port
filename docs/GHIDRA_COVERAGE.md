@@ -1,6 +1,35 @@
 # NBA All-Star Challenge — Ghidra-to-C Coverage Audit
 
-Last audited: **2026-08-16**
+Last audited: **2026-08-16**. Amended **2026-08-26**, see below.
+
+## Amendment, 2026-08-26: the denominator was wrong
+
+An independent pass rebuilt the ROM byte-exactly from `disassembly/bank_*.asm`
+and walked it by recursive descent from the reset and interrupt vectors,
+tracking the MBC1 bank through the `rst $20` trampoline and decoding the
+`rst $08` / `rst $10` pointer tables. That produces a routine inventory that
+does not depend on what anyone had already noticed, and it says:
+
+- The cartridge holds about **17.3 KB of executable code in ~310 routines**.
+  The other three quarters of the 64 KB is graphics and audio data that
+  `mgbdis` prints as instructions. **Bank 3 contains no executable code at
+  all**, and bank 2 has only its `$4000` selector family.
+- `tools/ghidra/function_seeds.json` lists 145 addresses. Against that trace,
+  127 are genuine routine entry points, 11 land mid-routine, and 7 are not
+  statically reachable — those seven being the Accuracy HUD writers found with
+  Mesen. **165 routines that do execute are absent from the file.**
+
+So every percentage in this document with 145 in the denominator understates
+the work by roughly a factor of two. The figures below are still accurate about
+the reviewed subset; they are simply not a measure of the cartridge.
+
+The largest single gap that pass found was **menu mode `$04`, the tournament**:
+64 routines and 2,961 bytes reachable from no other mode, with almost no native
+implementation. That is being ported in ~10% increments and tracked in
+`parity/TOURNAMENT_ROM_COVERAGE.json`, which counts a routine only when a named
+source file references its address. `parity/TOURNAMENT.md` records what the
+disassembly established, including several behaviours the earlier scaffolding
+had wrong.
 
 ## Executive Result
 

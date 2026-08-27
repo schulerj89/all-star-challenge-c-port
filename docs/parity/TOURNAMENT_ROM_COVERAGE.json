@@ -95,6 +95,19 @@
       ],
       "source": "src/gameplay/allstar_postgame.c",
       "test": ".\build\u0007llstar_port.exe --test-postgame-bracket"
+    },
+    {
+      "id": 7,
+      "title": "Bracket chooser",
+      "routines": [
+        "0:1483",
+        "0:1493",
+        "0:14B6",
+        "0:14BD",
+        "0:1554"
+      ],
+      "source": "src/gameplay/allstar_postgame.c",
+      "test": ".\build\u0007llstar_port.exe --test-postgame-chooser"
     }
   ],
   "routines": [
@@ -280,7 +293,10 @@
       "address": "$1483",
       "bytes": 16,
       "instructions": 7,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 7,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Round 1 chooser entry; $C184 selects which side's list end goes in HL."
     },
     {
       "id": "0:1493",
@@ -288,7 +304,10 @@
       "address": "$1493",
       "bytes": 35,
       "instructions": 17,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 7,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Round 2 chooser entry; $C184 selects $C0CC or $C0CE, pair layout."
     },
     {
       "id": "0:14B6",
@@ -296,7 +315,10 @@
       "address": "$14B6",
       "bytes": 7,
       "instructions": 3,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 7,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Round 1 chooser entry fixed to $C0C6, with the $10 one-player sound."
     },
     {
       "id": "0:14BD",
@@ -304,7 +326,10 @@
       "address": "$14BD",
       "bytes": 151,
       "instructions": 77,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 7,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Shared chooser body: draws the names bottom-up, then runs the $C181 toggle loop."
     },
     {
       "id": "0:1554",
@@ -312,7 +337,10 @@
       "address": "$1554",
       "bytes": 87,
       "instructions": 41,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 7,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Draws the two three-row option boxes, swapping row and art with $C181."
     },
     {
       "id": "0:1638",

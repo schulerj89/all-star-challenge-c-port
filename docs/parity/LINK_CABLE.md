@@ -18,8 +18,14 @@ found in a different chunk and none of them makes sense alone.
 | `$267F` | injects `$C19B` as the remote pad's held state |
 | `$1121`, `$1209` | the postgame screens hand-shake on the `$F0` score-high flags |
 | `$2BC6` | pause posts `$CC` into `$C18E` rather than pausing directly |
+| `$0322` | confirming two players on the title screen assigns `$C199 = $01` |
+| `$0156` | a soft reset posts `$C3` into `$C18E` and waits five vblanks |
 
-`$C199` is this cartridge's role. `$03` means it is player 2.
+`$C199` is this cartridge's role. `$03` means it is player 2, and `$01` is
+assigned at the title screen when two players are chosen — see `BOOT.md`.
+
+`$C18E` carries two protocol bytes: `$CC` for a pause request and `$C3` for a
+reset notice.
 
 ## Receive, `$267F`
 

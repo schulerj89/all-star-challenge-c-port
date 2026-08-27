@@ -22,6 +22,7 @@
 #include "allstar_link.h"
 #include "allstar_cpu_target.h"
 #include "allstar_apu_program.h"
+#include "allstar_boot.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2259,6 +2260,129 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM boot path and title selector, from the $0150..$0212 and $029C..$030D
+ * disassembly.
+ */
+int allstar_cli_test_boot_rom(void) {
+    static const uint16_t PRESERVED[2] = { 0xFFFBu, 0xFFFDu };
+    const AllStarBootRegion *regions;
+    const uint16_t *preserved;
+    AllStarTitleConfirm confirm;
+    uint8_t players;
+    uint16_t countdown;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Boot Tests ($0150/$0156/$02AC)...\n");
+
+    /* $0187/$0195/$01B6: three regions, in this order. */
+    regions = allstar_boot_cleared(&count);
+    if (count != ALLSTAR_BOOT_REGIONS ||
+        regions[0].start != 0xC000u || regions[0].length != 0x02D0u ||
+        regions[1].start != 0xDD72u || regions[1].length != 0x00BDu ||
+        regions[2].start != 0xFF80u || regions[2].length != 0x007Eu) {
+        fprintf(stderr, "[Test] $018D boot clear regions diverged\n");
+        return 1;
+    }
+
+    /*
+     * The RNG seed lives inside the HRAM wipe, which is exactly why $01A8
+     * pushes it first.  If it did not, a soft reset would replay the same game.
+     */
+    preserved = allstar_boot_preserved(&count);
+    if (count != 2 || preserved[0] != PRESERVED[0] || preserved[1] != PRESERVED[1]) {
+        fprintf(stderr, "[Test] $01A8 preserved words diverged\n");
+        return 1;
+    }
+    for (i = 0; i < 2; i++) {
+        if (preserved[i] < regions[2].start ||
+            preserved[i] >= (uint16_t)(regions[2].start + regions[2].length)) {
+            fprintf(stderr, "[Test] $%04X should sit inside the HRAM wipe\n", preserved[i]);
+            return 1;
+        }
+    }
+
+    /* $0156: only a link game in role $02 announces its reset. */
+    if (allstar_boot_entry(true, 1u, ALLSTAR_BOOT_LINK_ROLE) != ALLSTAR_BOOT_COLD) {
+        fprintf(stderr, "[Test] $0150 cold entry diverged\n");
+        return 1;
+    }
+    if (allstar_boot_entry(false, 0u, ALLSTAR_BOOT_LINK_ROLE) != ALLSTAR_BOOT_RESET) {
+        fprintf(stderr, "[Test] $015A announced outside a link game\n");
+        return 1;
+    }
+    if (allstar_boot_entry(false, 1u, 0x01u) != ALLSTAR_BOOT_RESET) {
+        fprintf(stderr, "[Test] $0161 announced from the wrong role\n");
+        return 1;
+    }
+    if (allstar_boot_entry(false, 1u, ALLSTAR_BOOT_LINK_ROLE) != ALLSTAR_BOOT_RESET_NOTIFY) {
+        fprintf(stderr, "[Test] $0163 did not announce the reset\n");
+        return 1;
+    }
+
+    /* $02E4: the player count toggles between one and two. */
+    players = 1u;
+    countdown = ALLSTAR_TITLE_TIMEOUT;
+    if (allstar_title_step(0x01u, &players, &countdown) != ALLSTAR_TITLE_TOGGLED ||
+        players != 2u) {
+        fprintf(stderr, "[Test] $02EA toggle to two diverged, got %u\n", players);
+        return 1;
+    }
+    if (allstar_title_step(0x02u, &players, &countdown) != ALLSTAR_TITLE_TOGGLED ||
+        players != 1u) {
+        fprintf(stderr, "[Test] $02EA toggle back diverged, got %u\n", players);
+        return 1;
+    }
+    /* Toggling does not spend the timeout. */
+    if (countdown != ALLSTAR_TITLE_TIMEOUT) {
+        fprintf(stderr, "[Test] $02E1 spent the countdown on a toggle\n");
+        return 1;
+    }
+    /* A button outside the $33 mask neither toggles nor confirms. */
+    if (allstar_title_step(0x40u, &players, &countdown) != ALLSTAR_TITLE_WAITING ||
+        players != 1u || countdown != (uint16_t)(ALLSTAR_TITLE_TIMEOUT - 1u)) {
+        fprintf(stderr, "[Test] $02DF accepted a button outside the mask\n");
+        return 1;
+    }
+
+    /* $02FE: Start confirms. */
+    if (allstar_title_step(ALLSTAR_TITLE_START_MASK, &players, &countdown)
+            != ALLSTAR_TITLE_CONFIRMED) {
+        fprintf(stderr, "[Test] $0301 Start did not confirm\n");
+        return 1;
+    }
+
+    /* $0304: the counter running out drops into attract. */
+    countdown = 2u;
+    if (allstar_title_step(0x00u, &players, &countdown) != ALLSTAR_TITLE_WAITING ||
+        countdown != 1u) {
+        fprintf(stderr, "[Test] $0304 countdown diverged\n");
+        return 1;
+    }
+    if (allstar_title_step(0x00u, &players, &countdown) != ALLSTAR_TITLE_ATTRACT) {
+        fprintf(stderr, "[Test] $030B did not enter attract\n");
+        return 1;
+    }
+
+    /* $0318: two players start the link handshake and take role $01. */
+    allstar_title_confirm(1u, &confirm);
+    if (confirm.starts_link || confirm.role != 0u) {
+        fprintf(stderr, "[Test] $031C one player must not start the link\n");
+        return 1;
+    }
+    allstar_title_confirm(2u, &confirm);
+    if (!confirm.starts_link || confirm.role != 0x01u || confirm.attempts != 0x0Au) {
+        fprintf(stderr, "[Test] $0322 two-player handshake diverged\n");
+        return 1;
+    }
+
+    printf("  the RNG seed is pushed across the HRAM wipe, so resets do not replay a game\n");
+    printf("  a link reset posts $C3 to $C18E, the same mailbox pause uses for $CC\n");
+    printf("[Test] PASSED: $0150, $0156, $029C, $02AC\n");
     return 0;
 }
 
@@ -7136,6 +7260,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_link_rom();
     failed += allstar_cli_test_cpu_target_rom();
     failed += allstar_cli_test_apu_program_rom();
+    failed += allstar_cli_test_boot_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7270,6 +7395,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_cpu_target_rom();
     } else if (strcmp(cmd, "--test-apu-program") == 0) {
         return allstar_cli_test_apu_program_rom();
+    } else if (strcmp(cmd, "--test-boot") == 0) {
+        return allstar_cli_test_boot_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

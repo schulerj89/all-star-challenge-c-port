@@ -46,6 +46,7 @@ $CommonSources = @(
     "src\gameplay\allstar_accuracy.c",
     "src\gameplay\allstar_tournament.c",
     "src\gameplay\allstar_postgame.c",
+    "src\gameplay\allstar_select.c",
     "src\audio\allstar_audio.c",
     "src\scenes\scene_intro.c",
     "src\scenes\scene_menu.c",

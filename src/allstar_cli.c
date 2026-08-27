@@ -10,6 +10,7 @@
 #include "allstar_accuracy.h"
 #include "allstar_tournament.h"
 #include "allstar_postgame.h"
+#include "allstar_select.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2247,6 +2248,161 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM bank 2 entrant selector, from the $4000..$40F3 and $40F4..$414A
+ * disassembly plus the destination tables at $4358 and $4360.
+ */
+int allstar_cli_test_select_rom(void) {
+    uint8_t index;
+    uint8_t picked[8];
+
+    printf("[Test] Running ROM Entrant Selector Tests ($4000/$4045/$40B1/$40F4)...\n");
+
+    /*
+     * $4358/$4360: the selector writes straight into the bracket slots the
+     * $0F2E driver later reads, which is what ties the two halves together.
+     */
+    if (allstar_select_destination(4u, ALLSTAR_SELECT_PASS_1) != 0xC0BFu ||
+        allstar_select_destination(4u, ALLSTAR_SELECT_PASS_2) != 0xC0C3u ||
+        allstar_select_destination(2u, ALLSTAR_SELECT_PASS_1) != 0xC0CBu ||
+        allstar_select_destination(2u, ALLSTAR_SELECT_PASS_2) != 0xC0CDu ||
+        allstar_select_destination(1u, ALLSTAR_SELECT_PASS_1) != 0xC0D1u ||
+        allstar_select_destination(1u, ALLSTAR_SELECT_PASS_2) != 0xC0D2u) {
+        fprintf(stderr, "[Test] $4358/$4360 destination tables diverged\n");
+        return 1;
+    }
+    if (allstar_select_destination(3u, ALLSTAR_SELECT_PASS_1) != 0x0000u) {
+        fprintf(stderr, "[Test] $4358 slot 2 should be the unused $0000 entry\n");
+        return 1;
+    }
+
+    /* $400F: only a one-player game in mode $01 or $03 skips the second pass. */
+    if (!allstar_select_runs_second_pass(2u, 1u) ||
+        !allstar_select_runs_second_pass(1u, 4u) ||
+        !allstar_select_runs_second_pass(1u, 0u) ||
+        allstar_select_runs_second_pass(1u, 1u) ||
+        allstar_select_runs_second_pass(1u, 3u)) {
+        fprintf(stderr, "[Test] $4012 second-pass gate diverged\n");
+        return 1;
+    }
+
+    /* $406A: the tournament prompt encodes both stage and picker. */
+    if (allstar_select_prompt(4u, 4u, 1u, 2u) != 0x03u ||
+        allstar_select_prompt(4u, 4u, 2u, 2u) != 0x04u ||
+        allstar_select_prompt(4u, 2u, 1u, 2u) != 0x05u ||
+        allstar_select_prompt(4u, 2u, 2u, 2u) != 0x06u ||
+        allstar_select_prompt(4u, 1u, 1u, 2u) != 0x07u ||
+        allstar_select_prompt(4u, 1u, 2u, 2u) != 0x08u) {
+        fprintf(stderr, "[Test] $4083 tournament prompt table diverged\n");
+        return 1;
+    }
+    /* Outside the tournament only the one-player second picker differs. */
+    if (allstar_select_prompt(0u, 4u, 1u, 1u) != 0x01u ||
+        allstar_select_prompt(0u, 4u, 2u, 2u) != 0x01u ||
+        allstar_select_prompt(0u, 4u, 2u, 1u) != 0x02u) {
+        fprintf(stderr, "[Test] $4070 non-tournament prompt diverged\n");
+        return 1;
+    }
+
+    /* $40C4: the duplicate scan spans both passes. */
+    if (allstar_select_scan_length(4u) != 8u || allstar_select_scan_length(1u) != 2u) {
+        fprintf(stderr, "[Test] $40C4 scan length diverged\n");
+        return 1;
+    }
+    picked[0] = 9u; picked[1] = 3u; picked[2] = 14u; picked[3] = 0u;
+    picked[4] = 22u; picked[5] = 7u; picked[6] = 1u; picked[7] = 5u;
+    if (!allstar_select_is_duplicate(picked, 8u, 22u) ||
+        !allstar_select_is_duplicate(picked, 8u, 9u) ||
+        allstar_select_is_duplicate(picked, 8u, 26u)) {
+        fprintf(stderr, "[Test] $40C9 duplicate scan diverged\n");
+        return 1;
+    }
+    /* A shorter stage must not see the later pass's entries. */
+    if (allstar_select_is_duplicate(picked, 2u, 22u)) {
+        fprintf(stderr, "[Test] $40C4 scanned past this stage's entries\n");
+        return 1;
+    }
+
+    /* $4100: player 2's pad is read only when she is picking in a two-player game. */
+    if (allstar_select_buttons(2u, 1u, 0x11u, 0x22u) != 0x11u ||
+        allstar_select_buttons(1u, 2u, 0x11u, 0x22u) != 0x11u ||
+        allstar_select_buttons(2u, 2u, 0x11u, 0x22u) != 0x22u) {
+        fprintf(stderr, "[Test] $4100 input source selection diverged\n");
+        return 1;
+    }
+
+    /* $40F8: $FFEC stalls the loop entirely. */
+    index = 3u;
+    if (allstar_select_step(1u, ALLSTAR_SELECT_CONFIRM_MASK, 27u, &index) != ALLSTAR_SELECT_IDLE ||
+        index != 3u) {
+        fprintf(stderr, "[Test] $40F8 did not stall while $FFEC was set\n");
+        return 1;
+    }
+
+    /* $410F: confirm is tested before movement, and uses held input. */
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_START, 27u, &index) != ALLSTAR_SELECT_CONFIRMED ||
+        index != 3u) {
+        fprintf(stderr, "[Test] $410F Start did not confirm\n");
+        return 1;
+    }
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_SELECT, 27u, &index) != ALLSTAR_SELECT_CONFIRMED) {
+        fprintf(stderr, "[Test] $410F Select did not confirm\n");
+        return 1;
+    }
+    /* Confirm wins even when a movement bit is held at the same time. */
+    if (allstar_select_step(0u, (uint8_t)(ALLSTAR_SELECT_ROM_START | ALLSTAR_SELECT_ROM_RIGHT),
+                            27u, &index) != ALLSTAR_SELECT_CONFIRMED || index != 3u) {
+        fprintf(stderr, "[Test] $410F confirm lost to a movement bit\n");
+        return 1;
+    }
+
+    /* $4119/$4127: A and Right step forward, B and Left step backward. */
+    index = 0u;
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_RIGHT, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 1u) {
+        fprintf(stderr, "[Test] Right did not step forward\n");
+        return 1;
+    }
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_A, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 2u) {
+        fprintf(stderr, "[Test] A did not step forward\n");
+        return 1;
+    }
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_LEFT, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 1u) {
+        fprintf(stderr, "[Test] Left did not step backward\n");
+        return 1;
+    }
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_B, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 0u) {
+        fprintf(stderr, "[Test] B did not step backward\n");
+        return 1;
+    }
+
+    /* $4131/$413C: both sentinels wrap. */
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_LEFT, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 26u) {
+        fprintf(stderr, "[Test] $413C did not wrap to the last entry, index %u\n", index);
+        return 1;
+    }
+    if (allstar_select_step(0u, ALLSTAR_SELECT_ROM_RIGHT, 27u, &index) != ALLSTAR_SELECT_MOVED ||
+        index != 0u) {
+        fprintf(stderr, "[Test] $4131 did not wrap to the first entry, index %u\n", index);
+        return 1;
+    }
+
+    /* Nothing held moves nothing. */
+    if (allstar_select_step(0u, 0x40u, 27u, &index) != ALLSTAR_SELECT_IDLE || index != 0u) {
+        fprintf(stderr, "[Test] $4119 moved on a bit outside the $33 mask\n");
+        return 1;
+    }
+
+    printf("  $4358/$4360 write the picks into $C0BF/$C0C3, $C0CB/$C0CD, $C0D1/$C0D2\n");
+    printf("  cursor reads held input: Select or Start confirms, A/Right forward, B/Left back\n");
+    printf("[Test] PASSED: $4000, $4034, $4045, $4053, $406A, $40B1, $40F4\n");
     return 0;
 }
 
@@ -5092,6 +5248,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_postgame_modes_rom();
     failed += allstar_cli_test_postgame_bracket_rom();
     failed += allstar_cli_test_postgame_chooser_rom();
+    failed += allstar_cli_test_select_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5202,6 +5359,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_postgame_bracket_rom();
     } else if (strcmp(cmd, "--test-postgame-chooser") == 0) {
         return allstar_cli_test_postgame_chooser_rom();
+    } else if (strcmp(cmd, "--test-select-rom") == 0) {
+        return allstar_cli_test_select_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

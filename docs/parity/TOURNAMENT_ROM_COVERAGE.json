@@ -108,6 +108,21 @@
       ],
       "source": "src/gameplay/allstar_postgame.c",
       "test": ".\build\u0007llstar_port.exe --test-postgame-chooser"
+    },
+    {
+      "id": 8,
+      "title": "Bank 2 entrant selector",
+      "routines": [
+        "2:4000",
+        "2:4034",
+        "2:4045",
+        "2:4053",
+        "2:406A",
+        "2:40B1",
+        "2:40F4"
+      ],
+      "source": "src/gameplay/allstar_select.c",
+      "test": ".\build\u0007llstar_port.exe --test-select-rom"
     }
   ],
   "routines": [
@@ -700,7 +715,10 @@
       "address": "$4000",
       "bytes": 52,
       "instructions": 22,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Selector entry; stores the count in $C17F and decides whether a second pass runs."
     },
     {
       "id": "2:4034",
@@ -708,7 +726,10 @@
       "address": "$4034",
       "bytes": 17,
       "instructions": 7,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "First pass: destination table $4358, prompt $2E73, picker 1."
     },
     {
       "id": "2:4045",
@@ -716,7 +737,10 @@
       "address": "$4045",
       "bytes": 14,
       "instructions": 8,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Reads the $C17F-indexed destination table into $C182/$C183."
     },
     {
       "id": "2:4053",
@@ -724,7 +748,10 @@
       "address": "$4053",
       "bytes": 23,
       "instructions": 9,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Runs one pass: sets $C184, points $C0F5 at the candidate list, draws and picks."
     },
     {
       "id": "2:406A",
@@ -732,7 +759,10 @@
       "address": "$406A",
       "bytes": 71,
       "instructions": 36,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Chooses the $2DEA prompt id from the mode, stage and picker."
     },
     {
       "id": "2:40B1",
@@ -740,7 +770,10 @@
       "address": "$40B1",
       "bytes": 67,
       "instructions": 39,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Picking loop with duplicate rejection over both passes; writes through $C182."
     },
     {
       "id": "2:40F4",
@@ -748,7 +781,10 @@
       "address": "$40F4",
       "bytes": 87,
       "instructions": 50,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 8,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Cursor loop over the $FF-bounded list; held input, wraps at both sentinels."
     },
     {
       "id": "2:414B",

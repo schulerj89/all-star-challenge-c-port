@@ -191,6 +191,47 @@ and blips `$2AB5`. `$1554` draws two three-row boxes at column `$0B`, the
 selected one at row `$0C` and the other at row `$0F`, swapping the middle-row
 art so position and highlight move together.
 
+### Bank 2 entrant selector (chunk 8)
+
+This closes the loop the earlier chunks left open. `$2890`, `$2897` and `$28B0`
+fill the candidate list at `$C0D8` and call bank 2 `$4000` with a count in A.
+`$4000` stores it in `$C17F` and runs one or two picking passes, and the
+destination tables at `$4358` and `$4360` turn the count into **the very slots
+`$0F2E` later reads**:
+
+| `$C17F` | pass 1 writes | pass 2 writes | meaning |
+|---|---|---|---|
+| `$04` | `$C0BF` | `$C0C3` | four entrants each, eight in total |
+| `$02` | `$C0CB` | `$C0CD` | two semifinalists each |
+| `$01` | `$C0D1` | `$C0D2` | the two finalists |
+| `$03` | `$0000` | `$0000` | unused |
+
+That is exactly the split-list layout inferred from the driver's two cursors in
+chunk 1, confirmed from the writing side. A one-player game in mode `$01` or
+`$03` runs pass 1 only; everything else runs both.
+
+`$40B1` picks `$C17F` times per pass, and rejects a duplicate by scanning
+`$C17F * 2` entries from the pass-1 base — so a player cannot re-pick someone
+the other player already took. A rejected pick plays sound `$03` and prompt
+`$0B` and retries. `$406A` chooses the prompt from the mode, stage and picker:
+`$03`/`$04` for eight entrants, `$05`/`$06` for the semifinals, `$07`/`$08` for
+the final.
+
+`$40F4` is the cursor loop. It reads **held** input, not new input, and tests
+confirm before movement.
+
+**The cartridge's input byte does not use `AllStarButtonMask`.** In `$FFAE`,
+`$FFAF`, `$FFC7` and `$FFC8` the packing is:
+
+| bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| | A | B | Select | Start | Right | Left | Up | Down |
+
+So `$410F`'s `$0C` is Select or Start (confirm), `$4119`'s `$33` is A, B, Right
+or Left (move), and `$4127`'s `$22` is B or Left (step backward). Running off
+either `$FF` sentinel wraps to the other end of the list. Convert at the
+boundary rather than mixing these masks with `ALLSTAR_BTN_*`.
+
 Run:
 
 ```powershell
@@ -200,6 +241,7 @@ Run:
 .\build\allstar_port.exe --test-postgame-modes
 .\build\allstar_port.exe --test-postgame-bracket
 .\build\allstar_port.exe --test-postgame-chooser
+.\build\allstar_port.exe --test-select-rom
 python tools\check_tournament_rom_coverage.py
 ```
 

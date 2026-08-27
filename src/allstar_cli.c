@@ -20,6 +20,7 @@
 #include "allstar_settings_screen.h"
 #include "allstar_system.h"
 #include "allstar_link.h"
+#include "allstar_cpu_target.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2257,6 +2258,198 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM CPU steering, from the bank 1 $7182, $7190..$7312 and $761B
+ * disassembly.
+ */
+int allstar_cli_test_cpu_target_rom(void) {
+    static const uint16_t MODES[ALLSTAR_CPU_MODE_SLOTS] = {
+        0x7190u, 0x718Fu, 0x74A8u, 0x718Fu, 0x7190u
+    };
+    static const uint16_t CLEARED[ALLSTAR_CPU_CLEARED] = {
+        0xC0F7u, 0xC0FAu, 0xC0F9u, 0xC0F8u, 0xC100u, 0xC106u
+    };
+    AllStarCpuTarget target;
+    const uint16_t *table;
+    const uint8_t *thresholds;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM CPU Steering Tests ($7182/$7190/$761B)...\n");
+
+    table = allstar_cpu_mode_table(&count);
+    if (count != ALLSTAR_CPU_MODE_SLOTS) {
+        fprintf(stderr, "[Test] $7185 has %d slots\n", count);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != MODES[i]) {
+            fprintf(stderr, "[Test] $7185 slot %d is $%04X, expected $%04X\n", i, table[i], MODES[i]);
+            return 1;
+        }
+    }
+    /* Modes $01 and $03 share the bare ret; $00 and $04 share the real body. */
+    if (table[1] != table[3] || table[0] != table[4] || table[1] != 0x718Fu) {
+        fprintf(stderr, "[Test] $7185 aliasing diverged\n");
+        return 1;
+    }
+
+    /* $761B indexes by the skill level minus one. */
+    thresholds = allstar_cpu_threshold_table(0x7626u);
+    if (!thresholds || allstar_cpu_threshold(thresholds, 1u) != 0x1Bu ||
+        allstar_cpu_threshold(thresholds, 2u) != 0x10u ||
+        allstar_cpu_threshold(thresholds, 3u) != 0x07u) {
+        fprintf(stderr, "[Test] $761B on the $7626 table diverged\n");
+        return 1;
+    }
+    thresholds = allstar_cpu_threshold_table(0x7629u);
+    if (!thresholds || allstar_cpu_threshold(thresholds, 3u) != 0x96u) {
+        fprintf(stderr, "[Test] $7629 table diverged\n");
+        return 1;
+    }
+    thresholds = allstar_cpu_threshold_table(0x762Cu);
+    if (!thresholds || allstar_cpu_threshold(thresholds, 1u) != 0x04u) {
+        fprintf(stderr, "[Test] $762C table diverged\n");
+        return 1;
+    }
+    thresholds = allstar_cpu_threshold_table(0x7635u);
+    if (!thresholds || allstar_cpu_threshold(thresholds, 2u) != 0x14u) {
+        fprintf(stderr, "[Test] $7635 table diverged\n");
+        return 1;
+    }
+    if (allstar_cpu_threshold_table(0x7000u) != NULL) {
+        fprintf(stderr, "[Test] $761B accepted an address that is not a table\n");
+        return 1;
+    }
+    /* The three tables do not agree on which way difficulty runs. */
+    if (!(allstar_cpu_threshold(allstar_cpu_threshold_table(0x7626u), 1u) >
+          allstar_cpu_threshold(allstar_cpu_threshold_table(0x7626u), 3u)) ||
+        !(allstar_cpu_threshold(allstar_cpu_threshold_table(0x7629u), 1u) <
+          allstar_cpu_threshold(allstar_cpu_threshold_table(0x7629u), 3u))) {
+        fprintf(stderr, "[Test] $7626 and $7629 should slope opposite ways\n");
+        return 1;
+    }
+
+    /* $7190: the entry compares possession against the stored context. */
+    if (allstar_cpu_entry(1u, 1u) != ALLSTAR_CPU_SAME_POSSESSION ||
+        allstar_cpu_entry(1u, 2u) != ALLSTAR_CPU_NEW_POSSESSION ||
+        allstar_cpu_entry(0u, 0u) != ALLSTAR_CPU_SAME_POSSESSION) {
+        fprintf(stderr, "[Test] $7197 entry comparison diverged\n");
+        return 1;
+    }
+
+    /* $719A clears exactly these six bytes, in this order. */
+    table = allstar_cpu_cleared_state(&count);
+    if (count != ALLSTAR_CPU_CLEARED) {
+        fprintf(stderr, "[Test] $719A clears %d bytes, expected %d\n", count, ALLSTAR_CPU_CLEARED);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != CLEARED[i]) {
+            fprintf(stderr, "[Test] $719A byte %d is $%04X, expected $%04X\n", i, table[i], CLEARED[i]);
+            return 1;
+        }
+    }
+
+    /* $7257: the first set direction bit wins. */
+    allstar_cpu_step_target(0x40u, 0x40u, 0x01u, &target);
+    if (target.field_06 != 0x58u || target.field_15 != 0x44u) {
+        fprintf(stderr, "[Test] $7278 bit 0 gave $%02X/$%02X\n", target.field_06, target.field_15);
+        return 1;
+    }
+    allstar_cpu_step_target(0x40u, 0x40u, 0x02u, &target);
+    if (target.field_06 != 0x38u || target.field_15 != 0x44u) {
+        fprintf(stderr, "[Test] $726F bit 1 gave $%02X/$%02X\n", target.field_06, target.field_15);
+        return 1;
+    }
+    allstar_cpu_step_target(0x40u, 0x40u, 0x04u, &target);
+    if (target.field_06 != 0x48u || target.field_15 != 0x3Cu) {
+        fprintf(stderr, "[Test] $7269 bit 2 gave $%02X/$%02X\n", target.field_06, target.field_15);
+        return 1;
+    }
+    allstar_cpu_step_target(0x40u, 0x40u, 0x00u, &target);
+    if (target.field_06 != 0x48u || target.field_15 != 0x4Cu) {
+        fprintf(stderr, "[Test] $7263 default gave $%02X/$%02X\n", target.field_06, target.field_15);
+        return 1;
+    }
+    /* Bit 0 beats bit 1 when both are set. */
+    allstar_cpu_step_target(0x40u, 0x40u, 0x07u, &target);
+    if (target.field_06 != 0x58u) {
+        fprintf(stderr, "[Test] $7257 lost priority to a later bit\n");
+        return 1;
+    }
+    /* $7272: stepping the coarse axis down clamps at zero. */
+    allstar_cpu_step_target(0x00u, 0x40u, 0x02u, &target);
+    if (target.field_06 != 0x00u) {
+        fprintf(stderr, "[Test] $7274 did not clamp, gave $%02X\n", target.field_06);
+        return 1;
+    }
+
+    /* $729E: three court bands, and the fine axis always loses eight. */
+    allstar_cpu_center_target(0x20u, 0x40u, &target);
+    if (target.field_06 != 0x30u || target.field_15 != 0x38u) {
+        fprintf(stderr, "[Test] $72AE low band gave $%02X\n", target.field_06);
+        return 1;
+    }
+    allstar_cpu_center_target(0x50u, 0x40u, &target);
+    if (target.field_06 != 0x58u) {
+        fprintf(stderr, "[Test] $72A8 middle band gave $%02X\n", target.field_06);
+        return 1;
+    }
+    allstar_cpu_center_target(0x80u, 0x40u, &target);
+    if (target.field_06 != 0x78u) {
+        fprintf(stderr, "[Test] $72B4 high band gave $%02X\n", target.field_06);
+        return 1;
+    }
+    /* The band edges are inclusive at $3C and $6C. */
+    allstar_cpu_center_target(0x3Cu, 0x40u, &target);
+    if (target.field_06 != 0x4Cu) {
+        fprintf(stderr, "[Test] $72A1 boundary at $3C diverged\n");
+        return 1;
+    }
+    allstar_cpu_center_target(0x6Cu, 0x40u, &target);
+    if (target.field_06 != 0x74u) {
+        fprintf(stderr, "[Test] $72A6 boundary at $6C diverged\n");
+        return 1;
+    }
+
+    /* $72F0: the ball height picks the table. */
+    if (allstar_cpu_spot_table(0x53u) != 0x731Cu ||
+        allstar_cpu_spot_table(0x54u) != 0x7324u) {
+        fprintf(stderr, "[Test] $72F0 height boundary diverged\n");
+        return 1;
+    }
+    /* $72F7: $30 then steps of $40, four buckets. */
+    if (allstar_cpu_spot_index(0x00u) != 0 || allstar_cpu_spot_index(0x2Fu) != 0 ||
+        allstar_cpu_spot_index(0x30u) != 1 || allstar_cpu_spot_index(0x6Fu) != 1 ||
+        allstar_cpu_spot_index(0x70u) != 2 || allstar_cpu_spot_index(0xAFu) != 2 ||
+        allstar_cpu_spot_index(0xB0u) != 3 || allstar_cpu_spot_index(0xFFu) != 3) {
+        fprintf(stderr, "[Test] $72FD spot bucketing diverged\n");
+        return 1;
+    }
+    /* The two tables share their coarse column and differ in the fine one. */
+    allstar_cpu_spot(0x00u, 0x00u, &target);
+    if (target.field_06 != 0x68u || target.field_15 != 0x10u) {
+        fprintf(stderr, "[Test] $731C spot 0 diverged\n");
+        return 1;
+    }
+    allstar_cpu_spot(0xFFu, 0xFFu, &target);
+    if (target.field_06 != 0x98u || target.field_15 != 0x78u) {
+        fprintf(stderr, "[Test] $7324 spot 3 diverged\n");
+        return 1;
+    }
+    allstar_cpu_spot(0x60u, 0x80u, &target);
+    if (target.field_06 != 0x7Cu || target.field_15 != 0x90u) {
+        fprintf(stderr, "[Test] $7324 spot 2 diverged\n");
+        return 1;
+    }
+
+    printf("  the first set direction bit wins, and stepping down clamps at zero\n");
+    printf("  $7626 gets easier with skill while $7629 gets harder -- they slope opposite ways\n");
+    printf("[Test] PASSED: $7182, $7190, $761B\n");
     return 0;
 }
 
@@ -6658,6 +6851,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_menu_voice_rom();
     failed += allstar_cli_test_shell_rom();
     failed += allstar_cli_test_link_rom();
+    failed += allstar_cli_test_cpu_target_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -6788,6 +6982,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_shell_rom();
     } else if (strcmp(cmd, "--test-link") == 0) {
         return allstar_cli_test_link_rom();
+    } else if (strcmp(cmd, "--test-cpu-target") == 0) {
+        return allstar_cli_test_cpu_target_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

@@ -7,7 +7,6 @@
 
 #define ALLSTAR_GB_WIDTH  160
 #define ALLSTAR_GB_HEIGHT 144
-#define ALLSTAR_ROM_SIZE  32768
 
 /* RGBA 32-bit color */
 typedef uint32_t AllStarColor;

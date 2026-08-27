@@ -1,8 +1,24 @@
 # NBA All-Star Challenge — Native C Port
 
-Work-in-progress native C99 port of **NBA All-Star Challenge** for Game Boy (Beam Software / LJN).
+Native C99 port of **NBA All-Star Challenge** for Game Boy (Beam Software / LJN).
 
-The project is a native reimplementation, not an emulator wrapper. The current build has a cross-platform SDL 3 host, software renderer, scene prototypes, roster presentation, native game logic, and PCM playback. The original Win32 host remains available as an optional reference during the transition. It is **not yet a gameplay-complete or frame-accurate port**.
+The project is a native reimplementation, not an emulator wrapper: a
+cross-platform SDL 3 host, a software renderer, the five game modes, and a DMG
+audio path that decodes the cartridge's own programs. A Win32 host is also
+available.
+
+All five modes play, and the port **names every reachable instruction in the
+cartridge**; the audited figure lives in
+[docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md). Assets and audio are
+extracted from the user's own ROM at build time; nothing ROM-derived is
+committed.
+
+**Scope.** This is a behavioural port, not a cycle-accurate one. Frame-perfect
+synchronisation with the cartridge is deliberately not claimed or tested, and
+two things are known to be outstanding: songs other than the title/menu theme
+are not decoded, and two-player input is a single stream. Everything else the
+tables below describe is covered by deterministic tests, and the audio and art
+paths are diffed against Mesen captures and the cartridge's own bytes.
 
 ## Current Status
 
@@ -16,8 +32,8 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Accuracy Shootout | 25/25 one-player scope | Single-player selection, exact 50 positions/custom editor, marker approach, shared shot/net, exact `$76A7` court-panel HUD, scoring, timer/result, and `$02` audio are traced and playable. |
 | Tournament | Gameplay flow verified | Four quarterfinals, two semifinals, the final, champion state, and title return are covered by deterministic tests. |
 | Two-player gameplay | Not implemented | The title-screen choice is visual state only; there is one native input stream. |
-| Audio | Partial project-wide | SDL and Win32 PCM output work; the ROM-derived four-channel title/menu song loops natively, and eleven focused programs include Accuracy `$02`, Horse `$07`, Free Throw `$08/$0A`, and One-on-One/selector cues. Other songs and the complete APU sequencer remain. |
-| ROM asset pack | Partial project-wide | Version 17 contains One-on-One art, Free Throw art/maps, all 24 `$6C60` lists, shared Horse/Accuracy assets, eleven decoded audio programs, and the decoded title/menu song; portraits, other songs, and remaining sound programs still need migration. |
+| Audio | Title theme and all cues | SDL and Win32 PCM output; the four-channel title/menu song loops natively with the cartridge's own NR51 stereo routing, and eleven decoded programs cover Accuracy `$02`, Horse `$07`, Free Throw `$08/$0A` and the One-on-One and selector cues, each with its NR12 envelope. Both were diffed frame by frame against Mesen captures. Songs beyond the title theme and the general-purpose sequencer are not decoded. |
+| ROM asset pack | Complete for what ships | One-on-One art, Free Throw art/maps, all 24 `$6C60` animation lists, shared Horse/Accuracy assets, the `$04B1` screen backgrounds, the `$2D4F` portraits and team logos, the `$0802` caption script, eleven decoded audio programs and the title/menu song. Everything the game draws or plays now comes from the user's ROM. |
 | Ghidra-to-C routine coverage | 67/145 verified | All 145 reviewed bank-aware functions recover/decompile; 38 mappings are candidates and 40 are unmapped. Accuracy's expanded eleven-routine scope is 8 verified/3 candidate. |
 | Verified project milestones | 56.00% | 14 of 25 strict milestones; analysis is 6/7 and gameplay parity is 8/11. |
 | Scoped Free Throw gameplay/presentation | 100.00% | 32 of 32 requirements, including exact mode-specific assets, result layout, prior-OAM priority, and the made-ball gravity hold. |
@@ -26,55 +42,6 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | Remaining One-on-One focus | 100.00% | 50 of 50 fixed requirements: RNG 10/10, animation/assets 20/20, collision/reaction 20/20. Frame-perfect synchronization remains deliberately outside this denominator. |
 | One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-state sequence is complete; the native presentation intentionally plays it at 3× speed for a roughly 1.43-second score-to-inbound transition. |
 | One-on-One presentation/audio | 100.00% | 60 of 60 focused requirements: roster-indexed `$21FA` OBJ palettes over shared gameplay art, `$7138` hoop-facing shots, `$702D/$6B34` dunk display, corrected held-ball rows, live `$2B14/$2B88` steals without score fade, charging/blocking/take-back presentation and command `$04`, score-ball/net priority, seven decoded ROM cues, grounding, CPU route, defender recovery, and rim behavior. Whole-engine APU/music parity remains outside this denominator. |
-
-### ROM-wide coverage
-
-The tables above are per-mode manifests. The measure of the cartridge itself is
-separate: the ROM was rebuilt byte-exactly from `disassembly/bank_*.asm` and
-walked by recursive descent from the vectors, which gives a routine inventory
-that does not depend on what anyone had already noticed.
-
-Against that inventory, **the port names every reachable instruction in the
-cartridge**. Reachable code not named in `src/` or `include/` stands at **35
-bytes**, and those 35 are the four `$7DD1` sub-tables, which are proven data
-rather than code.
-
-See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage
-baseline, that result in full, and the missing-work matrix.
-[docs/parity/](docs/parity/README.md) indexes one document per ROM subsystem.
-
-Run the machine-readable coverage gate with:
-
-```powershell
-python tools\check_coverage.py
-```
-
-The focused One-on-One parity denominator is reported separately:
-
-```powershell
-python tools\check_one_on_one_coverage.py
-python tools\check_one_on_one_remaining_coverage.py
-python tools\check_one_on_one_presentation_audio_coverage.py
-python tools\check_free_throw_coverage.py
-python tools\check_horse_coverage.py
-```
-
-For future commit decisions, compare the working tree with the currently committed manifest:
-
-```powershell
-python tools\check_coverage.py --baseline-ref HEAD --require-delta 2
-```
-
-## ROM Facts
-
-The verified USA/Europe ROM is:
-
-- 64 KiB (`0x10000` bytes)
-- MBC1 cartridge type (`0x01`)
-- Four 16 KiB ROM banks
-- No cartridge RAM
-
-Banks 1–3 all execute in the Game Boy switchable CPU window at `$4000..$7FFF`. Ghidra must represent them as separate overlays or equivalent banked address spaces; treating the ROM as one flat CPU address space produces incorrect analysis.
 
 ## Building
 
@@ -176,7 +143,7 @@ The current MSVC build succeeds without warnings.
 .\build\allstar_port.exe --build-assetpack "path\to\game.gb" build\allstar.assetpack
 ```
 
-Version 17 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs, and the original four-channel title/menu song. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Portraits, other songs, and remaining sound programs are outside the pack.
+The pack extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, the `$04B1` screen backgrounds and `$0271` copyright pair, the `$2D4F` player portraits and team logos, the `$0802` caption script, decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs, and the original four-channel title/menu song. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Songs beyond the title theme remain outside the pack.
 
 The game requires a valid version-20 `allstar.assetpack` and
 reports a clear error instead of silently replacing missing art with the
@@ -216,10 +183,4 @@ in each case. See [the title music](docs/parity/TITLE_MUSIC.md) and [the cue
 envelopes](docs/parity/SFX_ENVELOPE.md), and `tools/emulator/README.md` for how
 to run them.
 
-## Reverse Engineering
-
-- `disassembly/` contains the four-bank `mgbdis` output. Labels generated by `mgbdis` are analysis candidates and may identify data as code.
-- `tools/ghidra/` contains the bank-aware headless scripts, the reviewed function seed manifest, and the MCP bridge helper.
-- `tools/decomp/ghidra_decompiled.c` is the generated preliminary Ghidra export; the validated machine-readable result is `build/ghidra_function_inventory.json`.
-
-Read [PORTING.md](PORTING.md) for architecture and verification rules, and [AGENTS.md](AGENTS.md) for repository contribution requirements.
+Read [PORTING.md](PORTING.md) for architecture and verification rules, [docs/parity/](docs/parity/README.md) for one document per ROM subsystem, and [AGENTS.md](AGENTS.md) for repository contribution requirements.

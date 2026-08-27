@@ -17,8 +17,8 @@ This guide separates the intended architecture from the implementation that exis
      .\build\allstar_port.exe --build-assetpack <ROM_PATH.gb> build\allstar.assetpack
      ```
 
-   - Version 17 extracts the complete One-on-One court/player/ball data, Free Throw close-up shooter/background/OBJ data, all 24 animation-control lists, eleven focused ROM audio programs, and the original title/menu song.
-   - The runtime no longer requires its former compiled derived-art header. Portraits, remaining-mode background graphics, roster records, other songs, and remaining audio still need migration behind the same boundary.
+   - The pack extracts the complete One-on-One court/player/ball data, Free Throw close-up shooter/background/OBJ data, all 24 animation-control lists, the $04B1 screen backgrounds, the $2D4F portraits and team logos, the $0802 caption script, eleven focused ROM audio programs, and the original title/menu song.
+   - No compiled derived-art header remains. The screen backgrounds, player portraits and team logos moved behind this boundary on 2026-08-27 (`docs/parity/SCREEN_ART.md`), so everything the game draws now comes from the user's ROM. Songs beyond the title theme are still undecoded and so are not in the pack.
 
 3. **No decompilation dependency at runtime**
    - Ghidra pseudocode, assembly, symbols, and traces are reference evidence only.
@@ -37,7 +37,7 @@ The checked USA/Europe ROM header reports the following:
 |---|---|---|
 | CPU | Sharp SM83 at approximately 4.194 MHz | Native C; CPU timing is not emulated. |
 | Cartridge | MBC1, cartridge type `0x01` | Importer reads the complete ROM as a file; no runtime mapper is needed. |
-| ROM | 64 KiB, four 16 KiB banks | File loader accepts the full 64 KiB image. Some constants and analysis docs still need migration from the former 32 KiB assumption. |
+| ROM | 64 KiB, four 16 KiB banks | File loader accepts the full 64 KiB image; the last constant carrying the former 32 KiB assumption was removed on 2026-08-27. |
 | Cartridge RAM | None | No save-RAM behavior required. |
 | Display | 160×144, four DMG shades | 32-bit software framebuffer with selectable palettes. |
 | Tiles | 2bpp planar, 16 bytes per 8×8 tile | One-on-One layout-specific extraction and composition are verified; other modes remain incomplete. |
@@ -110,7 +110,7 @@ One-on-One gameplay has a completed fixed denominator in `docs/parity/ONE_ON_ONE
 | `src/allstar_renderer.c` | Software pixels and ROM-derived court/player/ball composition | One-on-One `$2945/$2A2B` player and `$6945/$69F5` ball/shadow paths consume the user-built pack; Free Throw's separate renderer is in `scene_free_throw.c`. |
 | `src/sdl_game_main.c` | SDL 3 video, keyboard/gamepad input, frame pacing, and app lifecycle | Shared host builds on macOS, Windows, and Linux; iOS packaging and touch controls remain. |
 | `src/audio/allstar_audio.c` | Shared PCM mixer with SDL and Win32 output backends | Eleven focused ROM commands plus the title/menu song are decoded, including Accuracy `$02`, Horse `$07`, and Free Throw `$08/$0A`; the complete sequencer/music engine remains partial. |
-| `src/allstar_asset_pack.c` | Versioned container, graphics/animation extraction, and focused audio decoding | Version 17 validates One-on-One art, exact Free Throw `$2243/$1CBD` art/maps, Horse X reuse, eleven ROM audio programs, and the title/menu song; portraits and other songs remain partial. |
+| `src/allstar_asset_pack.c` | Versioned container, graphics/animation extraction, and focused audio decoding | Validates One-on-One art, exact Free Throw `$2243/$1CBD` art/maps, Horse X reuse, the `$04B1` screens, the `$2D4F` portraits and logos, the `$0802` captions, eleven ROM audio programs, and the title/menu song. Songs beyond the title theme are not decoded. |
 
 The actual frame tick is:
 

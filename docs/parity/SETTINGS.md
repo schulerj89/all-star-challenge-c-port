@@ -41,3 +41,50 @@ Run:
 The suite checks ROM defaults, exact time/attempt cycles, the `8/4/1`-frame skill table, settings-scene round trips, complementary Accuracy selection, distinct native Accuracy layouts, Free Throw attempt-limit presentation, and One-on-One consumption of play-to, winners-outs, and time.
 
 `--test-all` includes this suite.
+
+## The `$2578` status panel
+
+Added **2026-08-26**. `$2578` is the **third and last mode-indexed dispatcher**
+in the cartridge, after `$10D9`/`$10E4` and `$147B`. With it ported, every
+`ldh a,[$ff8f]` followed by `rst $08` in the ROM is accounted for.
+
+| mode | `$257B` target |
+|---|---|
+| 0 One-on-One | `$2585` |
+| 1 Free Throw | `$25ED` |
+| 2 H-O-R-S-E | `$2607`, a bare `ret` — this mode draws no panel |
+| 3 Accuracy | `$2608` |
+| 4 Tournament | `$2585`, the same handler as One-on-One |
+
+`$2608` draws two fields of its own and then **jumps into `$2585`'s tail** at
+`$25C5` to share the last one, which is why Accuracy places it at `$0D05`
+instead of `$0F0C`.
+
+### Fields
+
+Every field is a short run of tiles terminated by a byte with bit 7 set.
+`$2517` walks a list to entry `$FF8D`, measures it, and writes it at DE.
+
+| mode | source | index from | how | at |
+|---|---|---|---|---|
+| 0, 4 | `$FF92` as digits, or `$2559` when it reads zero | — | — | `$0F09` |
+| 0, 4 | `$253A` | `$FF97` | minus one | `$0F0A` |
+| 0, 4 | `$253D` | `$FF96` | direct | `$0F0B` |
+| 1 | `$2543` | `$FF98` | `$05`→0, `$10`→1, else 2 | `$0904` |
+| 3 | `$253D` | `$FF9B` | direct | `$0F03` |
+| 3 | `$253D` | `$FF9A` | direct | `$0F04` |
+| 0, 3, 4 | `$2551` | `$FF95` | `$02`→0, `$05`→1, `$08`→2, else 3 | `$0F0C`, or `$0D05` in mode 3 |
+
+### The digit path
+
+`$24E4` splits the `$FF92` word into four nibbles, high to low, and `$2500`
+looks each up in the table at `$250D`, writing the results to `$C1A1`. That
+table holds `$01`..`$0A`, so the lookup is just **digit plus one** — a different
+base from the `$C1` the score fields use in `$1726` and `$780A`, and with no
+leading-zero blanking.
+
+Run:
+
+```powershell
+.\build\allstar_port.exe --test-status-panel
+```

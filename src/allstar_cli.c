@@ -14,6 +14,7 @@
 #include "allstar_shot_result.h"
 #include "allstar_court_state.h"
 #include "allstar_game_clock.h"
+#include "allstar_status_panel.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2251,6 +2252,149 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM settings summary panel, from the $2578 dispatcher, its handlers at
+ * $2585/$25ED/$2607/$2608, the writer at $2517 and the digit path at
+ * $24E4/$2500/$250D.
+ */
+int allstar_cli_test_status_panel_rom(void) {
+    static const uint16_t TABLE[ALLSTAR_STATUS_SLOTS] = {
+        0x2585u, 0x25EDu, 0x2607u, 0x2608u, 0x2585u
+    };
+    /* $253D as the ROM stores it: three bit-7 terminated entries. */
+    static const uint8_t LIST[8] = { 0x0Eu, 0x0Fu, 0x80u, 0x0Bu, 0x0Cu, 0x8Du, 0x00u, 0x86u };
+    AllStarStatusOp ops[6];
+    const uint16_t *table;
+    uint16_t offset;
+    uint8_t length;
+    uint8_t tiles[ALLSTAR_STATUS_DIGIT_TILES];
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Status Panel Tests ($2578/$2517/$24E4)...\n");
+
+    table = allstar_status_table(&count);
+    if (count != ALLSTAR_STATUS_SLOTS) {
+        fprintf(stderr, "[Test] $257B has %d slots, expected %d\n", count, ALLSTAR_STATUS_SLOTS);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != TABLE[i]) {
+            fprintf(stderr, "[Test] $257B slot %d is $%04X, expected $%04X\n", i, table[i], TABLE[i]);
+            return 1;
+        }
+    }
+    /* The tournament shares One-on-One's handler; H-O-R-S-E has a bare ret. */
+    if (table[4] != table[0] || table[2] != 0x2607u) {
+        fprintf(stderr, "[Test] $257B mode aliasing diverged\n");
+        return 1;
+    }
+
+    /* $2607: mode $02 draws nothing at all. */
+    if (allstar_status_layout(0x02u, false, ops, 6) != 0) {
+        fprintf(stderr, "[Test] $2607 drew something\n");
+        return 1;
+    }
+
+    /* $2585: four fields, the first switching on whether $FF92 reads zero. */
+    count = allstar_status_layout(0x00u, false, ops, 6);
+    if (count != 4 ||
+        ops[0].kind != ALLSTAR_STATUS_FIELD_DIGITS || ops[0].d != 0x0Fu || ops[0].e != 0x09u ||
+        ops[1].source != 0x253Au || ops[1].index != ALLSTAR_STATUS_INDEX_MINUS_ONE ||
+        ops[1].io != 0xFF97u || ops[1].e != 0x0Au ||
+        ops[2].source != 0x253Du || ops[2].index != ALLSTAR_STATUS_INDEX_DIRECT ||
+        ops[2].io != 0xFF96u || ops[2].e != 0x0Bu ||
+        ops[3].source != 0x2551u || ops[3].index != ALLSTAR_STATUS_INDEX_BUCKET_3 ||
+        ops[3].d != 0x0Fu || ops[3].e != 0x0Cu) {
+        fprintf(stderr, "[Test] $2585 layout diverged\n");
+        return 1;
+    }
+    count = allstar_status_layout(0x00u, true, ops, 6);
+    if (ops[0].kind != ALLSTAR_STATUS_FIELD_FILLER || ops[0].source != ALLSTAR_STATUS_FILLER) {
+        fprintf(stderr, "[Test] $258E filler path diverged\n");
+        return 1;
+    }
+    /* Mode $04 goes through the same handler. */
+    count = allstar_status_layout(0x04u, false, ops, 6);
+    if (count != 4 || ops[3].d != 0x0Fu || ops[3].e != 0x0Cu) {
+        fprintf(stderr, "[Test] $2585 tournament path diverged\n");
+        return 1;
+    }
+
+    /* $25ED: Free Throw draws one bucketed field. */
+    count = allstar_status_layout(0x01u, false, ops, 6);
+    if (count != 1 || ops[0].source != 0x2543u ||
+        ops[0].index != ALLSTAR_STATUS_INDEX_BUCKET_2 ||
+        ops[0].io != 0xFF98u || ops[0].d != 0x09u || ops[0].e != 0x04u) {
+        fprintf(stderr, "[Test] $25ED layout diverged\n");
+        return 1;
+    }
+
+    /* $2608: two of its own, then the shared field at a different position. */
+    count = allstar_status_layout(0x03u, false, ops, 6);
+    if (count != 3 ||
+        ops[0].source != 0x253Du || ops[0].io != 0xFF9Bu || ops[0].e != 0x03u ||
+        ops[1].source != 0x253Du || ops[1].io != 0xFF9Au || ops[1].e != 0x04u ||
+        ops[2].source != 0x2551u || ops[2].d != 0x0Du || ops[2].e != 0x05u) {
+        fprintf(stderr, "[Test] $2608 layout diverged\n");
+        return 1;
+    }
+
+    /* $2517: walk to entry N and measure it. */
+    if (!allstar_status_entry(LIST, 8u, 0u, &offset, &length) || offset != 0u || length != 3u) {
+        fprintf(stderr, "[Test] $2528 entry 0 gave offset %u length %u\n", offset, length);
+        return 1;
+    }
+    if (!allstar_status_entry(LIST, 8u, 1u, &offset, &length) || offset != 3u || length != 3u) {
+        fprintf(stderr, "[Test] $251D entry 1 gave offset %u length %u\n", offset, length);
+        return 1;
+    }
+    if (!allstar_status_entry(LIST, 8u, 2u, &offset, &length) || offset != 6u || length != 2u) {
+        fprintf(stderr, "[Test] $251D entry 2 gave offset %u length %u\n", offset, length);
+        return 1;
+    }
+    if (allstar_status_entry(LIST, 8u, 3u, &offset, &length)) {
+        fprintf(stderr, "[Test] $2517 walked past the end of the list\n");
+        return 1;
+    }
+
+    /* $25C5 and $25EF thresholds. */
+    if (allstar_status_bucket_3(0x02u) != 0u || allstar_status_bucket_3(0x05u) != 1u ||
+        allstar_status_bucket_3(0x08u) != 2u || allstar_status_bucket_3(0x00u) != 3u ||
+        allstar_status_bucket_3(0x03u) != 3u) {
+        fprintf(stderr, "[Test] $25C5 bucket diverged\n");
+        return 1;
+    }
+    if (allstar_status_bucket_2(0x05u) != 0u || allstar_status_bucket_2(0x10u) != 1u ||
+        allstar_status_bucket_2(0x0Au) != 2u) {
+        fprintf(stderr, "[Test] $25EF bucket diverged\n");
+        return 1;
+    }
+
+    /* $250D maps digit N to tile N + 1, with no leading-zero handling. */
+    allstar_status_digits(0x1234u, tiles);
+    if (tiles[0] != 0x02u || tiles[1] != 0x03u || tiles[2] != 0x04u || tiles[3] != 0x05u) {
+        fprintf(stderr, "[Test] $24E4 on 1234 gave $%02X $%02X $%02X $%02X\n",
+                tiles[0], tiles[1], tiles[2], tiles[3]);
+        return 1;
+    }
+    allstar_status_digits(0x0000u, tiles);
+    if (tiles[0] != 0x01u || tiles[3] != 0x01u) {
+        fprintf(stderr, "[Test] $250D zero digit diverged\n");
+        return 1;
+    }
+    allstar_status_digits(0x0099u, tiles);
+    if (tiles[2] != 0x0Au || tiles[3] != 0x0Au) {
+        fprintf(stderr, "[Test] $250D nine digit diverged\n");
+        return 1;
+    }
+
+    printf("  mode $02 draws nothing, mode $04 reuses One-on-One, mode $03 joins the shared tail\n");
+    printf("  $250D is a plain digit-plus-one table, unlike the $C1 base the score fields use\n");
+    printf("[Test] PASSED: $2517, $24E4, $2500, $2578, $2585, $25ED, $2607, $2608\n");
     return 0;
 }
 
@@ -5983,6 +6127,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_shot_result_rom();
     failed += allstar_cli_test_court_state_rom();
     failed += allstar_cli_test_game_clock_rom();
+    failed += allstar_cli_test_status_panel_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -6105,6 +6250,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_court_state_rom();
     } else if (strcmp(cmd, "--test-game-clock") == 0) {
         return allstar_cli_test_game_clock_rom();
+    } else if (strcmp(cmd, "--test-status-panel") == 0) {
+        return allstar_cli_test_status_panel_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

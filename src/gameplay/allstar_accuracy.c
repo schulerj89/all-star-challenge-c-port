@@ -109,3 +109,22 @@ void allstar_accuracy_hud_76a7(uint32_t frames_remaining,
              (unsigned)(points % 1000u));
     memcpy(hud->right_points, "000", sizeof(hud->right_points));
 }
+
+/* $6E1B..$6E3B */
+void allstar_shooter_seed_6e1b(uint8_t shooter, AllStarShooterSeed *out) {
+    if (!out) return;
+    out->possession = shooter;                       /* $6E1D, $FFCF */
+    out->x = ALLSTAR_SHOOTER_SEED_X;
+    out->y = ALLSTAR_SHOOTER_SEED_Y;
+    out->z = ALLSTAR_SHOOTER_SEED_Z;
+    /* $6E1F: `dec a` then `jr nz`, so only an exact 1 takes the first slot. */
+    if (shooter == 1u) {
+        out->slot_x = ALLSTAR_SHOOTER_SLOT_ONE;      /* $6E28 */
+        out->slot_y = ALLSTAR_SHOOTER_SLOT_ONE + 1u; /* $6E24 */
+        out->slot_z = ALLSTAR_SHOOTER_SLOT_ONE + 2u; /* $6E2C */
+        return;
+    }
+    out->slot_x = ALLSTAR_SHOOTER_SLOT_TWO;          /* $6E35 */
+    out->slot_y = ALLSTAR_SHOOTER_SLOT_TWO + 1u;     /* $6E31 */
+    out->slot_z = ALLSTAR_SHOOTER_SLOT_TWO + 2u;     /* $6E39 */
+}

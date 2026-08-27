@@ -134,6 +134,73 @@ static void init_rom_animation_fallback(AllStarAssetPack *pack) {
     pack->animation_actions[0x17].rom_pointer = pointers[0x17];
 }
 
+/*
+ * $07E3 walks the $0802 script: it skips `index` $FF markers to find a layout,
+ * then reads four-byte records -- column, row, stream pointer low, high --
+ * calling $06C0 for each, and stops when the next byte is $FF.  This copies
+ * the whole thing out in one pass, tile streams and all.
+ */
+static bool extract_rom_captions(AllStarAssetPack *pack,
+                                 const AllStarRom *rom) {
+    AllStarRomCaptionScript *script;
+    size_t cursor = 0x0802;
+    size_t layout;
+    if (!pack || !rom || rom->size <= cursor) return false;
+    script = &pack->rom_captions;
+    memset(script, 0, sizeof(*script));
+
+    /* $0802 itself is the marker before layout 1, so layout 0 stays empty. */
+    if (rom->data[cursor] != 0xFF) return false;
+    cursor++;
+
+    for (layout = 1; layout < ALLSTAR_ROM_CAPTION_LAYOUTS; layout++) {
+        AllStarRomCaptionLayout *out = &script->layouts[layout];
+        while (cursor + 3 < rom->size && rom->data[cursor] != 0xFF) {
+            AllStarRomCaptionRecord *record;
+            uint16_t pointer;
+            size_t stream;
+            size_t length = 0;
+            if (out->record_count >= ALLSTAR_ROM_CAPTION_RECORDS) return false;
+            record = &out->records[out->record_count];
+            record->row = rom->data[cursor];        /* $07EF, E */
+            record->column = rom->data[cursor + 1]; /* $07F1, D */
+            pointer = (uint16_t)(rom->data[cursor + 2] |
+                                 (rom->data[cursor + 3] << 8));
+            record->rom_pointer = pointer;
+            if (pointer >= rom->size) return false;
+            /* The stream ends on the tile that carries bit 7. */
+            for (stream = pointer; stream < rom->size; stream++) {
+                length++;
+                if (length > 64) return false;
+                if ((rom->data[stream] & 0x80u) != 0) break;
+            }
+            if (script->pool_length + length > ALLSTAR_ROM_CAPTION_POOL)
+                return false;
+            record->offset = script->pool_length;
+            record->length = (uint8_t)length;
+            memcpy(script->pool + script->pool_length,
+                   rom->data + pointer, length);
+            script->pool_length = (uint16_t)(script->pool_length + length);
+            out->record_count++;
+            cursor += 4;
+        }
+        if (out->record_count == 0) break;
+        script->layout_count = (uint8_t)(layout + 1);
+        cursor++;                       /* step over the layout's $FF */
+    }
+
+    /* $1171/$119F/$2E01 and the seven $07DE callers reach twenty-five
+       layouts between them; fewer means the walk went wrong. */
+    if (script->layout_count != ALLSTAR_ROM_CAPTION_LAYOUTS) return false;
+    if (script->layouts[1].record_count != 2 ||
+        script->layouts[12].record_count != 5 ||
+        script->layouts[13].record_count != 12 ||
+        script->layouts[21].record_count != 3) return false;
+    pack->header.rom_caption_layout_count = script->layout_count;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ROM_CAPTIONS;
+    return true;
+}
+
 static bool extract_rom_animation_actions(AllStarAssetPack *pack,
                                           const AllStarRom *rom) {
     const size_t pointer_table = 0x6c60;
@@ -1251,6 +1318,10 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid bank-1 $6C60 animation map\n");
         return false;
     }
+    if (!extract_rom_captions(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid $0802 caption script\n");
+        return false;
+    }
     if (!extract_one_on_one_art(pack, rom)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
         return false;
@@ -1346,7 +1417,8 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
                pack->header.rom_sfx_program_count ||
         fwrite(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
                pack->header.rom_music_program_count, f) !=
-               pack->header.rom_music_program_count) {
+               pack->header.rom_music_program_count ||
+        fwrite(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -1488,7 +1560,8 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
               pack->header.rom_sfx_program_count ||
         fread(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
               pack->header.rom_music_program_count, f) !=
-              pack->header.rom_music_program_count) {
+              pack->header.rom_music_program_count ||
+        fread(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);

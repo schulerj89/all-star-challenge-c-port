@@ -53,4 +53,29 @@ void allstar_accuracy_hud_76a7(uint32_t frames_remaining,
                                uint16_t points,
                                AllStarAccuracyHud *hud);
 
+/* ---- $6E1B: seeding the shooter's entity slot ---- */
+
+#define ALLSTAR_SHOOTER_SEED_X   0x5Cu  /* $6E26 / $6E33 */
+#define ALLSTAR_SHOOTER_SEED_Y   0x4Cu  /* $6E22 / $6E2F */
+#define ALLSTAR_SHOOTER_SEED_Z   0x04u  /* $6E2A / $6E37 */
+#define ALLSTAR_SHOOTER_SLOT_ONE 0xFFA2u  /* x, then $FFA3 y, $FFA4 z */
+#define ALLSTAR_SHOOTER_SLOT_TWO 0xFFBBu  /* x, then $FFBC y, $FFBD z */
+
+typedef struct {
+    uint8_t possession;   /* $FFCF takes the $FFDA byte unchanged */
+    uint16_t slot_x;      /* which of the two slots is seeded     */
+    uint16_t slot_y;
+    uint16_t slot_z;
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
+} AllStarShooterSeed;
+
+/*
+ * $6E1B.  Copies $FFDA -- the byte $0D2B parks there -- into $FFCF, then seeds
+ * one of the two entity slots with the same fixed spot.  Shooter one takes
+ * $FFA2..$FFA4 and everyone else $FFBB..$FFBD; the coordinates do not differ.
+ */
+void allstar_shooter_seed_6e1b(uint8_t shooter, AllStarShooterSeed *out);
+
 #endif

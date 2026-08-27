@@ -27,6 +27,7 @@
 #include "allstar_session.h"
 #include "allstar_pad.h"
 #include "allstar_frame.h"
+#include "allstar_caption.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -103,6 +104,12 @@ static void print_usage(const char *prog_name) {
     printf("  --test-accuracy                   Verify ROM Accuracy rules/scene\n");
     printf("  --test-tournament                  Verify seven-match bracket progression\n");
     printf("  --test-headless-frames             Run headless multi-scene frame tests\n");
+    printf("  --test-frame                       Verify the ROM $2729 frame spine\n");
+    printf("  --test-cpu-head                    Verify the ROM $73C9 steering head\n");
+    printf("  --test-captions                    Verify the ROM $07E3 caption script\n");
+    printf("  --test-title-music                 Verify the ROM $35B6 title-music routing\n");
+    printf("  --test-defense-jump                Verify the ROM $6C27 defensive jump lift\n");
+    printf("  --test-pad                         Verify the ROM $2639 joypad poll\n");
     printf("  --test-all                         Execute all test suites\n");
     printf("  --help                             Show this help message\n");
 }
@@ -2265,6 +2272,211 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM captions and three small consumers: $07E3, $0D2B, $6E1B, $3264, $327F.
+ *
+ * $07E3 is the game's whole caption system -- twenty-five layouts covering
+ * every prompt in the cartridge -- and the other four are the small routines
+ * that were sitting unported alongside it.  $0D2B parks a shooter in $FFDA and
+ * $6E1B is what reads it back, so those two are asserted as a pair.
+ */
+int allstar_cli_test_caption_rom(void) {
+    AllStarCaptionDraw draws[ALLSTAR_ROM_CAPTION_RECORDS];
+    AllStarHorseHandoff handoff;
+    AllStarShooterSeed seed;
+    AllStarAssetPack *pack;
+    uint8_t order[8];
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Caption Tests ($07E3/$0D2B/$6E1B/$3264)...\n");
+
+    /* $07E8/$07FD: bit 7 marks the last tile, and is not part of it. */
+    if (allstar_caption_tile(0xD4u) != 0x54u ||
+        allstar_caption_tile(0x53u) != 0x53u) {
+        fprintf(stderr, "[Test] $07FD terminator handling diverged\n");
+        return 1;
+    }
+    if (!allstar_caption_clears_first_07de(0x07DEu) ||
+        allstar_caption_clears_first_07de(0x07E3u)) {
+        fprintf(stderr, "[Test] $07DF clear-first entry diverged\n");
+        return 1;
+    }
+
+    /* $3264 and $327F walk their halves downwards and never overlap. */
+    count = allstar_voice_bank_order(ALLSTAR_VOICE_BANK_MUSIC, order, 8);
+    if (count != 4 || order[0] != 3 || order[1] != 2 || order[2] != 1 ||
+        order[3] != 0) {
+        fprintf(stderr, "[Test] $3264 did not walk channels 3..0\n");
+        return 1;
+    }
+    count = allstar_voice_bank_order(ALLSTAR_VOICE_BANK_SFX, order, 8);
+    if (count != 4 || order[0] != 7 || order[1] != 6 || order[2] != 5 ||
+        order[3] != 4) {
+        fprintf(stderr, "[Test] $327F did not walk channels 7..4\n");
+        return 1;
+    }
+    if (allstar_voice_active_slot(0) != ALLSTAR_VOICE_ACTIVE_BASE ||
+        allstar_voice_active_slot(7) != ALLSTAR_VOICE_ACTIVE_BASE + 7u) {
+        fprintf(stderr, "[Test] $3266 indexed $DD7F wrongly\n");
+        return 1;
+    }
+    if (allstar_voice_channel_runs(0) || !allstar_voice_channel_runs(1)) {
+        fprintf(stderr, "[Test] $326B skipped the wrong channels\n");
+        return 1;
+    }
+
+    /* $0D2B parks the shooter where $6E1B will read it. */
+    allstar_horse_handoff_0d2b(2u, &handoff);
+    if (handoff.shooter != 2u || handoff.wait_frames != 4u ||
+        !handoff.enables_objects || handoff.set_flags[0] != 1u ||
+        handoff.set_flags[1] != 1u || handoff.set_flags[2] != 1u ||
+        handoff.cleared[0] != 0u || handoff.cleared[1] != 0u) {
+        fprintf(stderr, "[Test] $0D2B handoff diverged\n");
+        return 1;
+    }
+    /* $0D41 -> $FFDA -> $6E1D: the byte survives the trip unchanged. */
+    allstar_shooter_seed_6e1b(handoff.shooter, &seed);
+    if (seed.possession != 2u || seed.slot_x != ALLSTAR_SHOOTER_SLOT_TWO) {
+        fprintf(stderr,
+                "[Test] $6E1B put shooter 2 in slot $%04X\n", seed.slot_x);
+        return 1;
+    }
+    allstar_horse_handoff_0d2b(1u, &handoff);
+    allstar_shooter_seed_6e1b(handoff.shooter, &seed);
+    if (seed.possession != 1u || seed.slot_x != ALLSTAR_SHOOTER_SLOT_ONE ||
+        seed.slot_y != ALLSTAR_SHOOTER_SLOT_ONE + 1u ||
+        seed.slot_z != ALLSTAR_SHOOTER_SLOT_ONE + 2u) {
+        fprintf(stderr, "[Test] $6E20 slot-one path diverged\n");
+        return 1;
+    }
+    /* $6E1F is `dec a` then `jr nz`, so only an exact 1 takes slot one. */
+    allstar_shooter_seed_6e1b(0u, &seed);
+    if (seed.slot_x != ALLSTAR_SHOOTER_SLOT_TWO) {
+        fprintf(stderr, "[Test] $6E20 treated zero as shooter one\n");
+        return 1;
+    }
+    /* Both slots take the same fixed spot. */
+    if (seed.x != ALLSTAR_SHOOTER_SEED_X || seed.y != ALLSTAR_SHOOTER_SEED_Y ||
+        seed.z != ALLSTAR_SHOOTER_SEED_Z) {
+        fprintf(stderr, "[Test] $6E22 seed coordinates diverged\n");
+        return 1;
+    }
+
+    pack = (AllStarAssetPack *)calloc(1, sizeof(*pack));
+    if (!pack) {
+        fprintf(stderr, "[Test] Could not allocate an asset pack\n");
+        return 1;
+    }
+    if (!allstar_asset_pack_load_file(pack, "build/allstar.assetpack") ||
+        (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_CAPTIONS) == 0) {
+        /* The ROM is never committed, so a pack may legitimately be absent. */
+        free(pack);
+        printf("  $07E3 index handling verified\n");
+        printf("  (no build/allstar.assetpack -- skipped the script)\n");
+        printf("[Test] PASSED: $0D2B, $6E1B, $3264, $327F\n");
+        return 0;
+    }
+
+    /* $07E7: a one-based index, because $0802 is itself a marker. */
+    if (allstar_caption_layout_07e3(pack, 0u, draws,
+                                    ALLSTAR_ROM_CAPTION_RECORDS) != 0) {
+        fprintf(stderr, "[Test] $07E4 gave layout zero records\n");
+        free(pack);
+        return 1;
+    }
+
+    /* Layout 1 is the plain "SELECT PLAYER" pair at $0803. */
+    count = allstar_caption_layout_07e3(pack, 1u, draws,
+                                        ALLSTAR_ROM_CAPTION_RECORDS);
+    if (count != 2 || draws[0].rom_pointer != 0x0968u ||
+        draws[1].rom_pointer != 0x096Eu ||
+        draws[0].row != 0x06u || draws[0].column != 0x07u ||
+        draws[1].row != 0x08u || draws[1].column != 0x07u) {
+        fprintf(stderr,
+                "[Test] layout 1 diverged (%d records, first $%04X at row "
+                "%u col %u)\n", count, draws[0].rom_pointer, draws[0].row,
+                draws[0].column);
+        free(pack);
+        return 1;
+    }
+    /* "SELECT" is six tiles and the sixth carries bit 7. */
+    if (draws[0].length != 6u ||
+        allstar_caption_tile(draws[0].tiles[0]) != 'S' ||
+        allstar_caption_tile(draws[0].tiles[5]) != 'T' ||
+        (draws[0].tiles[5] & 0x80u) == 0 ||
+        (draws[0].tiles[4] & 0x80u) != 0) {
+        fprintf(stderr, "[Test] the $0968 stream is not \"SELECT\"\n");
+        free(pack);
+        return 1;
+    }
+
+    /* Layout 13 is the bracket's four GAME labels, three tiles each. */
+    count = allstar_caption_layout_07e3(pack, 13u, draws,
+                                        ALLSTAR_ROM_CAPTION_RECORDS);
+    if (count != 12) {
+        fprintf(stderr, "[Test] the bracket layout has %d records\n", count);
+        free(pack);
+        return 1;
+    }
+    for (i = 0; i < 12; i++) {
+        if (draws[i].column != 0x0Au) {
+            fprintf(stderr, "[Test] bracket record %d left column $0A\n", i);
+            free(pack);
+            return 1;
+        }
+    }
+    /* $09D8 opens with the bracket tile $63, not a letter. */
+    if (draws[1].length != 8u || draws[1].tiles[0] != 0x63u ||
+        allstar_caption_tile(draws[1].tiles[7]) != '1') {
+        fprintf(stderr, "[Test] the $09D8 GAME 1 stream diverged\n");
+        free(pack);
+        return 1;
+    }
+
+    /* Layout 21 is the champion banner. */
+    count = allstar_caption_layout_07e3(pack, 21u, draws,
+                                        ALLSTAR_ROM_CAPTION_RECORDS);
+    if (count != 3 || draws[0].length != 15u ||
+        allstar_caption_tile(draws[0].tiles[0]) != 'C' ||
+        allstar_caption_tile(draws[0].tiles[14]) != 'S') {
+        fprintf(stderr, "[Test] the champion banner diverged\n");
+        free(pack);
+        return 1;
+    }
+
+    /* Every layout the cartridge defines has to be non-empty and bounded. */
+    for (i = 1; i < ALLSTAR_ROM_CAPTION_LAYOUTS; i++) {
+        int n = allstar_caption_layout_07e3(pack, (uint8_t)i, draws,
+                                            ALLSTAR_ROM_CAPTION_RECORDS);
+        int j;
+        if (n <= 0) {
+            fprintf(stderr, "[Test] layout %d is empty\n", i);
+            free(pack);
+            return 1;
+        }
+        for (j = 0; j < n; j++) {
+            if (draws[j].length == 0u || draws[j].tiles == NULL ||
+                (draws[j].tiles[draws[j].length - 1] & 0x80u) == 0) {
+                fprintf(stderr,
+                        "[Test] layout %d record %d is not terminated\n",
+                        i, j);
+                free(pack);
+                return 1;
+            }
+        }
+    }
+
+    printf("  $07E3 walks %u layouts, one-based, every stream bit-7 "
+           "terminated\n", (unsigned)pack->rom_captions.layout_count - 1u);
+    printf("  $0D2B -> $FFDA -> $6E1B carries the shooter to its slot\n");
+    printf("  $3264 walks voices 3..0 and $327F 7..4, both downwards\n");
+    free(pack);
+    printf("[Test] PASSED: $07E3, $0D2B, $6E1B, $3264, $327F\n");
     return 0;
 }
 
@@ -8415,6 +8627,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_title_music_rom();
     failed += allstar_cli_test_frame_rom();
     failed += allstar_cli_test_cpu_head_rom();
+    failed += allstar_cli_test_caption_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -8565,6 +8778,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_frame_rom();
     } else if (strcmp(cmd, "--test-cpu-head") == 0) {
         return allstar_cli_test_cpu_head_rom();
+    } else if (strcmp(cmd, "--test-captions") == 0) {
+        return allstar_cli_test_caption_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

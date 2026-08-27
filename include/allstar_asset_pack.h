@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 18
+#define ALLSTAR_ASSET_VERSION 19
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -34,6 +34,7 @@
 #define ALLSTAR_ASSET_FEATURE_GAMEPLAY_AUDIO (1u << 1)
 #define ALLSTAR_ASSET_FEATURE_FREE_THROW_ART (1u << 2)
 #define ALLSTAR_ASSET_FEATURE_ROM_MUSIC (1u << 3)
+#define ALLSTAR_ASSET_FEATURE_ROM_CAPTIONS (1u << 4)
 
 #define ALLSTAR_ROM_SFX_CHANNEL_1 (1u << 0)
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
@@ -167,6 +168,41 @@ typedef struct {
     uint8_t portrait_tile_offset;
 } AllStarPlayerStats;
 
+/*
+ * The $0802 caption script $07E3 walks.  Records are four bytes -- row,
+ * column, then a pointer to a tile stream whose last tile carries bit 7 --
+ * and a layout ends at $FF.  $0558 puts D straight into the destination's low
+ * byte and scales E by the map stride, so D is the column and E the row.  Layout N is found by skipping N of those $FF markers,
+ * so the indices callers pass are one-based.
+ *
+ * The streams are tile indices rather than ASCII: $0A15 is "PLAYER " followed
+ * by tile $82, and $09D8 opens with the bracket tile $63.  Storing them raw
+ * keeps $06C0's behaviour rather than guessing at a character set.
+ */
+#define ALLSTAR_ROM_CAPTION_LAYOUTS  26
+#define ALLSTAR_ROM_CAPTION_RECORDS  16
+#define ALLSTAR_ROM_CAPTION_POOL     1024
+
+typedef struct {
+    uint8_t row;          /* the record's first byte, $06C0's E  */
+    uint8_t column;       /* the record's second byte, $06C0's D */
+    uint16_t rom_pointer; /* where the stream lives in the cartridge */
+    uint16_t offset;      /* into the pool below */
+    uint8_t length;       /* tiles, including the bit-7 terminator */
+} AllStarRomCaptionRecord;
+
+typedef struct {
+    uint8_t record_count;
+    AllStarRomCaptionRecord records[ALLSTAR_ROM_CAPTION_RECORDS];
+} AllStarRomCaptionLayout;
+
+typedef struct {
+    uint8_t layout_count;
+    uint16_t pool_length;
+    uint8_t pool[ALLSTAR_ROM_CAPTION_POOL];
+    AllStarRomCaptionLayout layouts[ALLSTAR_ROM_CAPTION_LAYOUTS];
+} AllStarRomCaptionScript;
+
 typedef struct {
     uint32_t magic;
     uint32_t version;
@@ -182,6 +218,7 @@ typedef struct {
     uint32_t net_tile_count;
     uint32_t rom_sfx_program_count;
     uint32_t rom_music_program_count;
+    uint32_t rom_caption_layout_count;
     uint32_t feature_flags;
     uint32_t checksum;
 } AllStarAssetHeader;
@@ -192,6 +229,7 @@ typedef struct {
     AllStarPlayerStats players[ALLSTAR_MAX_ROSTER];
     uint8_t court_tilemap[32 * 32];
     uint8_t menu_tilemap[32 * 32];
+    AllStarRomCaptionScript rom_captions;
     AllStarRomAnimationAction
         animation_actions[ALLSTAR_ROM_ANIMATION_ACTION_COUNT];
     AllStarTile player_source_tiles[ALLSTAR_PLAYER_SOURCE_TILE_COUNT];

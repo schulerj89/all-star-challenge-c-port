@@ -46,4 +46,27 @@ uint32_t allstar_horse_resolve_shot_0d57(AllStarHorseState *state,
 const char *allstar_horse_letters_7bc0(uint8_t letters_remaining);
 bool allstar_horse_current_is_matcher(const AllStarHorseState *state);
 
+/* ---- $0D2B: handing the court to a shooter ---- */
+
+#define ALLSTAR_HORSE_SHOOTER_SLOT 0xC179u  /* $0D2B */
+#define ALLSTAR_HORSE_SHOOTER_HRAM 0xFFDAu  /* $0D41, what $6E1B reads */
+#define ALLSTAR_HORSE_HANDOFF_WAIT 0x04u    /* $0D4C, b for $2D08      */
+#define ALLSTAR_HORSE_LCDC_OBJ_BIT 0x02u    /* $0D54, `set 1,[hl]`     */
+
+typedef struct {
+    uint8_t shooter;        /* $C179 and then $FFDA          */
+    uint8_t set_flags[3];   /* $FFE7, $FFE6, $C12C all take 1 */
+    uint8_t cleared[2];     /* $C0FD and $C145 both cleared   */
+    uint8_t wait_frames;    /* $0D4C                          */
+    bool enables_objects;   /* $0D51 sets LCDC bit 1          */
+} AllStarHorseHandoff;
+
+/*
+ * $0D2B.  Called with the shooter in A -- $0D14 passes 2 and $0D21 passes 1 --
+ * it parks that value in $C179, mirrors it into $FFDA for $6E1B to pick up,
+ * raises three flags, clears two, waits four frames through $2D08 and turns
+ * objects back on.
+ */
+void allstar_horse_handoff_0d2b(uint8_t shooter, AllStarHorseHandoff *out);
+
 #endif /* ALLSTAR_HORSE_H */

@@ -119,3 +119,16 @@ const char *allstar_horse_letters_7bc0(uint8_t letters_remaining) {
         letters_remaining = ALLSTAR_HORSE_LETTER_COUNT;
     return incurred[letters_remaining];
 }
+
+/* $0D2B..$0D56 */
+void allstar_horse_handoff_0d2b(uint8_t shooter, AllStarHorseHandoff *out) {
+    if (!out) return;
+    out->shooter = shooter;                              /* $0D2B, $0D41 */
+    out->set_flags[0] = 1u;                              /* $0D30, $FFE7 */
+    out->set_flags[1] = 1u;                              /* $0D32, $FFE6 */
+    out->set_flags[2] = 1u;                              /* $0D34, $C12C */
+    out->cleared[0] = 0u;                                /* $0D38, $C0FD */
+    out->cleared[1] = 0u;                                /* $0D3B, $C145 */
+    out->wait_frames = ALLSTAR_HORSE_HANDOFF_WAIT;       /* $0D4C */
+    out->enables_objects = true;                         /* $0D54 */
+}

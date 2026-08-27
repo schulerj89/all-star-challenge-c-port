@@ -40,4 +40,34 @@ uint16_t allstar_voice_slot(int field, uint8_t channel);
 void allstar_voice_save(const uint8_t *working, uint8_t *slots);
 void allstar_voice_load(const uint8_t *slots, uint8_t *working);
 
+/* ---- $3264 and $327F: the two per-frame voice loops ---- */
+
+#define ALLSTAR_VOICE_ACTIVE_BASE 0xDD7Fu  /* $3266/$3281, indexed by channel */
+#define ALLSTAR_VOICE_MUSIC_FIRST 3        /* $3264 counts 3 down to 0        */
+#define ALLSTAR_VOICE_MUSIC_LAST  0
+#define ALLSTAR_VOICE_SFX_FIRST   7        /* $327F counts 7 down to 4        */
+#define ALLSTAR_VOICE_SFX_LAST    4
+
+typedef enum {
+    ALLSTAR_VOICE_BANK_MUSIC = 0,  /* $3264, channels 3..0 */
+    ALLSTAR_VOICE_BANK_SFX         /* $327F, channels 7..4 */
+} AllStarVoiceBank;
+
+/*
+ * $3264 and $327F are the same loop over different halves of the eight voices,
+ * and both walk DOWNWARDS.  A channel is skipped entirely when its $DD7F byte
+ * is zero; otherwise it runs $32E9 (load), $347B (advance), $32B8 (save).
+ *
+ * $3264 stops when bit 7 of C is set -- that is, after channel 0 wraps to $FF
+ * -- while $327F stops on a plain `cp $04`, so neither loop can run off its
+ * half into the other.
+ */
+int allstar_voice_bank_order(AllStarVoiceBank bank, uint8_t *out, int max);
+
+/* The $DD7F slot a channel's active flag lives in. */
+uint16_t allstar_voice_active_slot(uint8_t channel);
+
+/* $326C/$3287: a zero flag means the channel is skipped this frame. */
+bool allstar_voice_channel_runs(uint8_t active_flag);
+
 #endif /* ALLSTAR_VOICE_STATE_H */

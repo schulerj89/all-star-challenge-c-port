@@ -336,6 +336,16 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
  * 1 right, 2 left, 3 both.  All four tables are the same pair of bits shifted
  * by the voice index, which is what this returns.
  */
+/*
+ * One digest over every decoded screen and every player's portrait and logo
+ * art.  The extraction was verified once, by composing all of it from the ROM
+ * and diffing against the bitmaps it replaced -- five screens, 27 logos and 27
+ * portraits, all pixel-identical.  Pinning the digest is what stops a later
+ * change to the extractor from silently altering any of it: the $41B0 portrait
+ * patch was missed exactly once, and nothing in the suite noticed.
+ */
+uint32_t allstar_asset_pack_rom_art_digest(const AllStarAssetPack *pack);
+
 uint8_t allstar_asset_pack_rom_music_voice_panning(uint8_t descriptor_flags,
                                                    int voice);
 

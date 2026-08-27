@@ -2522,6 +2522,25 @@ int allstar_cli_test_rom_art(void) {
         return 1;
     }
 
+    /*
+     * A digest over every decoded screen and every player's art.  It is
+     * anchored to an extraction that was verified image by image against the
+     * bitmaps it replaced -- five screens, 27 logos and 27 portraits, all
+     * pixel-identical.  A change here means the extractor is reading something
+     * different out of the cartridge, which is exactly the failure nothing
+     * caught when the $41B0 portrait patch was first missed.
+     */
+    {
+        uint32_t digest = allstar_asset_pack_rom_art_digest(pack);
+        if (digest != 0x6208BA77u) {
+            fprintf(stderr,
+                    "[Test] the art digest is %08X, expected 6208BA77 -- the "
+                    "extractor changed what it reads from the ROM\n",
+                    (unsigned)digest);
+            free(pack);
+            return 1;
+        }
+    }
     printf("  $04EF's eight screens plus $0271's, slot 5 empty, every map "
            "inside its own tiles\n");
     printf("  the settings variants share tiles and differ by map, as "

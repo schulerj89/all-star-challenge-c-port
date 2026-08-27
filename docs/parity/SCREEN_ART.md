@@ -83,6 +83,13 @@ cheap to check.
 .\build\allstar_port.exe --test-rom-art
 ```
 
+It also pins a digest over every decoded screen and every player's art. That
+digest is the backstop: the explicit assertions cover what was understood at
+the time, and the digest covers everything else, so an extractor change cannot
+quietly alter an image nobody thought to assert. Reintroducing the `$41B0` bug
+fails the run; so does shifting a screen's tilemap pointer by one byte, which
+the extractor's own RLE-length invariant rejects before the digest is reached.
+
 The test pins the `$04EF` records, that slot 5 is empty and slot 8 comes from
 bank 1, that every map stays inside its own tile stream, that the settings
 variants share tiles but not maps, and both cell-map rules — including that

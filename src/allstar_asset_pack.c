@@ -1106,6 +1106,41 @@ static uint16_t music_track_frequency(const AllStarRom *rom,
  * shifted mask covers them.  $3587 ANDs the same two bits back off when the
  * voice rests, which is why a resting voice contributes nothing here.
  */
+uint32_t allstar_asset_pack_rom_art_digest(const AllStarAssetPack *pack) {
+    uint32_t digest = 2166136261u;
+    size_t i;
+    if (!pack) return 0u;
+    for (i = 0; i < ALLSTAR_ROM_SCREEN_COUNT; i++) {
+        const AllStarRomScreen *screen = &pack->rom_screens[i];
+        size_t bytes = (size_t)screen->tile_count * sizeof(AllStarTile);
+        size_t k;
+        for (k = 0; k < bytes; k++) {
+            digest ^= ((const uint8_t *)screen->tiles)[k];
+            digest *= 16777619u;
+        }
+        for (k = 0; k < sizeof(screen->tilemap); k++) {
+            digest ^= screen->tilemap[k];
+            digest *= 16777619u;
+        }
+    }
+    for (i = 0; i < ALLSTAR_ROM_PLAYER_ART_COUNT; i++) {
+        const AllStarRomPlayerArt *art = &pack->rom_player_art[i];
+        size_t bytes = (size_t)art->tile_count * sizeof(AllStarTile);
+        size_t k;
+        for (k = 0; k < bytes; k++) {
+            digest ^= ((const uint8_t *)art->tiles)[k];
+            digest *= 16777619u;
+        }
+        for (k = 0; k < ALLSTAR_ROM_PORTRAIT_CELLS; k++) {
+            digest ^= art->portrait_cells[k];
+            digest *= 16777619u;
+            digest ^= art->logo_cells[k];
+            digest *= 16777619u;
+        }
+    }
+    return digest;
+}
+
 uint8_t allstar_asset_pack_rom_music_voice_panning(uint8_t descriptor_flags,
                                                    int voice) {
     uint8_t code = (uint8_t)((descriptor_flags >> 2) & 0x03u);

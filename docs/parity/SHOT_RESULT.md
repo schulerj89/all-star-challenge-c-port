@@ -76,3 +76,56 @@ Run:
 ```powershell
 .\build\allstar_port.exe --test-shot-result
 ```
+
+## Court-wide state
+
+Added the same day: `$1C1D`/`$1C32`/`$1C3E`, `$1F3E`/`$1F5B`, `$2BC6`, `$2C72`
+and `$2C95` — 280 more bytes on the same shared path.
+
+### Sprite priority against the backboard, `$1C1D..$1C60`
+
+Four sprite groups at `$C000`, `$C010`, `$C020` and `$C030`. For each, `$1C3E`
+compares the group's Y against `$58`: at or above it the four attribute bytes
+get bit 7 **set** (drawn behind the background), below it the bit is cleared.
+`$1C32` then overrides every group to "behind" whenever `$C12B` says the ball is
+held. The comparison is `cp $58 / jr nc`, so the boundary is inclusive.
+
+### The rim-cue selector, `$1F3E`
+
+Either `$FFB0` or `$FFC9` being set writes `$06` into `$C12A`, which is what
+makes `$1E74`'s rim cue fire at two steps instead of three. That closes the loop
+with the shot-result group above.
+
+`$1C05` is the other half of that loop: the settle path's second leftward bounce
+sets `$FFD4`, which is exactly the flag `$1E74` consumes for its −300 damping.
+
+### The pause toggle, `$2BC6..$2C43`
+
+Start (`$FFAE` bit 3) is gated on **six** flags all being clear: `$C185`,
+`$C16F`, `$C12E`, `$FFEB`, `$C174` and `$FFEC`.
+
+In a link game (`$C18B`) the two cartridges behave differently. The side that is
+not player 2 posts `$CC` into `$C18E` — a pause request sent over the link — and
+returns without pausing, dropping the request if one is already pending. Player 2
+clears `$FFAE` to consume the button and drives the toggle itself. `$FFE5` is the
+paused flag; entering plays sound `$01` and posts `$069E`, and mode `$01` hides
+and restores OBJ around it.
+
+This is the fifth place the link cable appears in the ROM, after `$267F`,
+`$1121`, `$1209` and the `$C199` role byte.
+
+### The two message triggers
+
+`$2C72` posts `$068D` when a 16-bit counter reaches zero, recording the owner in
+`$FFD0` and setting `$C131`.
+
+`$2C95` posts `$0649` when a player's action is `$03`, `$0A` or `$12`, its
+sub-state is `$0C`, and `$FFCF` says that player holds possession. It discards a
+return address before tail-jumping into `$05A3`, so the message writer returns
+past its own caller — modelled explicitly as `unwinds_caller`.
+
+Run:
+
+```powershell
+.\build\allstar_port.exe --test-court-state
+```

@@ -12,6 +12,7 @@
 #include "allstar_postgame.h"
 #include "allstar_select.h"
 #include "allstar_shot_result.h"
+#include "allstar_court_state.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2249,6 +2250,183 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM court-wide state, from the $1C1D..$1C60, $1F3E..$1F5E, $2BC6..$2C43 and
+ * $2C72..$2CBC disassembly.
+ */
+int allstar_cli_test_court_state_rom(void) {
+    static const uint16_t GROUPS[ALLSTAR_COURT_OAM_GROUPS] = { 0xC000u, 0xC010u, 0xC020u, 0xC030u };
+    AllStarCourtPauseGates gates;
+    AllStarCourtPause pause;
+    AllStarCourtExpiry expiry;
+    AllStarCourtViolation violation;
+    const uint16_t *groups;
+    uint8_t selector;
+    uint8_t paused;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Court State Tests ($1C3E/$1F3E/$2BC6/$2C95)...\n");
+
+    groups = allstar_court_oam_groups(&count);
+    if (count != ALLSTAR_COURT_OAM_GROUPS) {
+        fprintf(stderr, "[Test] $1C1D walks %d groups, expected %d\n", count, ALLSTAR_COURT_OAM_GROUPS);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (groups[i] != GROUPS[i]) {
+            fprintf(stderr, "[Test] $1C1D group %d is $%04X, expected $%04X\n", i, groups[i], GROUPS[i]);
+            return 1;
+        }
+    }
+
+    /* $1C3F: the boundary is inclusive at $58. */
+    if (allstar_court_sprite_behind(0x57u, 0u) ||
+        !allstar_court_sprite_behind(0x58u, 0u) ||
+        !allstar_court_sprite_behind(0xFFu, 0u)) {
+        fprintf(stderr, "[Test] $1C3F priority boundary diverged\n");
+        return 1;
+    }
+    /* $1C37: a held ball forces every group behind regardless of Y. */
+    if (!allstar_court_sprite_behind(0x00u, 1u)) {
+        fprintf(stderr, "[Test] $1C37 held-ball override diverged\n");
+        return 1;
+    }
+
+    /* $1F3E: either flag switches the cue, neither leaves it alone. */
+    selector = 0u;
+    if (allstar_court_cue_select(0u, 0u, &selector) || selector != 0u) {
+        fprintf(stderr, "[Test] $1F46 fired with both flags clear\n");
+        return 1;
+    }
+    if (!allstar_court_cue_select(1u, 0u, &selector) ||
+        selector != ALLSTAR_COURT_CUE_SELECT_VALUE) {
+        fprintf(stderr, "[Test] $1F49 first flag diverged\n");
+        return 1;
+    }
+    selector = 0u;
+    if (!allstar_court_cue_select(0u, 1u, &selector) ||
+        selector != ALLSTAR_COURT_CUE_SELECT_VALUE) {
+        fprintf(stderr, "[Test] $1F43 second flag diverged\n");
+        return 1;
+    }
+    if (allstar_court_cue_id() != ALLSTAR_COURT_CUE_ID) {
+        fprintf(stderr, "[Test] $1F5B cue id diverged\n");
+        return 1;
+    }
+
+    /* $2BC6: Start with every gate clear toggles the pause. */
+    gates.c185 = 0; gates.c16f = 0; gates.c12e = 0;
+    gates.ffeb = 0; gates.c174 = 0; gates.ffec = 0;
+    paused = 0u;
+    allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 0u, 0u, 0u, 0u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_ENTERED || paused != 1u ||
+        pause.sound != ALLSTAR_COURT_PAUSE_SOUND ||
+        pause.message != ALLSTAR_COURT_PAUSE_MESSAGE) {
+        fprintf(stderr, "[Test] $2C0C pause entry diverged\n");
+        return 1;
+    }
+    allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 0u, 0u, 0u, 0u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_LEFT || paused != 0u || pause.sound != 0) {
+        fprintf(stderr, "[Test] $2C22 unpause diverged\n");
+        return 1;
+    }
+    /* Without Start nothing happens. */
+    allstar_court_pause(0x01u, &gates, 0u, 0u, 0u, 0u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_IGNORED || paused != 0u) {
+        fprintf(stderr, "[Test] $2BCA fired without Start\n");
+        return 1;
+    }
+    /* Each of the six gates independently blocks it. */
+    {
+        uint8_t *fields[6];
+        fields[0] = &gates.c185; fields[1] = &gates.c16f; fields[2] = &gates.c12e;
+        fields[3] = &gates.ffeb; fields[4] = &gates.c174; fields[5] = &gates.ffec;
+        for (i = 0; i < 6; i++) {
+            *fields[i] = 1u;
+            allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 0u, 0u, 0u, 0u, &paused, &pause);
+            if (pause.result != ALLSTAR_COURT_PAUSE_IGNORED || paused != 0u) {
+                fprintf(stderr, "[Test] $2BCB gate %d did not block the pause\n", i);
+                return 1;
+            }
+            *fields[i] = 0u;
+        }
+    }
+    /* $2BF9: in a link game the non-player-2 side posts a request instead. */
+    allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 1u, 1u, 0u, 0u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_REQUESTED || !pause.posts_link_request ||
+        paused != 0u) {
+        fprintf(stderr, "[Test] $2BF9 link request diverged\n");
+        return 1;
+    }
+    /* A request already pending is dropped. */
+    allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 1u, 1u, 1u, 0u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_IGNORED || pause.posts_link_request) {
+        fprintf(stderr, "[Test] $2BF8 did not drop a duplicate request\n");
+        return 1;
+    }
+    /* Player 2 consumes the button and drives the toggle itself. */
+    allstar_court_pause(ALLSTAR_COURT_PAUSE_BUTTON, &gates, 1u,
+                        ALLSTAR_COURT_ROLE_PLAYER_2, 0u, 0x01u, &paused, &pause);
+    if (pause.result != ALLSTAR_COURT_PAUSE_ENTERED || !pause.consumes_input ||
+        !pause.toggles_objects || paused != 1u) {
+        fprintf(stderr, "[Test] $2C00 player 2 pause path diverged\n");
+        return 1;
+    }
+    paused = 0u;
+
+    /* $2C72: only a zero counter posts the expiry message. */
+    allstar_court_expiry(1u, 2u, &expiry);
+    if (expiry.fires) {
+        fprintf(stderr, "[Test] $2C74 fired on a live counter\n");
+        return 1;
+    }
+    allstar_court_expiry(0u, 2u, &expiry);
+    if (!expiry.fires || expiry.owner != 2u ||
+        expiry.message != ALLSTAR_COURT_EXPIRY_MESSAGE) {
+        fprintf(stderr, "[Test] $2C7D expiry message diverged\n");
+        return 1;
+    }
+
+    /* $2C95: three accepted actions, one sub-state, and possession must match. */
+    allstar_court_violation(0x03u, 0x0Cu, 1u, 1u, &violation);
+    if (!violation.fires || violation.message != ALLSTAR_COURT_VIOLATION_MESSAGE ||
+        !violation.unwinds_caller) {
+        fprintf(stderr, "[Test] $2CB6 violation message diverged\n");
+        return 1;
+    }
+    allstar_court_violation(0x0Au, 0x0Cu, 2u, 2u, &violation);
+    if (!violation.fires) {
+        fprintf(stderr, "[Test] $2C9D action $0A was rejected\n");
+        return 1;
+    }
+    allstar_court_violation(0x12u, 0x0Cu, 2u, 2u, &violation);
+    if (!violation.fires) {
+        fprintf(stderr, "[Test] $2CA1 action $12 was rejected\n");
+        return 1;
+    }
+    allstar_court_violation(0x04u, 0x0Cu, 1u, 1u, &violation);
+    if (violation.fires) {
+        fprintf(stderr, "[Test] $2CA3 accepted an action outside $03/$0A/$12\n");
+        return 1;
+    }
+    allstar_court_violation(0x03u, 0x0Bu, 1u, 1u, &violation);
+    if (violation.fires) {
+        fprintf(stderr, "[Test] $2CA9 accepted the wrong sub-state\n");
+        return 1;
+    }
+    allstar_court_violation(0x03u, 0x0Cu, 1u, 2u, &violation);
+    if (violation.fires) {
+        fprintf(stderr, "[Test] $2CB3 fired without possession\n");
+        return 1;
+    }
+
+    printf("  sprites go behind at Y >= $58, and a held ball forces all four groups behind\n");
+    printf("  pause has six independent gates and posts $CC to $C18E in a link game\n");
+    printf("[Test] PASSED: $1C1D, $1C32, $1C3E, $1F3E, $1F5B, $2BC6, $2C72, $2C95\n");
     return 0;
 }
 
@@ -5684,6 +5862,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_select_card_rom();
     failed += allstar_cli_test_select_records_rom();
     failed += allstar_cli_test_shot_result_rom();
+    failed += allstar_cli_test_court_state_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5802,6 +5981,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_select_records_rom();
     } else if (strcmp(cmd, "--test-shot-result") == 0) {
         return allstar_cli_test_shot_result_rom();
+    } else if (strcmp(cmd, "--test-court-state") == 0) {
+        return allstar_cli_test_court_state_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

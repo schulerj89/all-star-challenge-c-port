@@ -23,6 +23,7 @@
 #include "allstar_cpu_target.h"
 #include "allstar_apu_program.h"
 #include "allstar_boot.h"
+#include "allstar_handshake.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2260,6 +2261,126 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM two-player handshake and attract entry, from the $0322..$0383 and
+ * $0417..$0443 disassembly.
+ */
+int allstar_cli_test_handshake_rom(void) {
+    AllStarHandshakeAccept accept;
+    AllStarHandshakeReady ready;
+    AllStarAttract attract;
+    uint8_t attempts;
+    uint8_t role;
+    uint8_t echo;
+
+    printf("[Test] Running ROM Handshake Tests ($0324/$035F/$0417)...\n");
+
+    /* $0331: the peer answering straight away skips the middle exchange. */
+    attempts = ALLSTAR_HANDSHAKE_ATTEMPTS;
+    role = 0u; echo = 0xFFu;
+    if (allstar_handshake_step(0x01u, 0x00u, 0x02u, &attempts, &role, &echo)
+            != ALLSTAR_HANDSHAKE_AGREED ||
+        role != ALLSTAR_HANDSHAKE_ROLE_LEAD || echo != 0x00u ||
+        attempts != ALLSTAR_HANDSHAKE_ATTEMPTS) {
+        fprintf(stderr, "[Test] $0358 fast agreement diverged, role %u echo %u\n", role, echo);
+        return 1;
+    }
+
+    /* $0335: otherwise it echoes a one and looks again. */
+    attempts = ALLSTAR_HANDSHAKE_ATTEMPTS;
+    if (allstar_handshake_step(0x00u, 0x01u, 0x02u, &attempts, &role, &echo)
+            != ALLSTAR_HANDSHAKE_AGREED || echo != 0x01u) {
+        fprintf(stderr, "[Test] $033A echo diverged, got %u\n", echo);
+        return 1;
+    }
+
+    /* $0343: a failure at the middle reading aborts without spending a try. */
+    attempts = ALLSTAR_HANDSHAKE_ATTEMPTS;
+    if (allstar_handshake_step(0x00u, 0x00u, 0x02u, &attempts, &role, &echo)
+            != ALLSTAR_HANDSHAKE_ABORT ||
+        attempts != ALLSTAR_HANDSHAKE_ATTEMPTS) {
+        fprintf(stderr, "[Test] $0343 abort spent an attempt\n");
+        return 1;
+    }
+
+    /* $0353: a failure at the last reading does spend one and retries. */
+    attempts = 3u;
+    if (allstar_handshake_step(0x01u, 0x00u, 0x00u, &attempts, &role, &echo)
+            != ALLSTAR_HANDSHAKE_RETRY || attempts != 2u) {
+        fprintf(stderr, "[Test] $0354 retry diverged, attempts %u\n", attempts);
+        return 1;
+    }
+    /* The tenth failure aborts rather than retrying. */
+    attempts = 1u;
+    if (allstar_handshake_step(0x01u, 0x00u, 0x00u, &attempts, &role, &echo)
+            != ALLSTAR_HANDSHAKE_ABORT || attempts != 0u) {
+        fprintf(stderr, "[Test] $0356 last attempt did not abort\n");
+        return 1;
+    }
+    /* Every attempt re-claims role $01 before anything else. */
+    attempts = 5u; role = 0xFFu;
+    allstar_handshake_step(0x01u, 0x00u, 0x00u, &attempts, &role, &echo);
+    if (role != ALLSTAR_HANDSHAKE_ROLE_INIT) {
+        fprintf(stderr, "[Test] $032A did not reclaim role 1 on a retry\n");
+        return 1;
+    }
+
+    /*
+     * $035F: the receiving side takes role $03, which is the value $267F keys
+     * on to put the byte it receives into pad 1.
+     */
+    allstar_handshake_accept(&accept);
+    if (accept.role != ALLSTAR_HANDSHAKE_ROLE_JOIN || accept.sends != 0x00u ||
+        !accept.unwinds_caller) {
+        fprintf(stderr, "[Test] $036C accept path diverged\n");
+        return 1;
+    }
+    /* The two sides must not land on the same role. */
+    if (ALLSTAR_HANDSHAKE_ROLE_LEAD == ALLSTAR_HANDSHAKE_ROLE_JOIN) {
+        fprintf(stderr, "[Test] both sides took the same role\n");
+        return 1;
+    }
+
+    /* $0376: both success paths agree on two players. */
+    allstar_handshake_ready(&ready);
+    if (ready.ffa5 != 0x01u || ready.ffbe != 0x01u ||
+        ready.players != ALLSTAR_HANDSHAKE_PLAYERS) {
+        fprintf(stderr, "[Test] $037D ready state diverged\n");
+        return 1;
+    }
+
+    /* $0417: the attract setup, including the countdown $2D1B consumes. */
+    allstar_attract_setup(&attract);
+    if (attract.mode != 0x00u || attract.link_state != 0x00u ||
+        attract.countdown != ALLSTAR_ATTRACT_COUNTDOWN ||
+        attract.seed != ALLSTAR_ATTRACT_SEED ||
+        attract.skill != ALLSTAR_ATTRACT_SKILL ||
+        attract.bank != ALLSTAR_ATTRACT_BANK ||
+        attract.selector != ALLSTAR_ATTRACT_SELECTOR) {
+        fprintf(stderr, "[Test] $0417 attract setup diverged\n");
+        return 1;
+    }
+    /* Attract runs at the easiest skill, which $761B reads as index zero. */
+    if (allstar_cpu_threshold(allstar_cpu_threshold_table(0x7626u), attract.skill) != 0x1Bu) {
+        fprintf(stderr, "[Test] $0436 attract skill does not select the first threshold\n");
+        return 1;
+    }
+    /* The countdown really is the one the watchdog spends. */
+    {
+        uint16_t countdown = attract.countdown;
+        if (allstar_watchdog(1u, 0u, 0u, 1u, 0u, &countdown) != ALLSTAR_WATCHDOG_CONTINUE ||
+            countdown != (uint16_t)(ALLSTAR_ATTRACT_COUNTDOWN - 1u)) {
+            fprintf(stderr, "[Test] $2D39 did not consume the $0420 countdown\n");
+            return 1;
+        }
+    }
+
+    printf("  the side that starts becomes role $02 and the side that answers role $03\n");
+    printf("  attract loads $0E10 into the very counter $2D1B spends, at the easiest skill\n");
+    printf("[Test] PASSED: $0322, $0324, $035F, $0376, $0417\n");
     return 0;
 }
 
@@ -7261,6 +7382,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_cpu_target_rom();
     failed += allstar_cli_test_apu_program_rom();
     failed += allstar_cli_test_boot_rom();
+    failed += allstar_cli_test_handshake_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7397,6 +7519,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_apu_program_rom();
     } else if (strcmp(cmd, "--test-boot") == 0) {
         return allstar_cli_test_boot_rom();
+    } else if (strcmp(cmd, "--test-handshake") == 0) {
+        return allstar_cli_test_handshake_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

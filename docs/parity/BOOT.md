@@ -62,8 +62,49 @@ Run:
 .\build\allstar_port.exe --test-boot
 ```
 
+## The handshake, `$0324` and `$035F`
+
+Two entries, and which one a cartridge takes decides its role for the rest of
+the session.
+
+**`$0324` initiates.** Ten attempts, each claiming role `$01` afresh and then
+taking three readings of `$C19E`, one per vblank:
+
+| reading | on success | on failure |
+|---|---|---|
+| first, `== $01` | skip the middle exchange | echo `$01` and take the middle reading |
+| middle, `== $01` | continue | **abort immediately**, without spending an attempt |
+| last, `== $02` | become role `$02` | spend an attempt and retry |
+
+The middle failure aborting *without* spending a try is the part worth noticing:
+only the last reading costs an attempt, so ten retries means ten failures at the
+final step, not ten anywhere.
+
+**`$035F` answers.** It discards the title loop's saved counter with a bare
+`pop bc`, spins until the serial interrupt raises `$C19C`, takes role `$03`,
+sends a zero and joins the same tail.
+
+So the side that presses Start first ends at role `$02` and the side that
+answers at role `$03` — and `$03` is exactly the value `$267F` keys on to decide
+that the byte it receives belongs in pad 1. Both paths finish at `$0376`, which
+sets `$FFA5`, `$FFBE` and two players.
+
+## Attract, `$0417`
+
+Sets mode `$00`, clears `$C19A`, loads `$0E10` into `$C26D`, seeds `$FF94` with
+`$0200`, picks skill `$01`, and calls the bank 2 selector.
+
+`$0E10` is sixty seconds of frames, and it is **the same counter `$2D1B`
+decrements** in attract mode — the watchdog ported earlier spends exactly what
+this sets. The selector call lands on `$4003`'s `$FFE4` check, which diverts to
+the `$2D85` CPU auto-pick, so attract drives the entrant screen by itself. Skill
+`$01` is the easiest, which `$761B` reads as index zero.
+
+The test asserts both of those couplings rather than just the constants, so the
+attract countdown and the watchdog cannot drift apart.
+
 ## Scope
 
 This ports the wipe layout, the preserved words, the reset notification, the
-title toggle and the confirm branch. The handshake loop itself at `$0324`, and
-the attract path at `$0417`, are separate work.
+title toggle, the confirm branch, both handshake entries and the attract setup.
+The bank 2 selector's own attract behaviour was ported earlier as `$2D85`.

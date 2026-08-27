@@ -15,6 +15,8 @@
 #include "allstar_court_state.h"
 #include "allstar_game_clock.h"
 #include "allstar_status_panel.h"
+#include "allstar_menu.h"
+#include "allstar_voice_state.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2252,6 +2254,170 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM mode-select menu and the sound-driver voice switch, from the
+ * $038F..$0416 and $32B8..$3319 disassembly.
+ */
+int allstar_cli_test_menu_voice_rom(void) {
+    AllStarMenuInputSeed seed;
+    const AllStarVoiceField *fields;
+    uint8_t working[ALLSTAR_VOICE_FIELDS];
+    uint8_t slots[ALLSTAR_VOICE_FIELDS];
+    uint8_t mode;
+    uint8_t link;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Menu and Voice Tests ($038F/$32B8)...\n");
+
+    /* $0397: only a two-player game starts the menu music. */
+    if (allstar_menu_plays_music(1u) || !allstar_menu_plays_music(2u)) {
+        fprintf(stderr, "[Test] $0399 music gate diverged\n");
+        return 1;
+    }
+
+    /* $03AE: new input cleared, held input primed to $FF on both pads. */
+    allstar_menu_seed_input(&seed);
+    if (seed.new_player_1 != 0x00u || seed.new_player_2 != 0x00u ||
+        seed.held_player_1 != 0xFFu || seed.held_player_2 != 0xFFu) {
+        fprintf(stderr, "[Test] $03B6 input seed diverged\n");
+        return 1;
+    }
+
+    /* $03FD: A or Down steps forward and wraps past the last entry. */
+    mode = 0u; link = 0xFFu;
+    if (allstar_menu_step(0u, 0x01u, 1u, &mode, &link) != ALLSTAR_MENU_MOVED || mode != 1u) {
+        fprintf(stderr, "[Test] A did not step forward\n");
+        return 1;
+    }
+    if (allstar_menu_step(0u, 0x80u, 1u, &mode, &link) != ALLSTAR_MENU_MOVED || mode != 2u) {
+        fprintf(stderr, "[Test] Down did not step forward\n");
+        return 1;
+    }
+    mode = 4u;
+    if (allstar_menu_step(0u, 0x01u, 1u, &mode, &link) != ALLSTAR_MENU_MOVED || mode != 0u) {
+        fprintf(stderr, "[Test] $0404 did not wrap past the last entry\n");
+        return 1;
+    }
+    /* $0407: B or Up steps back and wraps below zero. */
+    if (allstar_menu_step(0u, 0x02u, 1u, &mode, &link) != ALLSTAR_MENU_MOVED || mode != 4u) {
+        fprintf(stderr, "[Test] $040E did not wrap below zero, mode %u\n", mode);
+        return 1;
+    }
+    if (allstar_menu_step(0u, 0x40u, 1u, &mode, &link) != ALLSTAR_MENU_MOVED || mode != 3u) {
+        fprintf(stderr, "[Test] Up did not step back\n");
+        return 1;
+    }
+    /* A button outside the $C3 mask does nothing. */
+    if (allstar_menu_step(0u, 0x10u, 1u, &mode, &link) != ALLSTAR_MENU_IDLE || mode != 3u) {
+        fprintf(stderr, "[Test] $03F5 accepted a button outside the mask\n");
+        return 1;
+    }
+
+    /* $03D2: Start confirms. */
+    mode = 0u;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 1u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED) {
+        fprintf(stderr, "[Test] $03D6 Start did not confirm\n");
+        return 1;
+    }
+    /* $03CD: $FFEC blocks the confirm, and the cursor does not move either. */
+    if (allstar_menu_step(1u, ALLSTAR_MENU_CONFIRM_MASK, 1u, &mode, &link)
+            != ALLSTAR_MENU_IDLE || mode != 0u) {
+        fprintf(stderr, "[Test] $03D0 lock did not block the confirm\n");
+        return 1;
+    }
+    /* $03C7: a two-player game cannot select the tournament. */
+    mode = ALLSTAR_MENU_TOURNAMENT;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 2u, &mode, &link)
+            != ALLSTAR_MENU_IDLE) {
+        fprintf(stderr, "[Test] $03CB let two players pick the tournament\n");
+        return 1;
+    }
+    /* One player can. */
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 1u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED) {
+        fprintf(stderr, "[Test] $03C5 blocked a one-player tournament\n");
+        return 1;
+    }
+
+    /* $03DD: modes $01 and $03 record the link flag, only with two players. */
+    link = 0xFFu; mode = 0x01u;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 2u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED || link != 0x01u) {
+        fprintf(stderr, "[Test] $03E7 Free Throw link flag diverged, got $%02X\n", link);
+        return 1;
+    }
+    link = 0xFFu; mode = 0x03u;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 2u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED || link != 0x03u) {
+        fprintf(stderr, "[Test] $03E7 Accuracy link flag diverged\n");
+        return 1;
+    }
+    link = 0xFFu; mode = 0x00u;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 2u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED || link != 0xFFu) {
+        fprintf(stderr, "[Test] $03E5 set the link flag for a non-link mode\n");
+        return 1;
+    }
+    link = 0xFFu; mode = 0x01u;
+    if (allstar_menu_step(0u, ALLSTAR_MENU_CONFIRM_MASK, 1u, &mode, &link)
+            != ALLSTAR_MENU_CONFIRMED || link != 0xFFu) {
+        fprintf(stderr, "[Test] $03DB set the link flag in a one-player game\n");
+        return 1;
+    }
+
+    /* $32B8: six fields, with the third and fourth swapped. */
+    fields = allstar_voice_fields(&count);
+    if (count != ALLSTAR_VOICE_FIELDS) {
+        fprintf(stderr, "[Test] $32B8 copies %d fields, expected %d\n", count, ALLSTAR_VOICE_FIELDS);
+        return 1;
+    }
+    if (fields[0].scratch != 0xDE2Au || fields[0].table != 0xDDBFu ||
+        fields[1].scratch != 0xDE2Bu || fields[1].table != 0xDDC7u ||
+        fields[2].scratch != 0xDE2Du || fields[2].table != 0xDDCFu ||
+        fields[3].scratch != 0xDE2Cu || fields[3].table != 0xDDD7u ||
+        fields[4].scratch != 0xDE28u || fields[4].table != 0xDDDFu ||
+        fields[5].scratch != 0xDE29u || fields[5].table != 0xDDE7u) {
+        fprintf(stderr, "[Test] $32B8 field mapping diverged\n");
+        return 1;
+    }
+    /* The swap is the point: $DE2D goes to the lower array, $DE2C to the higher. */
+    if (!(fields[2].scratch > fields[3].scratch && fields[2].table < fields[3].table)) {
+        fprintf(stderr, "[Test] $32C8/$32D0 lost the swapped pair\n");
+        return 1;
+    }
+    /* The arrays are eight bytes apart, indexed by channel. */
+    for (i = 0; i < ALLSTAR_VOICE_FIELDS; i++) {
+        if (allstar_voice_slot(i, 0u) != fields[i].table ||
+            allstar_voice_slot(i, 3u) != (uint16_t)(fields[i].table + 3u)) {
+            fprintf(stderr, "[Test] $32BE channel indexing diverged on field %d\n", i);
+            return 1;
+        }
+    }
+    if (fields[1].table - fields[0].table != ALLSTAR_VOICE_TABLE_STRIDE) {
+        fprintf(stderr, "[Test] $32B8 array stride diverged\n");
+        return 1;
+    }
+
+    /* $32B8 then $32E9 must round-trip. */
+    for (i = 0; i < ALLSTAR_VOICE_FIELDS; i++) working[i] = (uint8_t)(0x10u + i);
+    allstar_voice_save(working, slots);
+    for (i = 0; i < ALLSTAR_VOICE_FIELDS; i++) working[i] = 0u;
+    allstar_voice_load(slots, working);
+    for (i = 0; i < ALLSTAR_VOICE_FIELDS; i++) {
+        if (working[i] != (uint8_t)(0x10u + i)) {
+            fprintf(stderr, "[Test] $32E9 did not mirror $32B8 at field %d\n", i);
+            return 1;
+        }
+    }
+
+    printf("  two players cannot pick the tournament, and Free Throw or Accuracy sets $C18B\n");
+    printf("  the voice switch swaps its third and fourth fields, $DE2D to $DDCF\n");
+    printf("[Test] PASSED: $038F, $32B8, $32E9\n");
     return 0;
 }
 
@@ -6128,6 +6294,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_court_state_rom();
     failed += allstar_cli_test_game_clock_rom();
     failed += allstar_cli_test_status_panel_rom();
+    failed += allstar_cli_test_menu_voice_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -6252,6 +6419,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_game_clock_rom();
     } else if (strcmp(cmd, "--test-status-panel") == 0) {
         return allstar_cli_test_status_panel_rom();
+    } else if (strcmp(cmd, "--test-menu-voice") == 0) {
+        return allstar_cli_test_menu_voice_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

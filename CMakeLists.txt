@@ -34,6 +34,8 @@ set(ALLSTAR_CORE_SOURCES
     src/gameplay/allstar_court_state.c
     src/gameplay/allstar_game_clock.c
     src/gameplay/allstar_status_panel.c
+    src/gameplay/allstar_menu.c
+    src/audio/allstar_voice_state.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c
     src/scenes/scene_settings.c

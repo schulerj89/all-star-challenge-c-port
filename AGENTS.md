@@ -6,7 +6,7 @@ These notes define standards and procedures for AI agents (Antigravity/Codex) wo
 
 - **Native C Port**: Do not create an emulator wrapper or log replayer. Implement native C data structures, state machines, math, rasterization, and audio.
 - **Data Boundary**: NEVER commit ROM binaries, raw PRG/CHR dumps, extracted copyright sprite sheets, or private binary blobs.
-- **Asset Pipeline**: Assets must be extracted dynamically from the user's ROM file using `--build-assetpack`.
+- **Asset Pipeline**: Assets must be extracted dynamically from the user's ROM file using `--build-assetpack`.  The screen backgrounds and player portraits moved into that pipeline on 2026-08-27; see `docs/parity/SCREEN_ART.md`.
 - **Ghidra & MCP Integration**: Use the Ghidra MCP tools / scripts in `tools/ghidra` to analyze functions, query symbol tables, and decompile routines.
 - **Evidence-Based Coverage**: Do not count comments, declarations, similarly named functions, or scene scaffolds as ROM-routine coverage. Mark behavior verified only when a trace or deterministic comparison supports it.
 - **Keep Verification Green**: Ensure `.\build.ps1` builds cleanly without warnings and all verification tests pass.

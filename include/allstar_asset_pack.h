@@ -5,7 +5,7 @@
 #include "allstar_rom.h"
 
 #define ALLSTAR_ASSET_MAGIC 0x41535452 /* 'ASTR' */
-#define ALLSTAR_ASSET_VERSION 19
+#define ALLSTAR_ASSET_VERSION 20
 
 #define ALLSTAR_MAX_TILES 512
 #define ALLSTAR_MAX_ROSTER 30
@@ -35,6 +35,7 @@
 #define ALLSTAR_ASSET_FEATURE_FREE_THROW_ART (1u << 2)
 #define ALLSTAR_ASSET_FEATURE_ROM_MUSIC (1u << 3)
 #define ALLSTAR_ASSET_FEATURE_ROM_CAPTIONS (1u << 4)
+#define ALLSTAR_ASSET_FEATURE_ROM_SCREENS (1u << 5)
 
 #define ALLSTAR_ROM_SFX_CHANNEL_1 (1u << 0)
 #define ALLSTAR_ROM_SFX_CHANNEL_2 (1u << 1)
@@ -203,6 +204,67 @@ typedef struct {
     AllStarRomCaptionLayout layouts[ALLSTAR_ROM_CAPTION_LAYOUTS];
 } AllStarRomCaptionScript;
 
+/*
+ * The full-screen backgrounds $04B1 loads.  It takes a screen index in A,
+ * reads a four-byte record from $04EF -- a tile stream pointer then a tilemap
+ * pointer, both bank 3 -- and RLE-decodes them through $050F into $9000 and
+ * $9800.  Each map indexes the decoded stream directly.
+ *
+ *   0 title      1 roster frame   2 mode menu    3 settings, One-on-One
+ *   4 settings, Free Throw        5 unused       6 settings, Accuracy
+ *   7 settings, Tournament        8 the $0271 copyright screen
+ *
+ * $22FC reaches the settings variants as mode + 3, which is why three of them
+ * share tiles with another and differ only in the map.  Slot 8 is not in the
+ * $04EF table: $0271 loads bank 1 $640F and bank 3 $4000 directly.
+ */
+#define ALLSTAR_ROM_SCREEN_COUNT      9
+#define ALLSTAR_ROM_SCREEN_MAX_TILES  240
+#define ALLSTAR_ROM_SCREEN_CREDITS    8
+#define ALLSTAR_ROM_SCREEN_TABLE      0x04EFu
+#define ALLSTAR_ROM_SCREEN_MAP_STRIDE 32
+
+typedef struct {
+    uint16_t tile_pointer;
+    uint16_t tilemap_pointer;
+    uint8_t tile_bank;
+    uint8_t tilemap_bank;
+    uint16_t tile_count;
+    uint8_t present;
+    AllStarTile tiles[ALLSTAR_ROM_SCREEN_MAX_TILES];
+    uint8_t tilemap[ALLSTAR_ROM_SCREEN_MAP_STRIDE * 20];
+} AllStarRomScreen;
+
+/*
+ * Per-player portrait and team logo.  Bank 2 $418D indexes the pointer table
+ * at $2D4F by the roster entry and RLE-decodes one stream per player.
+ *
+ * $4199 fills the map with 1..24 and $41C7 draws it four wide by six tall --
+ * so the portrait is stream tiles 1 through 24, in order.  The logo is built
+ * differently: $41E7 walks a per-player list at $42BD whose entries name cells
+ * to leave BLANK, and every other cell takes a running counter plus $18 (or
+ * $19 when the $42A2 byte is $FF).  $421D then draws the first sixteen of
+ * those cells four by four.
+ */
+#define ALLSTAR_ROM_PLAYER_ART_COUNT 27
+#define ALLSTAR_ROM_PORTRAIT_TABLE   0x2D4Fu
+#define ALLSTAR_ROM_PORTRAIT_MAX_TILES 48
+#define ALLSTAR_ROM_PORTRAIT_CELLS   24
+#define ALLSTAR_ROM_PORTRAIT_COLUMNS 4
+#define ALLSTAR_ROM_PORTRAIT_ROWS    6
+#define ALLSTAR_ROM_LOGO_CELLS       16
+#define ALLSTAR_ROM_LOGO_COLUMNS     4
+#define ALLSTAR_ROM_LOGO_ROWS        4
+
+typedef struct {
+    uint16_t stream_pointer;
+    uint8_t tile_count;
+    uint8_t logo_base;                 /* $18 or $19, from the $42A2 byte */
+    AllStarTile tiles[ALLSTAR_ROM_PORTRAIT_MAX_TILES];
+    uint8_t portrait_cells[ALLSTAR_ROM_PORTRAIT_CELLS];
+    uint8_t logo_cells[ALLSTAR_ROM_PORTRAIT_CELLS];
+} AllStarRomPlayerArt;
+
 typedef struct {
     uint32_t magic;
     uint32_t version;
@@ -219,6 +281,8 @@ typedef struct {
     uint32_t rom_sfx_program_count;
     uint32_t rom_music_program_count;
     uint32_t rom_caption_layout_count;
+    uint32_t rom_screen_count;
+    uint32_t rom_player_art_count;
     uint32_t feature_flags;
     uint32_t checksum;
 } AllStarAssetHeader;
@@ -230,6 +294,8 @@ typedef struct {
     uint8_t court_tilemap[32 * 32];
     uint8_t menu_tilemap[32 * 32];
     AllStarRomCaptionScript rom_captions;
+    AllStarRomScreen rom_screens[ALLSTAR_ROM_SCREEN_COUNT];
+    AllStarRomPlayerArt rom_player_art[ALLSTAR_MAX_ROSTER];
     AllStarRomAnimationAction
         animation_actions[ALLSTAR_ROM_ANIMATION_ACTION_COUNT];
     AllStarTile player_source_tiles[ALLSTAR_PLAYER_SOURCE_TILE_COUNT];

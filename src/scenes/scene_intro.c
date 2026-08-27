@@ -48,30 +48,18 @@ static void intro_update(AllStarScene *scene, AllStarGame *game, const AllStarIn
     }
 }
 
-#include "allstar_credits_art.h"
-#include "allstar_title_art.h"
 
 static void intro_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
-    (void)game;
     SceneIntroData *data = (SceneIntroData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
     if (data->state == 0) {
-        /* Render Authentic Credits / Copyright Screen from ROM */
-        for (int y = 0; y < 144; y++) {
-            for (int x = 0; x < 160; x++) {
-                uint8_t shade = ALLSTAR_CREDITS_BITMAP[y * 160 + x];
-                allstar_renderer_set_pixel(renderer, x, y, shade);
-            }
-        }
+        /* $0271's copyright screen, composed from the pack. */
+        allstar_renderer_draw_rom_screen(renderer, game->asset_pack,
+                                         ALLSTAR_ROM_SCREEN_CREDITS);
     } else {
-        /* Render Authentic NBA All-Star Challenge Title Screen from ROM */
-        for (int y = 0; y < 144; y++) {
-            for (int x = 0; x < 160; x++) {
-                uint8_t shade = ALLSTAR_TITLE_BITMAP[y * 160 + x];
-                allstar_renderer_set_pixel(renderer, x, y, shade);
-            }
-        }
+        /* $04B1 screen 0, the title. */
+        allstar_renderer_draw_rom_screen(renderer, game->asset_pack, 0);
 
         /* Basketball Cursor at ROM Table 0x2AC4 Coordinates: 1P at x=43, 2P at x=99, y=124 */
         int cursor_x = (data->selected_option == 0) ? 43 : 99;

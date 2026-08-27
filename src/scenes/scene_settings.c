@@ -1,6 +1,5 @@
 #include "allstar_scene.h"
 #include "allstar_game.h"
-#include "allstar_settings_art.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -144,14 +143,10 @@ static void settings_draw(AllStarScene *scene, AllStarGame *game, AllStarRendere
     SceneSettingsData *data = (SceneSettingsData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Pick authentic background: Jordan for One-on-One/Tournament, Worthy for others */
-    const uint8_t *bg = (data->mode == ALLSTAR_MODE_ONE_ON_ONE || data->mode == ALLSTAR_MODE_TOURNAMENT) ? ALLSTAR_SETTINGS_JORDAN_BG : ALLSTAR_SETTINGS_WORTHY_BG;
-    for (int y = 0; y < 144; y++) {
-        for (int x = 0; x < 160; x++) {
-            uint8_t shade = bg[y * 160 + x];
-            allstar_renderer_set_pixel(renderer, x, y, shade);
-        }
-    }
+    /* $22FC reaches the settings variants as mode + 3, so each mode gets its
+       own map rather than the two-background approximation this replaced. */
+    allstar_renderer_draw_rom_screen(renderer, game->asset_pack,
+                                     (int)data->mode + 3);
 
     /* Draw dynamic option values */
     if (data->mode == ALLSTAR_MODE_ONE_ON_ONE || data->mode == ALLSTAR_MODE_TOURNAMENT) {

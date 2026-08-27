@@ -805,7 +805,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
         SDL_ShowSimpleMessageBox(
             SDL_MESSAGEBOX_ERROR,
             "Asset pack required",
-            "A version-19 allstar.assetpack was not found. Build it from "
+            "A version-20 allstar.assetpack was not found. Build it from "
             "your legally owned Game Boy ROM with allstar_port "
             "--build-assetpack.",
             app->window);

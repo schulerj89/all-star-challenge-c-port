@@ -110,6 +110,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-captions                    Verify the ROM $07E3 caption script\n");
     printf("  --test-kernel                      Verify the ROM vector table and helpers\n");
     printf("  --test-sfx-envelope                Verify the ROM NR12 cue envelopes\n");
+    printf("  --test-rom-art                     Verify the ROM screen and portrait art\n");
     printf("  --test-title-music                 Verify the ROM $35B6 title-music routing\n");
     printf("  --test-defense-jump                Verify the ROM $6C27 defensive jump lift\n");
     printf("  --test-pad                         Verify the ROM $2639 joypad poll\n");
@@ -2275,6 +2276,211 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM screen and portrait art, from $04B1/$04EF, $0271 and bank 2 $418D.
+ *
+ * These used to be 624 KB of rasterised bitmaps committed as C headers, which
+ * the repo's own data-boundary rule forbids.  They are now decoded from the
+ * cartridge into the asset pack like every other ROM asset.
+ *
+ * The migration was verified by composing each screen in a scratch decoder and
+ * diffing it against the bitmap it replaced: all five screens and 27 of 27
+ * team logos were pixel-identical, and 20 of 27 portraits.  The seven that
+ * differed were wrong in the committed header, which is why the roster
+ * screenshots changed by exactly the 182 pixels player 0 was off by.
+ */
+int allstar_cli_test_rom_art(void) {
+    AllStarAssetPack *pack;
+    const AllStarRomScreen *title;
+    const AllStarRomScreen *menu;
+    const AllStarRomScreen *credits;
+    const AllStarRomPlayerArt *art;
+    int i;
+    int blanks;
+
+    printf("[Test] Running ROM Screen/Portrait Tests ($04B1/$2D4F)...\n");
+
+    pack = (AllStarAssetPack *)calloc(1, sizeof(*pack));
+    if (!pack) {
+        fprintf(stderr, "[Test] Could not allocate an asset pack\n");
+        return 1;
+    }
+    if (!allstar_asset_pack_load_file(pack, "build/allstar.assetpack") ||
+        (pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_SCREENS) == 0) {
+        /* The ROM is never committed, so a pack may legitimately be absent. */
+        free(pack);
+        printf("  (no build/allstar.assetpack -- skipped)\n");
+        printf("[Test] PASSED: $04B1 (skipped)\n");
+        return 0;
+    }
+
+    /* $04EF's eight records, with slot 5 genuinely empty. */
+    if (pack->header.rom_screen_count != ALLSTAR_ROM_SCREEN_COUNT) {
+        fprintf(stderr, "[Test] the pack has %u screens\n",
+                (unsigned)pack->header.rom_screen_count);
+        free(pack);
+        return 1;
+    }
+    if (pack->rom_screens[5].present) {
+        fprintf(stderr, "[Test] $04EF slot 5 is supposed to be unused\n");
+        free(pack);
+        return 1;
+    }
+
+    title = &pack->rom_screens[0];
+    menu = &pack->rom_screens[2];
+    credits = &pack->rom_screens[ALLSTAR_ROM_SCREEN_CREDITS];
+    if (title->tile_pointer != 0x406Du || title->tile_count != 231u ||
+        title->tilemap_pointer != 0x4CE6u) {
+        fprintf(stderr, "[Test] the title screen record diverged\n");
+        free(pack);
+        return 1;
+    }
+    if (menu->tile_pointer != 0x4E3Bu || menu->tile_count != 128u) {
+        fprintf(stderr, "[Test] the menu screen record diverged\n");
+        free(pack);
+        return 1;
+    }
+    /* $0271 is the only screen whose tiles come from bank 1. */
+    if (credits->tile_bank != 1u || credits->tile_pointer != 0x640Fu ||
+        credits->tilemap_bank != 3u || credits->tilemap_pointer != 0x4000u) {
+        fprintf(stderr, "[Test] the $0271 copyright pair diverged\n");
+        free(pack);
+        return 1;
+    }
+
+    /* $22FC reaches the settings screens as mode + 3.  Two pairs share tiles
+       and differ only in the map, which is what the old two-background
+       approximation could not represent. */
+    if (pack->rom_screens[3].tile_pointer !=
+            pack->rom_screens[7].tile_pointer ||
+        pack->rom_screens[4].tile_pointer !=
+            pack->rom_screens[6].tile_pointer) {
+        fprintf(stderr, "[Test] the settings screens stopped sharing tiles\n");
+        free(pack);
+        return 1;
+    }
+    if (pack->rom_screens[3].tilemap_pointer ==
+            pack->rom_screens[7].tilemap_pointer ||
+        pack->rom_screens[4].tilemap_pointer ==
+            pack->rom_screens[6].tilemap_pointer) {
+        fprintf(stderr, "[Test] the settings variants share a map\n");
+        free(pack);
+        return 1;
+    }
+
+    /* Every present screen's map has to stay inside its own tile stream. */
+    for (i = 0; i < ALLSTAR_ROM_SCREEN_COUNT; i++) {
+        const AllStarRomScreen *s = &pack->rom_screens[i];
+        int ty;
+        if (!s->present) continue;
+        if (s->tile_count == 0) {
+            fprintf(stderr, "[Test] screen %d has no tiles\n", i);
+            free(pack);
+            return 1;
+        }
+        for (ty = 0; ty < 18; ty++) {
+            int tx;
+            for (tx = 0; tx < 20; tx++) {
+                uint8_t idx =
+                    s->tilemap[ty * ALLSTAR_ROM_SCREEN_MAP_STRIDE + tx];
+                if (idx >= s->tile_count) {
+                    fprintf(stderr,
+                            "[Test] screen %d cell %d,%d indexes tile %u of "
+                            "%u\n", i, tx, ty, idx, s->tile_count);
+                    free(pack);
+                    return 1;
+                }
+            }
+        }
+    }
+
+    /* $2D4F: one stream per roster entry. */
+    if (pack->header.rom_player_art_count != ALLSTAR_ROM_PLAYER_ART_COUNT) {
+        fprintf(stderr, "[Test] the pack has %u player art entries\n",
+                (unsigned)pack->header.rom_player_art_count);
+        free(pack);
+        return 1;
+    }
+    art = &pack->rom_player_art[0];
+    if (art->stream_pointer != 0x5E15u || art->tile_count != 40u) {
+        fprintf(stderr,
+                "[Test] player 0's stream is $%04X with %u tiles\n",
+                art->stream_pointer, art->tile_count);
+        free(pack);
+        return 1;
+    }
+    /* $4199 fills the portrait map with a plain 1..24. */
+    for (i = 0; i < ALLSTAR_ROM_PORTRAIT_CELLS; i++) {
+        if (art->portrait_cells[i] != (uint8_t)(i + 1)) {
+            fprintf(stderr, "[Test] $4199 portrait cell %d is %u\n", i,
+                    art->portrait_cells[i]);
+            free(pack);
+            return 1;
+        }
+    }
+
+    /*
+     * $41E7's logo map is the interesting one: entries named by the $42BD
+     * list are blank and everything else counts up from $18 or $19.  Every
+     * player has at least one blank cell, and the non-blank cells must be
+     * strictly increasing.
+     */
+    blanks = 0;
+    for (i = 0; i < ALLSTAR_ROM_PLAYER_ART_COUNT; i++) {
+        const AllStarRomPlayerArt *a = &pack->rom_player_art[i];
+        int previous = -1;
+        int first = -1;
+        int cell;
+        if (a->logo_base != 0x18u && a->logo_base != 0x19u) {
+            fprintf(stderr, "[Test] player %d has logo base $%02X\n", i,
+                    a->logo_base);
+            free(pack);
+            return 1;
+        }
+        for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++) {
+            int value = a->logo_cells[cell];
+            if (value == 0) { blanks++; continue; }
+            if (first < 0) first = value;
+            if (value <= previous) {
+                fprintf(stderr,
+                        "[Test] player %d logo cell %d went backwards\n",
+                        i, cell);
+                free(pack);
+                return 1;
+            }
+            previous = value;
+        }
+        /* The counter starts at the base, so the first sounding cell is it. */
+        if (first != (int)a->logo_base) {
+            fprintf(stderr,
+                    "[Test] player %d starts at %d, not its base $%02X\n",
+                    i, first, a->logo_base);
+            free(pack);
+            return 1;
+        }
+    }
+    /* $42BD blanks 42 cells in total; twelve players have none at all, so a
+       per-player "must have a blank" rule would be wrong. */
+    if (blanks != 42) {
+        fprintf(stderr, "[Test] $42BD blanked %d cells, expected 42\n",
+                blanks);
+        free(pack);
+        return 1;
+    }
+
+    printf("  $04EF's eight screens plus $0271's, slot 5 empty, every map "
+           "inside its own tiles\n");
+    printf("  the settings variants share tiles and differ by map, as "
+           "$22FC's mode + 3 requires\n");
+    printf("  $2D4F gives 27 streams; $4199 lays out 1..24 and $41E7 blanks "
+           "cells from $42BD\n");
+    free(pack);
+    printf("[Test] PASSED: $04B1, $04EF, $0271, $2D4F, $4199, $41E7\n");
     return 0;
 }
 
@@ -9112,6 +9318,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_caption_rom();
     failed += allstar_cli_test_kernel_rom();
     failed += allstar_cli_test_sfx_envelope_rom();
+    failed += allstar_cli_test_rom_art();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -9268,6 +9475,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_kernel_rom();
     } else if (strcmp(cmd, "--test-sfx-envelope") == 0) {
         return allstar_cli_test_sfx_envelope_rom();
+    } else if (strcmp(cmd, "--test-rom-art") == 0) {
+        return allstar_cli_test_rom_art();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

@@ -178,7 +178,7 @@ The current MSVC build succeeds without warnings.
 
 Version 17 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs, and the original four-channel title/menu song. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Portraits, other songs, and remaining sound programs are outside the pack.
 
-The game requires a valid version-19 `allstar.assetpack` and
+The game requires a valid version-20 `allstar.assetpack` and
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 

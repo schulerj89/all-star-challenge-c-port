@@ -55,6 +55,24 @@ void allstar_renderer_draw_line(AllStarRenderer *renderer, int32_t x0, int32_t y
 void allstar_renderer_draw_rect_fill(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t shade);
 void allstar_renderer_draw_rect_outline(AllStarRenderer *renderer, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t shade);
 void allstar_renderer_draw_tile(AllStarRenderer *renderer, const AllStarTile *tile, int32_t x, int32_t y, bool flip_x, bool flip_y);
+/*
+ * Compose one of the pack's $04B1 screens: the tilemap indexes the screen's
+ * own decoded tile stream directly, twenty tiles across and eighteen down.
+ * Returns false when the pack has no such screen, so a caller can fall back.
+ */
+bool allstar_renderer_draw_rom_screen(AllStarRenderer *renderer,
+                                      const AllStarAssetPack *pack,
+                                      int screen);
+
+/*
+ * Compose a player's portrait or team logo from the pack's $2D4F stream and
+ * the cell map $4199 / $41E7 build.  A zero cell is blank and is skipped.
+ */
+bool allstar_renderer_draw_rom_player_art(AllStarRenderer *renderer,
+                                          const AllStarAssetPack *pack,
+                                          int player, bool logo,
+                                          int32_t x, int32_t y);
+
 void allstar_renderer_draw_tilemap(AllStarRenderer *renderer, const uint8_t *map, const AllStarTile *tile_bank, int32_t map_w, int32_t map_h, int32_t scroll_x, int32_t scroll_y);
 void allstar_renderer_draw_text(AllStarRenderer *renderer, const char *text, int32_t x, int32_t y, uint8_t shade);
 void allstar_renderer_draw_text_box(AllStarRenderer *renderer, const char *text, int32_t x, int32_t y, uint8_t text_shade, uint8_t bg_shade, uint8_t border_shade);

@@ -20,6 +20,7 @@ prefer that file for the current number.
 | [LINK_CABLE.md](LINK_CABLE.md) | `$267F`, `$2FD0`, the role byte, and the outgoing path from `$C16E` |
 | [MENU_AND_AUDIO.md](MENU_AND_AUDIO.md) | `$038F`'s menu, `$32B8`/`$32E9` voice state, and the known data-as-code misclassifications |
 | [SETTINGS.md](SETTINGS.md) | `$231E`'s settings screen and the four mode-indexed dispatchers |
+| [SCREEN_ART.md](SCREEN_ART.md) | `$04B1`'s eight screens, `$0271`'s copyright pair, and the `$2D4F` portraits and logos |
 | [CAPTIONS.md](CAPTIONS.md) | `$07E3`'s caption script — 25 layouts covering every prompt in the game |
 
 ## Audio

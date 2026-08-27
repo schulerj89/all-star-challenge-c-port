@@ -710,3 +710,57 @@ void allstar_renderer_draw_player(AllStarRenderer *renderer, int32_t x, int32_t 
 void allstar_renderer_present(AllStarRenderer *renderer) {
     (void)renderer;
 }
+
+/* $04B1's screens: the map indexes the screen's own decoded tiles. */
+bool allstar_renderer_draw_rom_screen(AllStarRenderer *renderer,
+                                      const AllStarAssetPack *pack,
+                                      int screen) {
+    const AllStarRomScreen *rom_screen;
+    int ty;
+    int tx;
+    if (!renderer || !pack || screen < 0 ||
+        screen >= ALLSTAR_ROM_SCREEN_COUNT) return false;
+    if ((pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_SCREENS) == 0) return false;
+    rom_screen = &pack->rom_screens[screen];
+    if (!rom_screen->present) return false;
+    for (ty = 0; ty < 18; ty++) {
+        for (tx = 0; tx < 20; tx++) {
+            uint8_t index =
+                rom_screen->tilemap[ty * ALLSTAR_ROM_SCREEN_MAP_STRIDE + tx];
+            if (index >= rom_screen->tile_count) continue;
+            allstar_renderer_draw_tile(renderer, &rom_screen->tiles[index],
+                                       tx * 8, ty * 8, false, false);
+        }
+    }
+    return true;
+}
+
+/* Bank 2 $4199 and $41E7 build the two cell maps; a zero cell is blank. */
+bool allstar_renderer_draw_rom_player_art(AllStarRenderer *renderer,
+                                          const AllStarAssetPack *pack,
+                                          int player, bool logo,
+                                          int32_t x, int32_t y) {
+    const AllStarRomPlayerArt *art;
+    const uint8_t *cells;
+    int columns;
+    int rows;
+    int i;
+    if (!renderer || !pack || player < 0 ||
+        player >= ALLSTAR_ROM_PLAYER_ART_COUNT) return false;
+    if ((pack->header.feature_flags &
+            ALLSTAR_ASSET_FEATURE_ROM_SCREENS) == 0) return false;
+    art = &pack->rom_player_art[player];
+    if (art->tile_count == 0) return false;
+    cells = logo ? art->logo_cells : art->portrait_cells;
+    columns = logo ? ALLSTAR_ROM_LOGO_COLUMNS : ALLSTAR_ROM_PORTRAIT_COLUMNS;
+    rows = logo ? ALLSTAR_ROM_LOGO_ROWS : ALLSTAR_ROM_PORTRAIT_ROWS;
+    for (i = 0; i < columns * rows; i++) {
+        uint8_t index = cells[i];
+        if (index == 0 || index >= art->tile_count) continue;
+        allstar_renderer_draw_tile(renderer, &art->tiles[index],
+                                   x + (i % columns) * 8,
+                                   y + (i / columns) * 8, false, false);
+    }
+    return true;
+}

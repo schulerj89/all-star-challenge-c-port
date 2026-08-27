@@ -42,20 +42,13 @@ static void menu_update(AllStarScene *scene, AllStarGame *game, const AllStarInp
     }
 }
 
-#include "allstar_menu_art.h"
 
 static void menu_draw(AllStarScene *scene, AllStarGame *game, AllStarRenderer *renderer) {
-    (void)game;
     SceneMenuData *data = (SceneMenuData*)scene->user_data;
     allstar_renderer_clear(renderer, 0);
 
-    /* Render 100% Authentic Mode Menu Screen Decompressed from ROM Bank 3 */
-    for (int y = 0; y < 144; y++) {
-        for (int x = 0; x < 160; x++) {
-            uint8_t shade = ALLSTAR_MENU_BACKGROUND[y * 160 + x];
-            allstar_renderer_set_pixel(renderer, x, y, shade);
-        }
-    }
+    /* $0394 loads $04B1 screen 2, the mode menu. */
+    allstar_renderer_draw_rom_screen(renderer, game->asset_pack, 2);
 
     /* Moving Basketball Cursor at ROM Table 0x2ABA Coordinates: X=0, Y=48,56,64,72,80 */
     static const int OPTION_Y[5] = { 48, 56, 64, 72, 80 };

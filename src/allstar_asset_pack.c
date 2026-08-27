@@ -435,6 +435,168 @@ static uint16_t rom_word(const AllStarRom *rom, size_t offset) {
     return (uint16_t)(rom->data[offset] | (rom->data[offset + 1] << 8));
 }
 
+/* Bank 3 CPU addresses become file offsets by adding $8000; bank 1 sits at
+   the file offset that matches its CPU address. */
+static size_t rom_bank_offset(uint8_t bank, uint16_t address) {
+    if (bank <= 1) return address;
+    return (size_t)bank * 0x4000u + (size_t)address - 0x4000u;
+}
+
+/*
+ * $050F stops on `marker, 0`, but decode_rom_rle_050f wants the exact end.
+ * This finds it, so the caller can hand the shared decoder a precise range.
+ */
+static bool rom_rle_extent(const AllStarRom *rom, size_t start,
+                           size_t *end, size_t *length) {
+    uint8_t marker;
+    size_t source;
+    size_t written = 0;
+    if (!rom || !end || !length || start >= rom->size) return false;
+    marker = rom->data[start];
+    source = start + 1;
+    while (source < rom->size) {
+        uint8_t value = rom->data[source++];
+        if (value != marker) {
+            written++;
+            continue;
+        }
+        if (source >= rom->size) return false;
+        if (rom->data[source] == 0) {
+            *end = source;
+            *length = written;
+            return true;
+        }
+        if (source + 1 >= rom->size) return false;
+        written += rom->data[source];
+        source += 2;
+    }
+    return false;
+}
+
+static bool decode_rle_tiles(const AllStarRom *rom, uint8_t bank,
+                             uint16_t pointer, AllStarTile *tiles,
+                             size_t max_tiles, uint16_t *tile_count) {
+    uint8_t raw[ALLSTAR_ROM_SCREEN_MAX_TILES * 16];
+    size_t start = rom_bank_offset(bank, pointer);
+    size_t end = 0;
+    size_t length = 0;
+    if (!rom_rle_extent(rom, start, &end, &length)) return false;
+    if (length == 0 || length % 16u != 0u) return false;
+    if (length / 16u > max_tiles || length > sizeof(raw)) return false;
+    if (!decode_rom_rle_050f(rom, start, end, raw, length)) return false;
+    decode_tile_bytes(raw, length / 16u, tiles);
+    *tile_count = (uint16_t)(length / 16u);
+    return true;
+}
+
+static bool decode_rle_map(const AllStarRom *rom, uint8_t bank,
+                           uint16_t pointer, uint8_t *map, size_t map_size) {
+    size_t start = rom_bank_offset(bank, pointer);
+    size_t end = 0;
+    size_t length = 0;
+    if (!rom_rle_extent(rom, start, &end, &length)) return false;
+    if (length != map_size) return false;
+    return decode_rom_rle_050f(rom, start, end, map, map_size);
+}
+
+/* $04B1's screen table, plus $0271's copyright pair in slot 8. */
+static bool extract_rom_screens(AllStarAssetPack *pack, const AllStarRom *rom) {
+    size_t i;
+    if (!pack || !rom) return false;
+    memset(pack->rom_screens, 0, sizeof(pack->rom_screens));
+    for (i = 0; i < ALLSTAR_ROM_SCREEN_COUNT; i++) {
+        AllStarRomScreen *screen = &pack->rom_screens[i];
+        if (i == ALLSTAR_ROM_SCREEN_CREDITS) {
+            screen->tile_pointer = 0x640Fu;   /* $0279, bank 1 */
+            screen->tile_bank = 1u;
+            screen->tilemap_pointer = 0x4000u; /* $0285, bank 3 */
+            screen->tilemap_bank = 3u;
+        } else {
+            size_t record = ALLSTAR_ROM_SCREEN_TABLE + i * 4u;
+            if (record + 3 >= rom->size) return false;
+            screen->tile_pointer = rom_word(rom, record);
+            screen->tilemap_pointer = rom_word(rom, record + 2u);
+            screen->tile_bank = 3u;
+            screen->tilemap_bank = 3u;
+            if (screen->tile_pointer == 0) continue;   /* slot 5 is unused */
+        }
+        if (!decode_rle_tiles(rom, screen->tile_bank, screen->tile_pointer,
+                              screen->tiles, ALLSTAR_ROM_SCREEN_MAX_TILES,
+                              &screen->tile_count)) return false;
+        if (!decode_rle_map(rom, screen->tilemap_bank,
+                            screen->tilemap_pointer, screen->tilemap,
+                            sizeof(screen->tilemap))) return false;
+        screen->present = 1u;
+    }
+    /* The title is the largest at 231 tiles and the menu the only one that
+       fills a signed 128-tile window exactly. */
+    if (!pack->rom_screens[0].present || pack->rom_screens[0].tile_count != 231 ||
+        pack->rom_screens[2].tile_count != 128 ||
+        pack->rom_screens[5].present ||
+        !pack->rom_screens[ALLSTAR_ROM_SCREEN_CREDITS].present) return false;
+    pack->header.rom_screen_count = ALLSTAR_ROM_SCREEN_COUNT;
+    return true;
+}
+
+/* Bank 2 $418D..$4215: one stream per player, then the two cell maps. */
+static bool extract_rom_player_art(AllStarAssetPack *pack,
+                                   const AllStarRom *rom) {
+    size_t player;
+    if (!pack || !rom) return false;
+    memset(pack->rom_player_art, 0, sizeof(pack->rom_player_art));
+    /* $2D4F holds one entry per roster player; the word after the last
+       is not a stream pointer. */
+    for (player = 0; player < ALLSTAR_ROM_PLAYER_ART_COUNT; player++) {
+        AllStarRomPlayerArt *art = &pack->rom_player_art[player];
+        uint16_t tile_count = 0;
+        size_t entry = ALLSTAR_ROM_PORTRAIT_TABLE + player * 2u;
+        size_t list;
+        size_t remaining;
+        uint8_t flag;
+        uint8_t counter = 0;
+        size_t cell;
+        if (entry + 1 >= rom->size) return false;
+        art->stream_pointer = rom_word(rom, entry);
+        if (art->stream_pointer < 0x4000u) return false;
+        if (!decode_rle_tiles(rom, 2u, art->stream_pointer, art->tiles,
+                              ALLSTAR_ROM_PORTRAIT_MAX_TILES,
+                              &tile_count)) return false;
+        art->tile_count = (uint8_t)tile_count;
+
+        /* $4199: the portrait is simply stream tiles 1..24. */
+        for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++)
+            art->portrait_cells[cell] = (uint8_t)(cell + 1u);
+
+        /* $41A5/$41E0: $FF in the $42A2 byte keeps the base at $19. */
+        flag = rom->data[rom_bank_offset(2u, 0x42A2u) + player];
+        art->logo_base = flag == 0xFFu ? 0x19u : 0x18u;
+
+        /* $41E7: skip this player's share of the $FE-terminated sublists. */
+        list = rom_bank_offset(2u, 0x42BDu);
+        remaining = player;
+        while (remaining != 0) {
+            if (list >= rom->size) return false;
+            if (rom->data[list] == 0xFEu) remaining--;
+            list++;
+        }
+        /* $41F8: a cell named by the list is blank; the rest count upward. */
+        for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++) {
+            if (list >= rom->size) return false;
+            if ((uint8_t)cell == rom->data[list]) {
+                list++;
+                art->logo_cells[cell] = 0u;
+                continue;
+            }
+            art->logo_cells[cell] = (uint8_t)(counter + art->logo_base);
+            counter++;
+        }
+    }
+    pack->header.rom_player_art_count = ALLSTAR_ROM_PLAYER_ART_COUNT;
+    pack->header.feature_flags |= ALLSTAR_ASSET_FEATURE_ROM_SCREENS;
+    return true;
+}
+
+
 static uint32_t fnv1a_bytes(const uint8_t *bytes, size_t count) {
     uint32_t hash = 2166136261u;
     size_t i;
@@ -1322,6 +1484,14 @@ bool allstar_asset_pack_build_from_rom(AllStarAssetPack *pack, const AllStarRom 
         fprintf(stderr, "[AssetPack] Invalid $0802 caption script\n");
         return false;
     }
+    if (!extract_rom_screens(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid $04B1 screen table\n");
+        return false;
+    }
+    if (!extract_rom_player_art(pack, rom)) {
+        fprintf(stderr, "[AssetPack] Invalid $2D4F portrait table\n");
+        return false;
+    }
     if (!extract_one_on_one_art(pack, rom)) {
         fprintf(stderr, "[AssetPack] Invalid One-on-One graphics streams\n");
         return false;
@@ -1418,7 +1588,9 @@ bool allstar_asset_pack_save_file(const AllStarAssetPack *pack, const char *file
         fwrite(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
                pack->header.rom_music_program_count, f) !=
                pack->header.rom_music_program_count ||
-        fwrite(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1) {
+        fwrite(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1 ||
+        fwrite(pack->rom_screens, sizeof(pack->rom_screens), 1, f) != 1 ||
+        fwrite(pack->rom_player_art, sizeof(pack->rom_player_art), 1, f) != 1) {
         fprintf(stderr, "[AssetPack] Failed writing asset payload\n");
         fclose(f);
         return false;
@@ -1561,7 +1733,9 @@ bool allstar_asset_pack_load_file(AllStarAssetPack *pack, const char *filepath) 
         fread(pack->rom_music_programs, sizeof(AllStarRomMusicProgram),
               pack->header.rom_music_program_count, f) !=
               pack->header.rom_music_program_count ||
-        fread(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1) {
+        fread(&pack->rom_captions, sizeof(pack->rom_captions), 1, f) != 1 ||
+        fread(pack->rom_screens, sizeof(pack->rom_screens), 1, f) != 1 ||
+        fread(pack->rom_player_art, sizeof(pack->rom_player_art), 1, f) != 1) {
         fprintf(stderr, "[AssetPack] Truncated asset payload\n");
         fclose(f);
         allstar_asset_pack_init_default(pack);

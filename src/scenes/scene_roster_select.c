@@ -1,6 +1,5 @@
 #include "allstar_scene.h"
 #include "allstar_game.h"
-#include "allstar_player_art.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,7 +36,7 @@ static void roster_select_init(AllStarScene *scene, AllStarGame *game) {
 static void roster_select_update(AllStarScene *scene, AllStarGame *game, const AllStarInput *input, float dt) {
     SceneRosterSelectData *data = (SceneRosterSelectData*)scene->user_data;
     data->timer += dt;
-    size_t count = game->roster.count ? game->roster.count : ALLSTAR_PORTRAIT_COUNT;
+    size_t count = game->roster.count ? game->roster.count : ALLSTAR_ROM_PLAYER_ART_COUNT;
 
     if (data->state == ROSTER_STATE_SPLASH_P1) {
         if (data->timer >= 0.8f ||
@@ -147,25 +146,14 @@ static void draw_player_card(AllStarRenderer *renderer, AllStarGame *game, int p
     }
 
     const AllStarPlayerStats *stats = allstar_roster_get_player(&game->roster, (size_t)player_idx);
-    int p_idx = player_idx % ALLSTAR_PORTRAIT_COUNT;
+    int p_idx = player_idx % ALLSTAR_ROM_PLAYER_ART_COUNT;
 
-    /* Render 32x48 Face Portrait at (32, 12) */
-    const uint8_t *face = ALLSTAR_PLAYER_PORTRAITS[p_idx];
-    for (int fy = 0; fy < 48; fy++) {
-        for (int fx = 0; fx < 32; fx++) {
-            uint8_t shade = face[fy * 32 + fx];
-            allstar_renderer_set_pixel(renderer, 32 + fx, 12 + fy, shade);
-        }
-    }
-
-    /* Render 32x32 Team Logo at (96, 20) */
-    const uint8_t *logo = ALLSTAR_PLAYER_LOGOS[p_idx];
-    for (int ly = 0; ly < 32; ly++) {
-        for (int lx = 0; lx < 32; lx++) {
-            uint8_t shade = logo[ly * 32 + lx];
-            allstar_renderer_set_pixel(renderer, 96 + lx, 20 + ly, shade);
-        }
-    }
+    /* Bank 2 $418D decodes one $2D4F stream per player; $4199 lays the
+       portrait out four by six and $41E7 the logo four by four. */
+    allstar_renderer_draw_rom_player_art(renderer, game->asset_pack,
+                                         p_idx, false, 32, 12);
+    allstar_renderer_draw_rom_player_art(renderer, game->asset_pack,
+                                         p_idx, true, 96, 20);
 
     /* Player Name at Y=66 */
     char name_buf[64];

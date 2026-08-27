@@ -40,6 +40,7 @@ set(ALLSTAR_CORE_SOURCES
     src/gameplay/allstar_link.c
     src/gameplay/allstar_cpu_target.c
     src/audio/allstar_voice_state.c
+    src/audio/allstar_apu_program.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c
     src/scenes/scene_settings.c

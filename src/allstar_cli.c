@@ -21,6 +21,7 @@
 #include "allstar_system.h"
 #include "allstar_link.h"
 #include "allstar_cpu_target.h"
+#include "allstar_apu_program.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2258,6 +2259,182 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM APU channel programmer, from the $35B6..$3714 disassembly and the
+ * tables at $3151, $3159, $3777 and $3FB2.
+ */
+int allstar_cli_test_apu_program_rom(void) {
+    const AllStarApuChannel *channel;
+    const uint16_t *regs;
+    uint8_t mask;
+    uint8_t cached;
+    uint16_t source;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM APU Programmer Tests ($35B6/$3151/$366F)...\n");
+
+    /* $35E0: only $00, $01 and $02 are named; everything else is noise. */
+    if (allstar_apu_kind(0x00u) != ALLSTAR_APU_SQUARE_1 ||
+        allstar_apu_kind(0x01u) != ALLSTAR_APU_SQUARE_2 ||
+        allstar_apu_kind(0x02u) != ALLSTAR_APU_WAVE ||
+        allstar_apu_kind(0x03u) != ALLSTAR_APU_NOISE ||
+        allstar_apu_kind(0xFFu) != ALLSTAR_APU_NOISE) {
+        fprintf(stderr, "[Test] $35ED kind dispatch diverged\n");
+        return 1;
+    }
+
+    /* $3151 is one bit per kind. */
+    for (i = 0; i < 8; i++) {
+        if (allstar_apu_claim_bit((uint8_t)i) != (uint8_t)(1u << i)) {
+            fprintf(stderr, "[Test] $3151 bit %d diverged\n", i);
+            return 1;
+        }
+    }
+
+    /*
+     * $35BB: the arbitration.  A slot below four stands down when the bit is
+     * already set; a slot four or above takes the channel.
+     */
+    mask = 0x00u;
+    if (allstar_apu_claim(0u, 0x00u, &mask) != ALLSTAR_APU_CLAIM_FREE || mask != 0x00u) {
+        fprintf(stderr, "[Test] $35C9 low slot on a free channel diverged\n");
+        return 1;
+    }
+    if (allstar_apu_claim(4u, 0x00u, &mask) != ALLSTAR_APU_CLAIM_TAKEN || mask != 0x01u) {
+        fprintf(stderr, "[Test] $35D5 high slot did not take the channel, mask $%02X\n", mask);
+        return 1;
+    }
+    if (allstar_apu_claim(0u, 0x00u, &mask) != ALLSTAR_APU_CLAIM_BLOCKED || mask != 0x01u) {
+        fprintf(stderr, "[Test] $35CB low slot did not stand down\n");
+        return 1;
+    }
+    /* A different kind is a different bit, so it is unaffected. */
+    if (allstar_apu_claim(0u, 0x02u, &mask) != ALLSTAR_APU_CLAIM_FREE) {
+        fprintf(stderr, "[Test] $35C8 blocked the wrong channel\n");
+        return 1;
+    }
+    /* A high slot re-taking an already-set bit is still TAKEN, not blocked. */
+    if (allstar_apu_claim(7u, 0x00u, &mask) != ALLSTAR_APU_CLAIM_TAKEN) {
+        fprintf(stderr, "[Test] $35CC high slot must never be blocked\n");
+        return 1;
+    }
+
+    /* $35FC and its mirrors: each channel keeps a different pair of NR51 bits. */
+    if (!allstar_apu_channel(ALLSTAR_APU_SQUARE_1, &channel) || channel->nr51_keep != 0xEEu ||
+        !allstar_apu_channel(ALLSTAR_APU_SQUARE_2, &channel) || channel->nr51_keep != 0xDDu ||
+        !allstar_apu_channel(ALLSTAR_APU_WAVE, &channel) || channel->nr51_keep != 0xBBu ||
+        !allstar_apu_channel(ALLSTAR_APU_NOISE, &channel) || channel->nr51_keep != 0x77u) {
+        fprintf(stderr, "[Test] NR51 keep masks diverged\n");
+        return 1;
+    }
+    /* Square 2 and noise read one byte later, because they have no sweep. */
+    allstar_apu_channel(ALLSTAR_APU_SQUARE_1, &channel);
+    if (channel->block != 0x388Au) {
+        fprintf(stderr, "[Test] $360A square 1 block diverged\n");
+        return 1;
+    }
+    allstar_apu_channel(ALLSTAR_APU_SQUARE_2, &channel);
+    if (channel->block != 0x388Bu) {
+        fprintf(stderr, "[Test] $364B square 2 block diverged\n");
+        return 1;
+    }
+
+    /* $35F5: the panning index is bits 3 and 2. */
+    if (allstar_apu_pan_index(0x00u) != 0u || allstar_apu_pan_index(0x04u) != 1u ||
+        allstar_apu_pan_index(0x08u) != 2u || allstar_apu_pan_index(0x0Cu) != 3u ||
+        allstar_apu_pan_index(0xF3u) != 0u) {
+        fprintf(stderr, "[Test] $35F7 pan index diverged\n");
+        return 1;
+    }
+    /* $3777: silent, right, left, both -- one bit per channel in each nibble. */
+    if (allstar_apu_pan_value(ALLSTAR_APU_SQUARE_1, 3u) != 0x11u ||
+        allstar_apu_pan_value(ALLSTAR_APU_SQUARE_2, 3u) != 0x22u ||
+        allstar_apu_pan_value(ALLSTAR_APU_WAVE, 3u) != 0x44u ||
+        allstar_apu_pan_value(ALLSTAR_APU_NOISE, 3u) != 0x88u ||
+        allstar_apu_pan_value(ALLSTAR_APU_SQUARE_1, 0u) != 0x00u ||
+        allstar_apu_pan_value(ALLSTAR_APU_NOISE, 1u) != 0x08u) {
+        fprintf(stderr, "[Test] pan tables diverged\n");
+        return 1;
+    }
+    /* The update clears only this channel's two bits and leaves the rest. */
+    if (allstar_apu_nr51(ALLSTAR_APU_SQUARE_1, 0xFFu, 0x00u) != 0xEEu) {
+        fprintf(stderr, "[Test] $3603 silent update diverged\n");
+        return 1;
+    }
+    if (allstar_apu_nr51(ALLSTAR_APU_SQUARE_1, 0x00u, 0x0Cu) != 0x11u) {
+        fprintf(stderr, "[Test] $3602 both-sides update diverged\n");
+        return 1;
+    }
+    if (allstar_apu_nr51(ALLSTAR_APU_WAVE, 0x22u, 0x04u) != 0x26u) {
+        fprintf(stderr, "[Test] $36AA wave update disturbed another channel\n");
+        return 1;
+    }
+
+    /* The register order, with a marker where the ROM skips a block byte. */
+    regs = allstar_apu_registers(ALLSTAR_APU_SQUARE_1, &count);
+    if (count != 6 || regs[0] != 0xFF10u || regs[3] != 0x0000u || regs[5] != 0xFF14u) {
+        fprintf(stderr, "[Test] $360E square 1 register order diverged\n");
+        return 1;
+    }
+    regs = allstar_apu_registers(ALLSTAR_APU_SQUARE_2, &count);
+    if (count != 5 || regs[0] != 0xFF16u || regs[2] != 0x0000u || regs[4] != 0xFF19u) {
+        fprintf(stderr, "[Test] $364F square 2 register order diverged\n");
+        return 1;
+    }
+    regs = allstar_apu_registers(ALLSTAR_APU_WAVE, &count);
+    if (count != 6 || regs[0] != 0xFF1Au || regs[5] != 0xFF1Eu) {
+        fprintf(stderr, "[Test] $36B6 wave register order diverged\n");
+        return 1;
+    }
+    regs = allstar_apu_registers(ALLSTAR_APU_NOISE, &count);
+    if (count != 4 || regs[0] != 0xFF20u || regs[3] != 0xFF23u) {
+        fprintf(stderr, "[Test] $36F9 noise register order diverged\n");
+        return 1;
+    }
+
+    /* $366F: the waveform only uploads on a change, and the stride is sixteen. */
+    cached = 0xFFu;
+    if (!allstar_apu_wave_upload(0x03u, &cached, &source) || cached != 0x03u ||
+        source != (uint16_t)(ALLSTAR_APU_WAVE_BANK + 0x30u)) {
+        fprintf(stderr, "[Test] $3685 wave source diverged, got $%04X\n", source);
+        return 1;
+    }
+    if (allstar_apu_wave_upload(0x03u, &cached, &source)) {
+        fprintf(stderr, "[Test] $367A re-uploaded an unchanged waveform\n");
+        return 1;
+    }
+    /* Only the low nibble is the id. */
+    if (allstar_apu_wave_upload(0xB3u, &cached, &source)) {
+        fprintf(stderr, "[Test] $3674 did not mask the waveform id\n");
+        return 1;
+    }
+    if (!allstar_apu_wave_upload(0x00u, &cached, &source) ||
+        source != ALLSTAR_APU_WAVE_BANK) {
+        fprintf(stderr, "[Test] $3682 waveform zero diverged\n");
+        return 1;
+    }
+
+    /* The frequency-high write keeps only the top five bits. */
+    if (allstar_apu_frequency_high(0xFFu, 0x00u) != 0xF8u ||
+        allstar_apu_frequency_high(0x07u, 0x00u) != 0x00u ||
+        allstar_apu_frequency_high(0x80u, 0x07u) != 0x87u) {
+        fprintf(stderr, "[Test] $3619 frequency-high diverged\n");
+        return 1;
+    }
+    /* The noise control keeps only the bottom four. */
+    if (allstar_apu_noise_control(0xFFu, 0x00u) != 0x0Fu ||
+        allstar_apu_noise_control(0x0Au, 0x70u) != 0x7Au) {
+        fprintf(stderr, "[Test] $3703 noise control diverged\n");
+        return 1;
+    }
+
+    printf("  slots four and up take a channel through $DD7D; lower slots stand down\n");
+    printf("  the waveform uploads sixteen bytes to $FF30 only when its id changes\n");
+    printf("[Test] PASSED: $35B6, $3151, $3159, $3777, $366F, $36DB\n");
     return 0;
 }
 
@@ -6958,6 +7135,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_shell_rom();
     failed += allstar_cli_test_link_rom();
     failed += allstar_cli_test_cpu_target_rom();
+    failed += allstar_cli_test_apu_program_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7090,6 +7268,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_link_rom();
     } else if (strcmp(cmd, "--test-cpu-target") == 0) {
         return allstar_cli_test_cpu_target_rom();
+    } else if (strcmp(cmd, "--test-apu-program") == 0) {
+        return allstar_cli_test_apu_program_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

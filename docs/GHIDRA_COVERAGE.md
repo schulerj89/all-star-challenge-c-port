@@ -25,11 +25,41 @@ the reviewed subset; they are simply not a measure of the cartridge.
 
 The largest single gap that pass found was **menu mode `$04`, the tournament**:
 64 routines and 2,961 bytes reachable from no other mode, with almost no native
-implementation. That is being ported in ~10% increments and tracked in
+implementation. It was then ported in ~10% increments, tracked in
 `parity/TOURNAMENT_ROM_COVERAGE.json`, which counts a routine only when a named
 source file references its address. `parity/TOURNAMENT.md` records what the
 disassembly established, including several behaviours the earlier scaffolding
-had wrong.
+had wrong. That ledger now reads **64/64 routines, 2,961/2,961 bytes**.
+
+### Result, 2026-08-27: the sweep finished
+
+The tournament was the start of a sweep across the rest of the cartridge. As of
+2026-08-27 the port **names every reachable instruction in the ROM**.
+
+| | |
+|---|---|
+| reachable executable code | ~17.1 KB, ~300 routine entry points |
+| not named in `src/` or `include/` | **35 bytes** |
+| what those 35 bytes are | the four `$7DD1` sub-tables — proven data, not code |
+
+`$7DC1` does a plain `ld hl,$7DD1`, and the range decodes as nested pointer
+tables into a `$0C`-strided record array at `$7DF5`; see
+`parity/MENU_AND_AUDIO.md`, which also lists the other known data
+misclassifications inside the "executable" figure (~109 bytes in total).
+
+Two measurement traps are worth recording alongside that number, because both
+produced wrong answers during the sweep:
+
+- **Grep-based coverage over-credits.** An address mentioned only in a header
+  comment counts as ported. `$7391`/`$73AD` and the `$732C` route tables were
+  reported as gaps while being fully implemented, and `$2EA8` was reported as
+  ported when only a comment named it. Every claim here is backed by a test
+  that runs the code, not by a citation.
+- **A citation regex needing a word boundary misses C literals.** `0x0030u`
+  did not register, so four already-ported vectors were reported as gaps.
+
+The per-chunk documents in `parity/` each quote the running total at the time
+they were written. This section is the authoritative figure.
 
 ### The button packing is now settled from hardware
 

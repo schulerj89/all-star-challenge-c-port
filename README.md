@@ -27,7 +27,21 @@ The project is a native reimplementation, not an emulator wrapper. The current b
 | One-on-One shooting through inbound | 100.00% | 22 of 22 focused requirements. The recovered 258-state sequence is complete; the native presentation intentionally plays it at 3× speed for a roughly 1.43-second score-to-inbound transition. |
 | One-on-One presentation/audio | 100.00% | 60 of 60 focused requirements: roster-indexed `$21FA` OBJ palettes over shared gameplay art, `$7138` hoop-facing shots, `$702D/$6B34` dunk display, corrected held-ball rows, live `$2B14/$2B88` steals without score fade, charging/blocking/take-back presentation and command `$04`, score-ball/net priority, seven decoded ROM cues, grounding, CPU route, defender recovery, and rim behavior. Whole-engine APU/music parity remains outside this denominator. |
 
-See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage baseline and missing-work matrix.
+### ROM-wide coverage
+
+The tables above are per-mode manifests. The measure of the cartridge itself is
+separate: the ROM was rebuilt byte-exactly from `disassembly/bank_*.asm` and
+walked by recursive descent from the vectors, which gives a routine inventory
+that does not depend on what anyone had already noticed.
+
+Against that inventory, **the port names every reachable instruction in the
+cartridge**. Reachable code not named in `src/` or `include/` stands at **35
+bytes**, and those 35 are the four `$7DD1` sub-tables, which are proven data
+rather than code.
+
+See [docs/GHIDRA_COVERAGE.md](docs/GHIDRA_COVERAGE.md) for the audited coverage
+baseline, that result in full, and the missing-work matrix.
+[docs/parity/](docs/parity/README.md) indexes one document per ROM subsystem.
 
 Run the machine-readable coverage gate with:
 
@@ -164,7 +178,7 @@ The current MSVC build succeeds without warnings.
 
 Version 17 extracts the One-on-One court/player/ball/net data and separate Free Throw `$640F/$6EF1/$708E/$7F69` graphics, shooter/net/OBJ maps, all 24 animation-control lists, decoded command-`$02/$04/$05/$07/$08/$09/$0A/$0C/$0D/$0E/$0F` programs, and the original four-channel title/menu song. Horse and Accuracy reuse the One-on-One court assets and source tile 41 for their exact `$76` marker; `$02` is the Accuracy result cue. Portraits, other songs, and remaining sound programs are outside the pack.
 
-The game requires a valid version-17 `allstar.assetpack` and
+The game requires a valid version-19 `allstar.assetpack` and
 reports a clear error instead of silently replacing missing art with the
 procedural test fallback.
 
@@ -180,7 +194,11 @@ procedural test fallback.
 .\build\allstar_port.exe --test-all
 ```
 
-The tests cover roster invariants, exact 8.8 launch/contact physics, the complete `$7170-$761A` CPU and `$702D/$714D` player controllers, One-on-One, Free Throw through results/exit, and Horse caller/matcher/spot/letter/winner rules. Broader whole-game and frame-perfect parity remain unverified.
+The tests cover roster invariants, exact 8.8 launch/contact physics, the complete `$7170-$761A` CPU and `$702D/$714D` player controllers, One-on-One, Free Throw through results/exit, Horse caller/matcher/spot/letter/winner rules, the tournament, the `$2729` frame spine, the `$0000-$005F` vectors, the `$07E3` caption script, and the audio work below. Broader whole-game and frame-perfect parity remain unverified.
+
+Individual suites run under their own flag — `--test-title-music`,
+`--test-sfx-envelope`, `--test-defense-jump`, `--test-frame`, `--test-kernel`
+and the rest; `--help` lists them.
 
 For manual comparison with the original ROM:
 
@@ -189,6 +207,14 @@ For manual comparison with the original ROM:
 ```
 
 Automated Mesen traces cover One-on-One, Free Throw, and the Horse `$4000->$0CDF->$0D57->$7AFD->$0E26` path with exact X art and live `$07` APU writes. Broader whole-game WRAM snapshots and frame-difference tests remain. See [the Horse conversion](docs/parity/HORSE.md), [the Free Throw conversion](docs/parity/FREE_THROW.md), and [the controller conversion](docs/parity/ONE_ON_ONE_CONTROLLERS.md).
+
+Two of those traces capture the cartridge's own APU register writes and are
+diffed frame by frame against the port's decoded programs — `trace_title_music`
+found the discarded NR51 stereo routing and `trace_navigation_sfx` the flat
+square envelopes. Both bugs were in rendering; the decoded note data was exact
+in each case. See [the title music](docs/parity/TITLE_MUSIC.md) and [the cue
+envelopes](docs/parity/SFX_ENVELOPE.md), and `tools/emulator/README.md` for how
+to run them.
 
 ## Reverse Engineering
 

@@ -162,3 +162,23 @@ port's decoded song; `docs/parity/TITLE_MUSIC.md` records the result, which is
 zero divergences over 901 frames on frequency, envelope, note timing, noise and
 NR51 routing. Require exit code `0` and `TRACE PASSED: $029C title music APU
 program`. `ALLSTAR_TITLE_FRAMES` overrides the 900-frame capture length.
+
+`trace_navigation_sfx.lua` captures the cue the roster selector plays when it
+moves between players. Bank 2 `$411D` calls `$2AB5`, and fixed `$02E9` calls the
+same routine when the title screen toggles the player count — so the trace
+provokes the identical cue at the title rather than navigating to the roster.
+It asserts that `$2F88` maps command `$0F` to `$87` in `$DD72` with the `$19`
+window, then logs every APU write from the trigger. Require exit code `0` and
+`TRACE PASSED: $2AB5 command $0F navigation cue`. `ALLSTAR_SFX_FRAMES` overrides
+the 60-frame capture length.
+
+What that capture established is recorded in `docs/parity/SFX_ENVELOPE.md`: the
+whole cue is a single channel-1 trigger, `NR14` bit 6 is clear so no length
+counter runs, and `NR12 = $F1` decays it to silence in 234 ms.
+
+## Reading these captures
+
+Both audio traces exist because the same mistake was made twice: the port's
+**decoded** note data was exact against the cartridge, and the defect was in
+**rendering** it. Reading the disassembly would not have found either bug. When
+something sounds wrong, capture first.

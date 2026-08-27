@@ -107,9 +107,9 @@ Mutation-checked twice: letting a stalled role `$03` copy OAM fails with
 `$2739 stall path diverged (dma=1 ...)`, and showing the credits on a warm boot
 fails with `$0275 showed the credits on a warm boot`.
 
-## What this leaves
+## Where this sat in the sweep
 
-Reachable ROM code not named in `src/` or `include/` fell from 1,287 bytes
-(7.7%) to **828 bytes (4.9%)** across 41 routines. The largest remaining entry,
-bank 1 `$73AD` at 251 bytes, is the known data-plus-code misclassification
-recorded in `CPU_TARGET.md`, not a genuine gap.
+This chunk took reachable ROM code not named in `src/` or `include/` from
+1,287 bytes to 828. The sweep finished later the same day; see
+`docs/GHIDRA_COVERAGE.md` for the final figure rather than trusting the
+running total quoted here.

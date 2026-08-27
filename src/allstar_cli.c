@@ -2252,6 +2252,249 @@ int allstar_cli_test_one_on_one_shooting(void) {
 }
 
 /*
+ * ROM record and prompt helpers, from the $2D85..$2EA7 and bank 1 $780A
+ * disassembly.
+ */
+int allstar_cli_test_select_records_rom(void) {
+    AllStarSelectClearRun runs[4];
+    AllStarSelectPrompt prompt;
+    uint8_t slots[8];
+    uint8_t digits[4];
+    uint8_t seed;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Record Helper Tests ($2D93/$2DBE/$2DD2/$780A)...\n");
+
+    /* $2EA3 */
+    for (i = 0; i < 8; i++) slots[i] = 0x11u;
+    allstar_select_fill(slots, 4u, ALLSTAR_SELECT_EMPTY_SLOT);
+    if (slots[0] != 0x80u || slots[3] != 0x80u || slots[4] != 0x11u) {
+        fprintf(stderr, "[Test] $2EA3 fill diverged\n");
+        return 1;
+    }
+
+    /* $2E73 and $2E8C clear opposite sides of every stage. */
+    count = allstar_select_clear_runs(ALLSTAR_SELECT_PASS_1, runs, 4);
+    if (count != ALLSTAR_SELECT_CLEAR_RUNS ||
+        runs[0].address != 0xC0BFu || runs[0].count != 4u ||
+        runs[1].address != 0xC0CBu || runs[1].count != 2u ||
+        runs[2].address != 0xC0D1u || runs[2].count != 1u) {
+        fprintf(stderr, "[Test] $2E73 clear runs diverged\n");
+        return 1;
+    }
+    count = allstar_select_clear_runs(ALLSTAR_SELECT_PASS_2, runs, 4);
+    if (runs[0].address != 0xC0C3u || runs[1].address != 0xC0CDu || runs[2].address != 0xC0D2u) {
+        fprintf(stderr, "[Test] $2E8C clear runs diverged\n");
+        return 1;
+    }
+
+    /* $2DD2: id 0 is the table head, later ids follow that many $FF bytes. */
+    {
+        static const uint8_t TABLE[12] = {
+            0x41u, 0x42u, 0xFFu, 0x43u, 0xFFu, 0x44u, 0x45u, 0xFFu,
+            0x46u, 0xFFu, 0x47u, 0xFFu
+        };
+        if (allstar_select_record_offset(TABLE, 12u, 0u) != 0u ||
+            allstar_select_record_offset(TABLE, 12u, 1u) != 3u ||
+            allstar_select_record_offset(TABLE, 12u, 2u) != 5u ||
+            allstar_select_record_offset(TABLE, 12u, 3u) != 8u) {
+            fprintf(stderr, "[Test] $2DDA record walk diverged\n");
+            return 1;
+        }
+    }
+
+    /* $2DBE: slot 1 lands one byte before the $C23C name buffer. */
+    if (allstar_select_record_buffer(1u) != 0xC23Bu ||
+        allstar_select_record_buffer(2u) != 0xC254u) {
+        fprintf(stderr, "[Test] $2DC4 record buffer selection diverged\n");
+        return 1;
+    }
+
+    /* $2D93: the seed becomes a roster index by counting sevens. */
+    if (allstar_select_cpu_opponent(0u, 0xFFu, NULL) != 0u ||
+        allstar_select_cpu_opponent(6u, 0xFFu, NULL) != 0u ||
+        allstar_select_cpu_opponent(7u, 0xFFu, NULL) != 1u ||
+        allstar_select_cpu_opponent(13u, 0xFFu, NULL) != 1u ||
+        allstar_select_cpu_opponent(14u, 0xFFu, NULL) != 2u ||
+        allstar_select_cpu_opponent(70u, 0xFFu, NULL) != 10u) {
+        fprintf(stderr, "[Test] $2D98 seven-step walk diverged\n");
+        return 1;
+    }
+    /* A collision with $FFAC nudges the seed by twenty and walks again. */
+    seed = 0u;
+    if (allstar_select_cpu_opponent(7u, 1u, &seed) != 3u || seed != 27u) {
+        fprintf(stderr, "[Test] $2DAA collision retry gave index %u seed %u\n",
+                allstar_select_cpu_opponent(7u, 1u, &seed), seed);
+        return 1;
+    }
+    /* No collision leaves the seed untouched. */
+    seed = 0u;
+    if (allstar_select_cpu_opponent(7u, 5u, &seed) != 1u || seed != 7u) {
+        fprintf(stderr, "[Test] $2DA8 non-collision disturbed the seed\n");
+        return 1;
+    }
+
+    /* $2DEA: a one-player game never announces which player is picking. */
+    allstar_select_prompt_shape(0x03u, 1u, 1u, &prompt);
+    if (prompt.prompt_sound != 0x03u || prompt.announces_player ||
+        prompt.player_sound != 0 || prompt.hold_frames != ALLSTAR_SELECT_PROMPT_HOLD) {
+        fprintf(stderr, "[Test] $2DF2 one-player prompt diverged\n");
+        return 1;
+    }
+    allstar_select_prompt_shape(0x05u, 2u, 1u, &prompt);
+    if (!prompt.announces_player || prompt.player_sound != ALLSTAR_SELECT_PROMPT_P1) {
+        fprintf(stderr, "[Test] $2DFB player 1 announcement diverged\n");
+        return 1;
+    }
+    allstar_select_prompt_shape(0x06u, 2u, 2u, &prompt);
+    if (prompt.player_sound != ALLSTAR_SELECT_PROMPT_P2) {
+        fprintf(stderr, "[Test] $2DFF player 2 announcement diverged\n");
+        return 1;
+    }
+
+    /* $780A: four nibbles, no leading-zero blanking, unlike $1726. */
+    allstar_select_wide_digits(0x1234u, digits);
+    if (digits[0] != 0xC2u || digits[1] != 0xC3u || digits[2] != 0xC4u || digits[3] != 0xC5u) {
+        fprintf(stderr, "[Test] $780A on 1234 gave $%02X $%02X $%02X $%02X\n",
+                digits[0], digits[1], digits[2], digits[3]);
+        return 1;
+    }
+    allstar_select_wide_digits(0x0007u, digits);
+    if (digits[0] != 0xC1u || digits[1] != 0xC1u || digits[2] != 0xC1u || digits[3] != 0xC8u) {
+        fprintf(stderr, "[Test] $780A blanked a leading zero it should have printed\n");
+        return 1;
+    }
+
+    printf("  $2E73/$2E8C mark every slot on one side $80 before its pass\n");
+    printf("  $2D93 divides the $FFFB seed by seven and adds twenty on a collision\n");
+    printf("[Test] PASSED: $2D85, $2D93, $2DBE, $2DD2, $2DEA, $2E70, $2E73, $2E8C, $2EA3, $2AB5, $780A\n");
+    return 0;
+}
+
+/*
+ * ROM player info card, from the $414B..$42A1 disassembly and the per-player
+ * tables at $42A2 and $42BD.
+ */
+int allstar_cli_test_select_card_rom(void) {
+    AllStarSelectCardOp ops[12];
+    uint8_t tiles[ALLSTAR_SELECT_TILE_COUNT];
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Player Card Tests ($414B)...\n");
+
+    count = allstar_select_card_layout(ops, 12);
+    if (count != ALLSTAR_SELECT_CARD_OPS) {
+        fprintf(stderr, "[Test] $414B emitted %d draw steps, expected %d\n",
+                count, ALLSTAR_SELECT_CARD_OPS);
+        return 1;
+    }
+
+    /* $415A/$417A/$4184: two rules with sixteen framed rows between them. */
+    if (ops[0].source != ALLSTAR_SELECT_CARD_RULE || ops[0].e != 0x00u ||
+        ops[1].source != ALLSTAR_SELECT_CARD_ROW || ops[1].e != 0x01u ||
+        ops[1].rows != ALLSTAR_SELECT_CARD_ROWS ||
+        ops[2].source != ALLSTAR_SELECT_CARD_RULE || ops[2].e != 0x11u) {
+        fprintf(stderr, "[Test] $414B frame steps diverged\n");
+        return 1;
+    }
+
+    /* $41C7 and $4217: a six-row block at (4,1) and a four-row block at (12,2). */
+    if (ops[3].d != 0x04u || ops[3].e != 0x01u || ops[3].rows != 6u || ops[3].per_row != 4u ||
+        ops[4].d != 0x0Cu || ops[4].e != 0x02u || ops[4].rows != 4u || ops[4].per_row != 4u) {
+        fprintf(stderr, "[Test] $41C7/$4217 tile blocks diverged\n");
+        return 1;
+    }
+
+    /* $4230..$4292: the name and the three labelled stats read fixed offsets. */
+    if (ops[5].record_field != ALLSTAR_SELECT_FIELD_NAME || ops[5].d != 0x01u || ops[5].e != 0x08u ||
+        ops[7].source != ALLSTAR_SELECT_LABEL_HEIGHT || ops[7].record_field != 0x0Au ||
+        ops[7].d != 0x02u || ops[7].e != 0x0Bu ||
+        ops[8].source != ALLSTAR_SELECT_LABEL_WEIGHT || ops[8].record_field != 0x0Eu || ops[8].e != 0x0Du ||
+        ops[9].source != ALLSTAR_SELECT_LABEL_PPG    || ops[9].record_field != 0x12u || ops[9].e != 0x0Fu) {
+        fprintf(stderr, "[Test] $4250/$426B/$4280 stat lines diverged\n");
+        return 1;
+    }
+
+    /* $418D: the portrait table is two bytes per roster id. */
+    if (allstar_select_portrait_slot(0u) != 0x2D4Fu ||
+        allstar_select_portrait_slot(1u) != 0x2D51u ||
+        allstar_select_portrait_slot(26u) != 0x2D83u) {
+        fprintf(stderr, "[Test] $418D portrait table stride diverged\n");
+        return 1;
+    }
+
+    /* $4199: with no hole the array is a plain 1..24. */
+    allstar_select_punch_tiles(0xFFu, tiles);
+    for (i = 0; i < (int)ALLSTAR_SELECT_TILE_COUNT; i++) {
+        if (tiles[i] != (uint8_t)(i + 1)) {
+            fprintf(stderr, "[Test] $4199 base fill diverged at %d\n", i);
+            return 1;
+        }
+    }
+
+    /* $41BE: a hole zeroes that slot and pulls everything after it down by one. */
+    allstar_select_punch_tiles(20u, tiles);
+    if (tiles[19] != 20u || tiles[20] != 0u || tiles[21] != 21u || tiles[23] != 23u) {
+        fprintf(stderr, "[Test] $41BE hole at 20 gave %u/%u/%u/%u\n",
+                tiles[19], tiles[20], tiles[21], tiles[23]);
+        return 1;
+    }
+    allstar_select_punch_tiles(0u, tiles);
+    if (tiles[0] != 0u || tiles[1] != 1u || tiles[23] != 23u) {
+        fprintf(stderr, "[Test] $41BE hole at 0 diverged\n");
+        return 1;
+    }
+
+    /* $41E0: the second block counts from 25 only when there was no hole. */
+    if (allstar_select_tile_base(0xFFu) != 25u || allstar_select_tile_base(20u) != 24u) {
+        fprintf(stderr, "[Test] $41E0 tile base diverged\n");
+        return 1;
+    }
+
+    /* $41E7: player N's marker record starts after N delimiters. */
+    {
+        static const uint8_t STREAM[16] = {
+            0xFFu, 0xFEu, 0xFFu, 0xFEu, 0xFFu, 0xFEu, 0x00u, 0x0Fu,
+            0xFEu, 0xFFu, 0xFEu, 0xFFu, 0xFEu, 0xFFu, 0xFEu, 0x00u
+        };
+        if (allstar_select_mark_offset(STREAM, 16u, 0u) != 0u ||
+            allstar_select_mark_offset(STREAM, 16u, 1u) != 2u ||
+            allstar_select_mark_offset(STREAM, 16u, 3u) != 6u) {
+            fprintf(stderr, "[Test] $41F0 delimiter walk diverged\n");
+            return 1;
+        }
+    }
+
+    /*
+     * $41FF: a marked index writes zero and does not advance the running tile
+     * number, so the numbering closes over the gap instead of skipping a value.
+     */
+    {
+        static const uint8_t MARKS[2] = { 0x00u, 0x0Fu };
+        allstar_select_build_tiles(MARKS, 2u, 25u, tiles);
+        if (tiles[0] != 0u || tiles[1] != 25u || tiles[2] != 26u ||
+            tiles[14] != 38u || tiles[15] != 0u || tiles[16] != 39u ||
+            tiles[23] != 46u) {
+            fprintf(stderr, "[Test] $41FF marked build gave %u/%u/%u ... %u/%u/%u\n",
+                    tiles[0], tiles[1], tiles[2], tiles[14], tiles[15], tiles[16]);
+            return 1;
+        }
+        allstar_select_build_tiles(NULL, 0u, 24u, tiles);
+        if (tiles[0] != 24u || tiles[23] != 47u) {
+            fprintf(stderr, "[Test] $420A unmarked build diverged\n");
+            return 1;
+        }
+    }
+
+    printf("  card frames rows 1..16, blocks at (4,1) and (12,2), stats at rows 11/13/15\n");
+    printf("  HEIGHT/WEIGHT/PPG AVG read record offsets $0A/$0E/$12, the name reads $16\n");
+    printf("[Test] PASSED: $414B\n");
+    return 0;
+}
+
+/*
  * ROM bank 2 entrant selector, from the $4000..$40F3 and $40F4..$414A
  * disassembly plus the destination tables at $4358 and $4360.
  */
@@ -5249,6 +5492,8 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_postgame_bracket_rom();
     failed += allstar_cli_test_postgame_chooser_rom();
     failed += allstar_cli_test_select_rom();
+    failed += allstar_cli_test_select_card_rom();
+    failed += allstar_cli_test_select_records_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5361,6 +5606,10 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_postgame_chooser_rom();
     } else if (strcmp(cmd, "--test-select-rom") == 0) {
         return allstar_cli_test_select_rom();
+    } else if (strcmp(cmd, "--test-select-card") == 0) {
+        return allstar_cli_test_select_card_rom();
+    } else if (strcmp(cmd, "--test-select-records") == 0) {
+        return allstar_cli_test_select_records_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

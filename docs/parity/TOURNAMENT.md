@@ -232,6 +232,43 @@ or Left (move), and `$4127`'s `$22` is B or Left (step backward). Running off
 either `$FF` sentinel wraps to the other end of the list. Convert at the
 boundary rather than mixing these masks with `ALLSTAR_BTN_*`.
 
+### Player info card and record helpers (chunks 9 and 10)
+
+`$414B` is the card the cursor redraws on every move: a rule at row 0, sixteen
+framed rows from `$4322`, a rule at row 17, the highlighted player's portrait
+decompressed to `$9000`, two tile blocks at `(4,1)` and `(12,2)`, the name at
+row 8, and three labelled stats:
+
+| label | at | record offset |
+|---|---|---|
+| `"HEIGHT   :"` `$4336` | `(2,11)` | `+$0A` |
+| `"WEIGHT   :"` `$4341` | `(2,13)` | `+$0E` |
+| `"PPG AVG  :"` `$434C` | `(2,15)` | `+$12` |
+
+The name comes from `+$16`, and the surname is found with the same walk the
+champion screen uses at `$1323`. The two tile blocks are data-driven: `$42A2`
+gives a per-player blank index that punches a hole in a 1..24 array, and the
+`$FE`-delimited stream at `$42BD` names the indices that stay blank in the
+second block. A marked index writes zero **without advancing** the running tile
+number, so the numbering closes over the gap rather than skipping a value.
+
+The helpers behind all of it:
+
+- `$2DD2` walks the `$FF`-delimited record table at `$4368` to a roster id, and
+  `$2DBE` copies 22 of that record's bytes into `$C23B` or `$C254` — one byte
+  before the `$C23C`/`$C255` name buffers the postgame screens read.
+- `$2E73` and `$2E8C` mark one side's slots `$80` before its pass; `$2E70`
+  calls `$2E8C` and falls into `$2E73`, so it clears both.
+- `$2D93` is the CPU opponent picker: it turns the `$FFFB` seed into a roster
+  index by counting sevens, and if that collides with the id in `$FFAC` it adds
+  `$14` to the seed and walks again.
+- `$2DEA` plays a prompt, announces `$13` or `$14` for the picking player in a
+  two-player game, and holds 120 frames or until Start.
+- `$780A` renders a 16-bit BCD word as four tiles with **no** leading-zero
+  blanking, unlike `$1726`.
+
+With these, menu mode `$04` is at 64 of 64 routines and 2,961 of 2,961 bytes.
+
 Run:
 
 ```powershell
@@ -242,6 +279,8 @@ Run:
 .\build\allstar_port.exe --test-postgame-bracket
 .\build\allstar_port.exe --test-postgame-chooser
 .\build\allstar_port.exe --test-select-rom
+.\build\allstar_port.exe --test-select-card
+.\build\allstar_port.exe --test-select-records
 python tools\check_tournament_rom_coverage.py
 ```
 

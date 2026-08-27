@@ -123,6 +123,34 @@
       ],
       "source": "src/gameplay/allstar_select.c",
       "test": ".\build\u0007llstar_port.exe --test-select-rom"
+    },
+    {
+      "id": 9,
+      "title": "Player info card",
+      "routines": [
+        "2:414B"
+      ],
+      "source": "src/gameplay/allstar_select.c",
+      "test": ".\build\u0007llstar_port.exe --test-select-card"
+    },
+    {
+      "id": 10,
+      "title": "Record and prompt helpers",
+      "routines": [
+        "0:2AB5",
+        "0:2D85",
+        "0:2D93",
+        "0:2DBE",
+        "0:2DD2",
+        "0:2DEA",
+        "0:2E70",
+        "0:2E73",
+        "0:2E8C",
+        "0:2EA3",
+        "1:780A"
+      ],
+      "source": "src/gameplay/allstar_select.c",
+      "test": ".\build\u0007llstar_port.exe --test-select-records"
     }
   ],
   "routines": [
@@ -627,7 +655,10 @@
       "address": "$2AB5",
       "bytes": 5,
       "instructions": 2,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Menu blip, sound $0F."
     },
     {
       "id": "0:2D85",
@@ -635,7 +666,10 @@
       "address": "$2D85",
       "bytes": 14,
       "instructions": 6,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Attract path: runs the CPU pick, mirrors it into $FFAC and loads slot 1."
     },
     {
       "id": "0:2D93",
@@ -643,7 +677,10 @@
       "address": "$2D93",
       "bytes": 43,
       "instructions": 25,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "CPU opponent: divides the $FFFB seed by seven, adds twenty on a collision."
     },
     {
       "id": "0:2DBE",
@@ -651,7 +688,10 @@
       "address": "$2DBE",
       "bytes": 20,
       "instructions": 8,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Copies 22 record bytes into the $C23B or $C254 slot buffer."
     },
     {
       "id": "0:2DD2",
@@ -659,7 +699,10 @@
       "address": "$2DD2",
       "bytes": 17,
       "instructions": 11,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Walks the $FF-delimited record table at $4368 to a roster id."
     },
     {
       "id": "0:2DEA",
@@ -667,7 +710,10 @@
       "address": "$2DEA",
       "bytes": 134,
       "instructions": 67,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Prompt: plays the id, announces the picking player, holds 120 frames."
     },
     {
       "id": "0:2E70",
@@ -675,7 +721,10 @@
       "address": "$2E70",
       "bytes": 3,
       "instructions": 1,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Clears both sides by calling $2E8C then falling into $2E73."
     },
     {
       "id": "0:2E73",
@@ -683,7 +732,10 @@
       "address": "$2E73",
       "bytes": 25,
       "instructions": 10,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Marks the left bracket slots $80."
     },
     {
       "id": "0:2E8C",
@@ -691,7 +743,10 @@
       "address": "$2E8C",
       "bytes": 23,
       "instructions": 9,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Marks the right bracket slots $80."
     },
     {
       "id": "0:2EA3",
@@ -699,7 +754,10 @@
       "address": "$2EA3",
       "bytes": 5,
       "instructions": 4,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Fills B bytes with A."
     },
     {
       "id": "1:780A",
@@ -707,7 +765,10 @@
       "address": "$780A",
       "bytes": 36,
       "instructions": 27,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 10,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Four tile codes for a 16-bit BCD word, no leading-zero blanking."
     },
     {
       "id": "2:4000",
@@ -792,7 +853,10 @@
       "address": "$414B",
       "bytes": 343,
       "instructions": 188,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 9,
+      "source": "src/gameplay/allstar_select.c",
+      "note": "Player info card: frame, portrait, two data-driven tile blocks, name and three stat lines."
     }
   ]
 }

@@ -139,4 +139,41 @@ AllStarCpuHold allstar_cpu_hold(uint8_t *frames);
  */
 bool allstar_cpu_release(uint8_t field_0f, uint8_t roll, uint8_t counter);
 
+/* ---- $73C9..$7410: the head that chooses among the exits ---- */
+
+#define ALLSTAR_CPU_HEAD_SHOOT_STATE  0x02u  /* $73CC, $C0FA           */
+#define ALLSTAR_CPU_HEAD_COMMIT_TIMER 0x2Au  /* $7401, into $C0FF      */
+#define ALLSTAR_CPU_HEAD_RELEASE_AT   0x25u  /* $740D                  */
+#define ALLSTAR_CPU_HEAD_LANE_Y       0x60u  /* $73E0, field +$15      */
+#define ALLSTAR_CPU_HEAD_LANE_ROLL    0x30u  /* $73E6, $FFFB           */
+#define ALLSTAR_CPU_HEAD_OUTER_MARGIN 0x1Eu  /* $73EA                  */
+#define ALLSTAR_CPU_HEAD_INNER_MARGIN 0x1Au  /* $73F1                  */
+#define ALLSTAR_CPU_HEAD_WIDE_MARGIN  0x12u  /* $73FA                  */
+
+typedef enum {
+    ALLSTAR_CPU_HEAD_SHOOT = 0,     /* $73CE, on to the $756C decision  */
+    ALLSTAR_CPU_HEAD_DEFEND,        /* $73D5 and $73FF, on to $742E     */
+    ALLSTAR_CPU_HEAD_COMMIT,        /* $7406, on to $7496               */
+    ALLSTAR_CPU_HEAD_COUNTDOWN,     /* $7420, the timer is still running */
+    ALLSTAR_CPU_HEAD_RELEASE_CHECK  /* $7411, it hit exactly $25        */
+} AllStarCpuHeadRoute;
+
+typedef struct {
+    AllStarCpuHeadRoute route;
+    uint8_t timer;   /* $C0FF on return */
+} AllStarCpuHead;
+
+/*
+ * $73C9.  The entry to everything above: it reads the shoot state in $C0FA and
+ * the commit timer in $C0FF and picks which of the exits runs.
+ *
+ * With the timer at one it decides whether to commit, and the test worth
+ * noticing is an annulus: from the exact lane row $60, with a low roll, the
+ * actor must be inside the $1E box but OUTSIDE the $1A one.  Miss any of that
+ * and it falls back to the plain $12 box; miss that too and it defends.
+ */
+void allstar_cpu_head_73c9(uint8_t shoot_state, uint8_t timer,
+                           float center_x, float ground_y, uint8_t roll,
+                           AllStarCpuHead *out);
+
 #endif /* ALLSTAR_CPU_TARGET_H */

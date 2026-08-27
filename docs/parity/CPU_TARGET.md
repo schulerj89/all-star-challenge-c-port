@@ -124,3 +124,57 @@ ported by the earlier Ghidra-backed AI work — `$74BB`'s four-pixel dead zone,
 `$75CD`'s defender threshold and fourteenth-contact response, and `$74A8`'s
 mode-2 target path all have existing tests in `allstar_cli.c`. An earlier note in
 this session listed them as the next thing to port; that was wrong.
+
+## The head, `$73C9..$7410`, added 2026-08-27
+
+The coverage tool reported bank 1 `$73AD` as a single 251-byte routine. It is
+three things, and only one of them was a real gap:
+
+| range | what it is | was it ported |
+|---|---|---|
+| `$73AD..$73C8` | the second fourteen-pair coordinate table | yes, in `allstar_ai.c` |
+| `$73C9..$7410` | the head that chooses among the exits | **no** |
+| `$7411..$74A7` | the four exits documented above | yes |
+
+### What the head does
+
+```
+$73CC  $C0FA == $02            -> $756C, the shot decision
+$73D4  $C0FF == 0              -> $742E, defend
+$73D7  $C0FF == 1              -> the commit test below
+       otherwise               -> decrement it; exactly $25 falls into $7411
+```
+
+The commit test is the part worth spelling out. From the **exact** lane row
+`$60`, with `$FFFB` under `$30`, the actor must be inside `$07B4`'s `$1E` box
+**and outside its `$1A` box** — an annulus, not a disc. Miss any of that and it
+falls back to the plain `$12` box; miss that too and it defends. Committing
+loads `$C0FF` with `$2A` and requests an action through `$7496`.
+
+So a commit lasts `$2A` frames, and the release check at `$7411` sees exactly
+one frame of it — the one where the counter passes through `$25`. The test
+walks a whole commit down and requires that to happen exactly once.
+
+### The two tables
+
+`$7367`'s `rst $10` picks between the fourteen-pair tables at `$7391` and
+`$73AD` using the family byte, then `$736C` walks `$FFFE` in nineteen-unit
+steps (`$13`) to choose one of the fourteen. Family `$82` never reaches the
+dispatch at all: `$734C` special-cases it to the fixed centre spot `$54`/`$5D`,
+because the inline pointer table at `$738D` only has two entries.
+
+Both tables were already implemented in `allstar_ai_rom_route_target_732c`;
+what was missing was any citation of the addresses, so the coverage tool could
+not tell. They are now asserted pair by pair against the cartridge's bytes —
+all 28 pairs match — and the `$A2`/`$F0` family thresholds are checked one
+below each boundary.
+
+Run:
+
+```powershell
+.uildllstar_port.exe --test-cpu-head
+```
+
+Mutation-checked twice: turning the annulus into a plain disc fails with
+`$7401 annulus did not commit`, and comparing the release value before the
+decrement rather than after fails with `$740D did not reach the release check`.

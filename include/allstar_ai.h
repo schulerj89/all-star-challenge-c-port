@@ -95,6 +95,15 @@ uint8_t allstar_ai_rom_direction_74bb(float current_x, float current_y,
                                      uint8_t target_x, uint8_t target_y);
 void allstar_ai_rom_offense_target_72ea(uint8_t ball_x, uint8_t random_byte,
                                        uint8_t *target_x, uint8_t *target_y);
+/*
+ * $07B4.  Returns Z when the entity is inside the lane box: the ground row
+ * $15 must be above $5C + margin, and the centre must straddle $54 within the
+ * margin.  The caller passes the margin in B, which is how the same routine
+ * serves the $1E/$1A/$12 tests in $73DB.
+ */
+bool allstar_ai_rom_inside_07b4(float center_x, float ground_y,
+                                uint8_t margin);
+
 void allstar_ai_rom_route_target_732c(uint8_t roster_index,
                                      uint8_t route_random,
                                      uint8_t position_random,

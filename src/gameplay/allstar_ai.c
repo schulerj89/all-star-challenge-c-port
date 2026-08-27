@@ -48,8 +48,8 @@ static uint8_t allstar_ai_rom_skill_value_761b(
     return values[skill - 1];
 }
 
-static bool allstar_ai_rom_inside_07b4(float center_x, float ground_y,
-                                       uint8_t margin) {
+bool allstar_ai_rom_inside_07b4(float center_x, float ground_y,
+                                uint8_t margin) {
     if ((uint8_t)ground_y >= (uint8_t)(0x5c + margin)) return false;
     if ((uint8_t)center_x >= 0x54) {
         return (uint8_t)((uint8_t)center_x - margin) < 0x54;
@@ -448,9 +448,14 @@ void allstar_ai_rom_offense_target_72ea(uint8_t ball_x, uint8_t random_byte,
 }
 
 /* $732C uses player +$0F to find its three-entry route family at $763B.
-   $FFFD selects the family at $A2/$F0; families $80/$81 select one of the
-   fourteen exact $738D coordinate pairs with $FFFE, while $82 is the fixed
-   center target $54/$5D. */
+   $733F selects the family with $FFFD at $A2/$F0 -- about 63/30/6 per cent.
+   $734C special-cases family $82 to the fixed centre target $54/$5D before the
+   dispatch, because the inline pointer table at $738D only has two entries.
+   $7362 subtracts $80 and $7367's `rst $10` picks between them: family $80 is
+   the fourteen pairs at $7391, family $81 the fourteen at $73AD.  $736C then
+   walks $FFFE in nineteen-unit steps ($13) to choose one of the fourteen.
+   Both tables below are byte-for-byte the ROM's, first byte $C101 then $C102;
+   they are stored here as (x, y) to match this function's outputs. */
 void allstar_ai_rom_route_target_732c(uint8_t roster_index,
                                      uint8_t route_random,
                                      uint8_t position_random,

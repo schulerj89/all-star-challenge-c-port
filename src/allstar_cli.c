@@ -2269,6 +2269,188 @@ int allstar_cli_test_one_on_one_shooting(void) {
 }
 
 /*
+ * ROM CPU steering head, from $73C9..$7410, and the two route tables at $7391
+ * and $73AD that $7367 picks between.
+ *
+ * $7190's exits at $7411/$742E/$7476/$7496/$749E were ported earlier.  The
+ * 251-byte block the coverage tool reported at $73AD is really three things:
+ * the second coordinate table, this head, and those exits.  The tables are
+ * asserted here against the cartridge's own bytes, and the head is driven
+ * through every branch.
+ */
+int allstar_cli_test_cpu_head_rom(void) {
+    /* $7391 and $73AD, byte for byte: first byte $C101, second $C102. */
+    static const uint8_t ROM_7391[14][2] = {
+        {0x84,0x90},{0x98,0x28},{0x98,0x48},{0x60,0x0c},{0x74,0x9c},
+        {0x94,0x0c},{0x98,0x70},{0x8c,0x9c},{0x88,0x14},{0x60,0x9c},
+        {0x98,0x5c},{0x70,0x0c},{0x98,0x90},{0x98,0x54}
+    };
+    static const uint8_t ROM_73AD[14][2] = {
+        {0x70,0x34},{0x8c,0x60},{0x84,0x28},{0x68,0x5c},{0x74,0x80},
+        {0x64,0x48},{0x74,0x68},{0x64,0x80},{0x64,0x24},{0x88,0x50},
+        {0x64,0x70},{0x84,0x3c},{0x84,0x78},{0x70,0x50}
+    };
+    /* The annulus: inside the $1E box but outside the $1A one. */
+    const float LANE_Y = 96.0f;          /* $60, the exact row $73E0 wants */
+    const float ANNULUS_X = 56.0f;       /* in [55,114) but not [59,110)   */
+    const float WIDE_X = 84.0f;          /* in the $12 box                 */
+    const float OUTSIDE_X = 32.0f;       /* in none of them                */
+    AllStarCpuHead head;
+    uint8_t x = 0;
+    uint8_t y = 0;
+    int i;
+
+    printf("[Test] Running ROM CPU Steering Head Tests ($73C9/$7367)...\n");
+
+    /* $73CC: $C0FA of $02 leaves for the shot decision before anything else. */
+    allstar_cpu_head_73c9(ALLSTAR_CPU_HEAD_SHOOT_STATE, 0x2Au, ANNULUS_X,
+                          LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_SHOOT) {
+        fprintf(stderr, "[Test] $73CE did not leave for $756C\n");
+        return 1;
+    }
+
+    /* $73D5: no commit timer means the defensive branch. */
+    allstar_cpu_head_73c9(0x00u, 0x00u, ANNULUS_X, LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_DEFEND || head.timer != 0) {
+        fprintf(stderr, "[Test] $73D5 did not fall to $742E\n");
+        return 1;
+    }
+
+    /* $73E0-$73F8: the annulus commits. */
+    allstar_cpu_head_73c9(0x00u, 0x01u, ANNULUS_X, LANE_Y, 0x2Fu, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_COMMIT ||
+        head.timer != ALLSTAR_CPU_HEAD_COMMIT_TIMER) {
+        fprintf(stderr,
+                "[Test] $7401 annulus did not commit (route=%d timer=$%02X)\n",
+                (int)head.route, head.timer);
+        return 1;
+    }
+    /* $73E6: one past the roll threshold and the annulus is shut.  This spot
+       is outside the $12 box too, so the fallback cannot rescue it. */
+    allstar_cpu_head_73c9(0x00u, 0x01u, ANNULUS_X, LANE_Y,
+                          ALLSTAR_CPU_HEAD_LANE_ROLL, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_DEFEND) {
+        fprintf(stderr, "[Test] $73E8 committed on a roll of $30\n");
+        return 1;
+    }
+    /* $73E0: the lane row is an exact compare, not a range. */
+    allstar_cpu_head_73c9(0x00u, 0x01u, ANNULUS_X, LANE_Y - 1.0f, 0x00u,
+                          &head);
+    if (head.route != ALLSTAR_CPU_HEAD_DEFEND) {
+        fprintf(stderr, "[Test] $73E2 accepted a row other than $60\n");
+        return 1;
+    }
+    /* $73F1: inside the $1A box the annulus is closed -- but $73FA's wider
+       box then catches it, so this commits by the other path. */
+    allstar_cpu_head_73c9(0x00u, 0x01u, WIDE_X, LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_COMMIT) {
+        fprintf(stderr, "[Test] $73FA wide box did not commit\n");
+        return 1;
+    }
+    if (!allstar_ai_rom_inside_07b4(WIDE_X, LANE_Y,
+                                    ALLSTAR_CPU_HEAD_INNER_MARGIN)) {
+        fprintf(stderr,
+                "[Test] the wide-box case was supposed to sit inside $1A\n");
+        return 1;
+    }
+    /* $73FF: outside every box, defend. */
+    allstar_cpu_head_73c9(0x00u, 0x01u, OUTSIDE_X, LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_DEFEND) {
+        fprintf(stderr, "[Test] $73FF did not defend from outside the lane\n");
+        return 1;
+    }
+
+    /* $7409: the timer runs down one frame at a time, and only the exact
+       value $25 drops into $7411's release check. */
+    allstar_cpu_head_73c9(0x00u, ALLSTAR_CPU_HEAD_COMMIT_TIMER, WIDE_X,
+                          LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_COUNTDOWN || head.timer != 0x29u) {
+        fprintf(stderr, "[Test] $7409 countdown diverged (timer=$%02X)\n",
+                head.timer);
+        return 1;
+    }
+    allstar_cpu_head_73c9(0x00u, 0x26u, WIDE_X, LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_RELEASE_CHECK ||
+        head.timer != ALLSTAR_CPU_HEAD_RELEASE_AT) {
+        fprintf(stderr, "[Test] $740D did not reach the release check\n");
+        return 1;
+    }
+    allstar_cpu_head_73c9(0x00u, 0x27u, WIDE_X, LANE_Y, 0x00u, &head);
+    if (head.route != ALLSTAR_CPU_HEAD_COUNTDOWN) {
+        fprintf(stderr, "[Test] $740D released one frame early\n");
+        return 1;
+    }
+    /* Walking a whole commit down reaches the release check exactly once. */
+    {
+        uint8_t timer = ALLSTAR_CPU_HEAD_COMMIT_TIMER;
+        int releases = 0;
+        for (i = 0; i < 64 && timer > 1u; i++) {
+            allstar_cpu_head_73c9(0x00u, timer, WIDE_X, LANE_Y, 0x00u, &head);
+            timer = head.timer;
+            if (head.route == ALLSTAR_CPU_HEAD_RELEASE_CHECK) releases++;
+        }
+        if (releases != 1) {
+            fprintf(stderr,
+                    "[Test] a $2A commit hit the release check %d times\n",
+                    releases);
+            return 1;
+        }
+    }
+
+    /*
+     * $7367: family $80 is the fourteen pairs at $7391 and family $81 the
+     * fourteen at $73AD.  $736C walks $FFFE in nineteen-unit steps, so a roll
+     * of 19*p lands on pair p.  Roster key $01's families are {1, 0, 2}, which
+     * reaches both tables and the fixed spot from one entry.
+     */
+    for (i = 0; i < 14; i++) {
+        uint8_t position_roll = (uint8_t)(0x13u * i);
+        /* $FFFD below $A2 takes family index 0, which for key $01 is $81. */
+        allstar_ai_rom_route_target_732c(0x01u, 0x00u, position_roll, &x, &y);
+        if (y != ROM_73AD[i][0] || x != ROM_73AD[i][1]) {
+            fprintf(stderr,
+                    "[Test] $73AD pair %d is $%02X/$%02X, the ROM has "
+                    "$%02X/$%02X\n", i, y, x, ROM_73AD[i][0], ROM_73AD[i][1]);
+            return 1;
+        }
+        /* $A2..$EF takes family index 1, which for key $01 is $80. */
+        allstar_ai_rom_route_target_732c(0x01u, 0xA2u, position_roll, &x, &y);
+        if (y != ROM_7391[i][0] || x != ROM_7391[i][1]) {
+            fprintf(stderr,
+                    "[Test] $7391 pair %d is $%02X/$%02X, the ROM has "
+                    "$%02X/$%02X\n", i, y, x, ROM_7391[i][0], ROM_7391[i][1]);
+            return 1;
+        }
+    }
+    /* $734C: family $82 never reaches $738D; it is the fixed centre spot. */
+    allstar_ai_rom_route_target_732c(0x01u, 0xF0u, 0x00u, &x, &y);
+    if (x != 0x54u || y != 0x5Du) {
+        fprintf(stderr,
+                "[Test] $7350 fixed spot is $%02X/$%02X, expected $54/$5D\n",
+                x, y);
+        return 1;
+    }
+    /* $733F: the thresholds are $A2 and $F0, not one below either. */
+    allstar_ai_rom_route_target_732c(0x01u, 0xA1u, 0x00u, &x, &y);
+    if (y != ROM_73AD[0][0]) {
+        fprintf(stderr, "[Test] $7341 moved family at $A1\n");
+        return 1;
+    }
+    allstar_ai_rom_route_target_732c(0x01u, 0xEFu, 0x00u, &x, &y);
+    if (y != ROM_7391[0][0]) {
+        fprintf(stderr, "[Test] $7346 moved family at $EF\n");
+        return 1;
+    }
+
+    printf("  $73C9 routes shoot/defend/commit/countdown, and the commit "
+           "window is an annulus\n");
+    printf("  $7391 and $73AD both match the cartridge across all 28 pairs\n");
+    printf("[Test] PASSED: $73C9, $7367, $7391, $73AD\n");
+    return 0;
+}
+
+/*
  * ROM frame spine and lifecycle, from $2729, $276D, $279E, $0271, $1F7A,
  * $1FA4, $1FE1 and $1699.
  *
@@ -8232,6 +8414,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_defense_jump_rom();
     failed += allstar_cli_test_title_music_rom();
     failed += allstar_cli_test_frame_rom();
+    failed += allstar_cli_test_cpu_head_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -8380,6 +8563,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_title_music_rom();
     } else if (strcmp(cmd, "--test-frame") == 0) {
         return allstar_cli_test_frame_rom();
+    } else if (strcmp(cmd, "--test-cpu-head") == 0) {
+        return allstar_cli_test_cpu_head_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

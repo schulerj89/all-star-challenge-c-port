@@ -1,4 +1,5 @@
 #include "allstar_cpu_target.h"
+#include "allstar_ai.h"
 
 /* $7185 */
 static const uint16_t CPU_MODE_TABLE[ALLSTAR_CPU_MODE_SLOTS] = {
@@ -180,4 +181,51 @@ bool allstar_cpu_release(uint8_t field_0f, uint8_t roll, uint8_t counter) {
         return true;                                                /* $7425 */
     }
     return counter == 1u;                                           /* $7420-$7424 */
+}
+
+/* $73C9..$7410 */
+void allstar_cpu_head_73c9(uint8_t shoot_state, uint8_t timer,
+                           float center_x, float ground_y, uint8_t roll,
+                           AllStarCpuHead *out) {
+    bool commits;
+    if (!out) return;
+    out->timer = timer;
+
+    if (shoot_state == ALLSTAR_CPU_HEAD_SHOOT_STATE) {          /* $73CC */
+        out->route = ALLSTAR_CPU_HEAD_SHOOT;                    /* $73CE */
+        return;
+    }
+    if (timer == 0) {                                           /* $73D4 */
+        out->route = ALLSTAR_CPU_HEAD_DEFEND;                   /* $73D5 */
+        return;
+    }
+    if (timer != 1) {                                           /* $73D7 */
+        /* $7409: one frame off the commit timer, and only the exact value
+           $25 drops into the release check. */
+        out->timer = (uint8_t)(timer - 1u);
+        out->route = (out->timer == ALLSTAR_CPU_HEAD_RELEASE_AT)
+            ? ALLSTAR_CPU_HEAD_RELEASE_CHECK                    /* $7411 */
+            : ALLSTAR_CPU_HEAD_COUNTDOWN;                       /* $7420 */
+        return;
+    }
+
+    /* $73DB-$73F8: the narrow window is an annulus -- inside $1E and outside
+       $1A -- and it is only open from the exact lane row with a low roll. */
+    commits = (uint8_t)ground_y == ALLSTAR_CPU_HEAD_LANE_Y &&    /* $73E0 */
+        roll < ALLSTAR_CPU_HEAD_LANE_ROLL &&                     /* $73E6 */
+        allstar_ai_rom_inside_07b4(center_x, ground_y,
+                                   ALLSTAR_CPU_HEAD_OUTER_MARGIN) &&
+        !allstar_ai_rom_inside_07b4(center_x, ground_y,
+                                    ALLSTAR_CPU_HEAD_INNER_MARGIN);
+
+    if (!commits) {                                              /* $73FA */
+        commits = allstar_ai_rom_inside_07b4(
+            center_x, ground_y, ALLSTAR_CPU_HEAD_WIDE_MARGIN);
+    }
+    if (!commits) {
+        out->route = ALLSTAR_CPU_HEAD_DEFEND;                    /* $73FF */
+        return;
+    }
+    out->timer = ALLSTAR_CPU_HEAD_COMMIT_TIMER;                  /* $7401 */
+    out->route = ALLSTAR_CPU_HEAD_COMMIT;                        /* $7406 */
 }

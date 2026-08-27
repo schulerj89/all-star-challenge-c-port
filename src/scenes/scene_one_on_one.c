@@ -27,6 +27,8 @@ typedef struct {
     uint16_t p2_defense_jump_elapsed_frames;
     bool p1_defense_jump_active;
     bool p2_defense_jump_active;
+    float p1_defense_jump_lift;
+    float p2_defense_jump_lift;
     float defense_step_accumulator;
     AllStarRomAnimationState p1_animation;
     AllStarRomAnimationState p2_animation;
@@ -52,6 +54,12 @@ typedef struct {
 static bool one_on_one_action_uses_dribble_ball_6f2a(uint8_t action) {
     return action == 0x01 || action == 0x04 || action == 0x08 ||
            action == 0x0b || action == 0x10 || action == 0x13;
+}
+
+/* $6C47 increments player +$03 after $6C27 has applied that record's $6C4D
+   delta, so the stored index is one past the record actually on screen. */
+static uint8_t one_on_one_displayed_record_6c47(uint8_t stored_record) {
+    return stored_record ? (uint8_t)(stored_record - 1) : 0;
 }
 
 static AllStarRomContactEvent one_on_one_tick_rom_animations(
@@ -84,6 +92,13 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
             }
         }
+        /* $6BF9->$6C27 runs inside $6A8C for the protected actions: it adds
+           the record's $6C4D delta into player +$05, which $2945 writes to
+           OAM Y.  The ground anchor +$15 stays put, which is what $2B6C
+           reads back as reach and what keeps $077D's gate on the floor. */
+        data->p1_defense_jump_lift = allstar_one_on_one_rom_jump_lift_6c27(
+            data->p1_animation.action,
+            one_on_one_displayed_record_6c47(data->p1_animation.record_index));
         if (allstar_one_on_one_rom_animation_tick_6a8c(
                 game->asset_pack, &data->p1_animation)) {
             bool moved = false;
@@ -123,6 +138,9 @@ static AllStarRomContactEvent one_on_one_tick_rom_animations(
                     &game->audio, ALLSTAR_SFX_SHOE_SQUEAK);
             }
         }
+        data->p2_defense_jump_lift = allstar_one_on_one_rom_jump_lift_6c27(
+            data->p2_animation.action,
+            one_on_one_displayed_record_6c47(data->p2_animation.record_index));
         if (allstar_one_on_one_rom_animation_tick_6a8c(
                 game->asset_pack, &data->p2_animation)) {
             bool moved = false;
@@ -151,6 +169,8 @@ static void one_on_one_reset_defense(SceneOneOnOneData *data) {
     data->p2_defense_jump_elapsed_frames = 0;
     data->p1_defense_jump_active = false;
     data->p2_defense_jump_active = false;
+    data->p1_defense_jump_lift = 0.0f;
+    data->p2_defense_jump_lift = 0.0f;
     data->defense_step_accumulator = 0.0f;
 }
 
@@ -165,12 +185,14 @@ static void one_on_one_tick_defense(SceneOneOnOneData *data, float dt) {
                 ALLSTAR_ROM_DEFENSE_JUMP_FRAMES) {
             data->p1_defense_jump_active = false;
             data->p1_defense_jump_elapsed_frames = 0;
+            data->p1_defense_jump_lift = 0.0f;
         }
         if (data->p2_defense_jump_active &&
             ++data->p2_defense_jump_elapsed_frames >=
                 ALLSTAR_ROM_DEFENSE_JUMP_FRAMES) {
             data->p2_defense_jump_active = false;
             data->p2_defense_jump_elapsed_frames = 0;
+            data->p2_defense_jump_lift = 0.0f;
         }
     }
 }
@@ -1213,6 +1235,11 @@ static void one_on_one_draw(AllStarScene *scene, AllStarGame *game, AllStarRende
         p2_visual_lift = (int32_t)
             allstar_one_on_one_rom_shot_jump_height_6c4d(elapsed);
     }
+    /* The $6C27 lift the update already resolved from player +$03. */
+    if (data->p1_defense_jump_lift != 0.0f)
+        p1_visual_lift = (int32_t)data->p1_defense_jump_lift;
+    if (data->p2_defense_jump_lift != 0.0f)
+        p2_visual_lift = (int32_t)data->p2_defense_jump_lift;
     allstar_renderer_draw_player_lifted_ex(renderer,
         (int32_t)data->p2.x, (int32_t)data->p2.y, p2_visual_lift,
         false, p2_skin, data->p2.has_ball,
@@ -1319,6 +1346,8 @@ bool allstar_scene_one_on_one_get_debug_state(
     state->ball_recoverable = data->ball.recoverable;
     state->p1_defense_jump_active = data->p1_defense_jump_active;
     state->p2_defense_jump_active = data->p2_defense_jump_active;
+    state->p1_defense_jump_lift = data->p1_defense_jump_lift;
+    state->p2_defense_jump_lift = data->p2_defense_jump_lift;
     state->score_presentation_active = data->score_presentation.active;
     state->foul_presentation_active = data->foul_presentation.active;
     state->foul_message_visible = data->foul_presentation.message_visible;

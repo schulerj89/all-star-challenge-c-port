@@ -341,6 +341,25 @@ bool allstar_one_on_one_rom_steal_contact_2b14(
     float ball_y,
     uint8_t defender_direction,
     uint8_t ballhandler_direction);
+/*
+ * $6C4D is twelve signed per-record deltas.  $6C27 accumulates the delta for
+ * the current record into player +$05, which $2945 writes straight to OAM Y,
+ * so a jump physically lifts the sprite off the floor and sets it back down.
+ * The ground anchor +$15 does not move, which is why $2B6C reads reach as
+ * +$15 - +$05 and why $077D's planar gate keeps using the anchor.
+ */
+int allstar_one_on_one_rom_jump_lift_delta_6c4d(uint8_t record_index);
+
+/*
+ * How far above the ground anchor the sprite sits while `displayed_record` is
+ * the record on screen -- the running sum of the deltas through it.  Zero for
+ * any action outside the $05/$0C/$14 jump family, which is what $6BF9 gates
+ * on.  Note that $6C47 increments +$03 after $6C27 has applied the delta, so
+ * a stored record index is one PAST the record being displayed.
+ */
+float allstar_one_on_one_rom_jump_lift_6c27(uint8_t action,
+                                            uint8_t displayed_record);
+
 float allstar_one_on_one_rom_jump_height_6c4d(uint16_t elapsed_frames);
 bool allstar_one_on_one_rom_jump_recovery_2b6c(
     bool possession_active,

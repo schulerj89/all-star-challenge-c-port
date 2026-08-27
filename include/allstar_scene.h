@@ -71,6 +71,8 @@ typedef struct {
     bool p2_has_ball;
     bool ball_in_flight;
     bool ball_recoverable;
+    float p1_defense_jump_lift;
+    float p2_defense_jump_lift;
     bool p1_defense_jump_active;
     bool p2_defense_jump_active;
     bool score_presentation_active;

@@ -607,17 +607,38 @@ bool allstar_one_on_one_rom_steal_contact_2b14(
            (combined_direction & 0x0c) == 0x0c;
 }
 
-/* Bank 1 $6C4D supplies signed visual-Y deltas to the twelve six-frame
-   records shared by jump actions $05/$0C/$14. These are the cumulative
-   upward displacements used by $2B6C's ground-minus-visual-Y reach test. */
-float allstar_one_on_one_rom_jump_height_6c4d(uint16_t elapsed_frames) {
-    static const uint8_t cumulative_height[12] = {
-        0, 9, 16, 21, 24, 26, 26, 24, 19, 12, 4, 0
+/* Bank 1 $6C4D: twelve signed per-record deltas, $00 F7 F9 FB FD FE 00 02
+   05 07 08 04.  Negative is up the screen. */
+int allstar_one_on_one_rom_jump_lift_delta_6c4d(uint8_t record_index) {
+    static const int8_t deltas[12] = {
+        0, -9, -7, -5, -3, -2, 0, 2, 5, 7, 8, 4
     };
-    size_t record;
+    if (record_index >= 12) return 0;
+    return deltas[record_index];
+}
+
+/* $6C27 adds $6C4D[+$03] into player +$05 as each record is loaded, so the
+   sprite's height above the ground anchor is the running sum through the
+   record on screen.  $6BF9 only reaches $6C27 for the protected actions, and
+   of those only $05/$0C/$14 walk the twelve-record jump list. */
+float allstar_one_on_one_rom_jump_lift_6c27(uint8_t action,
+                                            uint8_t displayed_record) {
+    int lift = 0;
+    uint8_t record;
+    if (action != 0x05 && action != 0x0c && action != 0x14) return 0.0f;
+    if (displayed_record >= 12) return 0.0f;
+    for (record = 0; record <= displayed_record; record++) {
+        lift += allstar_one_on_one_rom_jump_lift_delta_6c4d(record);
+    }
+    return (float)-lift;
+}
+
+/* The same displacement addressed by frame count rather than by record.
+   $2B6C reads it as +$15 - +$05, the reach the airborne player gains. */
+float allstar_one_on_one_rom_jump_height_6c4d(uint16_t elapsed_frames) {
     if (elapsed_frames >= ALLSTAR_ROM_DEFENSE_JUMP_FRAMES) return 0.0f;
-    record = elapsed_frames / 6;
-    return (float)cumulative_height[record];
+    return allstar_one_on_one_rom_jump_lift_6c27(
+        0x05, (uint8_t)(elapsed_frames / 6));
 }
 
 /* $2B6C->$2B88: while no one owns the ball, $077D supplies the planar gate

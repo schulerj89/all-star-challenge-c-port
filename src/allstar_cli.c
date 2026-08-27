@@ -2267,6 +2267,177 @@ int allstar_cli_test_one_on_one_shooting(void) {
 }
 
 /*
+ * ROM defensive jump lift, from the $6BF9->$6C27->$6C4D disassembly.
+ *
+ * $6A8C reaches $6BF9 for the eight protected actions, and $6C27 adds
+ * $6C4D[+$03] into player +$05.  $2945 writes +$05 straight to OAM Y, so the
+ * jump is what physically lifts the sprite; the ground anchor +$15 stays
+ * where it was, which is why $2B6C reads reach back as +$15 - +$05 and why
+ * $077D's planar gate keeps testing the floor position.
+ *
+ * Without the lift a defensive jump is invisible AND immobile for its full
+ * 72 frames, which reads as the game having locked up.
+ */
+int allstar_cli_test_defense_jump_rom(void) {
+    static const int rom_6c4d[12] = {
+        0, -9, -7, -5, -3, -2, 0, 2, 5, 7, 8, 4
+    };
+    static const float cumulative[12] = {
+        0.0f, 9.0f, 16.0f, 21.0f, 24.0f, 26.0f,
+        26.0f, 24.0f, 19.0f, 12.0f, 4.0f, 0.0f
+    };
+    AllStarGame game;
+    AllStarOneOnOneDebugState debug;
+    float peak_lift = 0.0f;
+    float ground_y = 0.0f;
+    float ground_x = 0.0f;
+    bool ground_moved = false;
+    bool descended = false;
+    int frame;
+    int record;
+    int running = 0;
+
+    printf("[Test] Running ROM Defensive Jump Tests ($6C27/$6C4D)...\n");
+
+    /* $6C4D is twelve signed bytes, and the lift is their running sum. */
+    for (record = 0; record < 12; record++) {
+        if (allstar_one_on_one_rom_jump_lift_delta_6c4d((uint8_t)record) !=
+            rom_6c4d[record]) {
+            fprintf(stderr, "[Test] $6C4D+%d is %d, expected %d\n", record,
+                    allstar_one_on_one_rom_jump_lift_delta_6c4d(
+                        (uint8_t)record),
+                    rom_6c4d[record]);
+            return 1;
+        }
+        running += rom_6c4d[record];
+        if (allstar_one_on_one_rom_jump_lift_6c27(
+                0x0cu, (uint8_t)record) != (float)-running ||
+            (float)-running != cumulative[record]) {
+            fprintf(stderr,
+                    "[Test] $6C27 lift at record %d is %.0f, expected %.0f\n",
+                    record,
+                    allstar_one_on_one_rom_jump_lift_6c27(
+                        0x0cu, (uint8_t)record),
+                    cumulative[record]);
+            return 1;
+        }
+    }
+    /* The arc leaves the floor and comes back to it. */
+    if (allstar_one_on_one_rom_jump_lift_6c27(0x05u, 0u) != 0.0f ||
+        allstar_one_on_one_rom_jump_lift_6c27(0x05u, 11u) != 0.0f ||
+        allstar_one_on_one_rom_jump_lift_6c27(0x05u, 5u) != 26.0f) {
+        fprintf(stderr, "[Test] $6C4D arc does not start, peak and land\n");
+        return 1;
+    }
+    /* All three jump actions share the twelve records; $6BF9 gates the rest
+       out, so nothing else is ever lifted by $6C27. */
+    if (allstar_one_on_one_rom_jump_lift_6c27(0x14u, 5u) != 26.0f ||
+        allstar_one_on_one_rom_jump_lift_6c27(0x06u, 5u) != 0.0f ||
+        allstar_one_on_one_rom_jump_lift_6c27(
+            ALLSTAR_ROM_SHOT_ACTION_A, 5u) != 0.0f ||
+        allstar_one_on_one_rom_jump_lift_6c27(0x0du, 5u) != 0.0f) {
+        fprintf(stderr, "[Test] $6BF9 gating admitted a non-jump action\n");
+        return 1;
+    }
+    /* $2B6C reads the same displacement, six frames to the record. */
+    for (record = 0; record < 12; record++) {
+        if (allstar_one_on_one_rom_jump_height_6c4d((uint16_t)(record * 6)) !=
+            cumulative[record]) {
+            fprintf(stderr,
+                    "[Test] $2B6C reach at frame %d disagrees with $6C4D\n",
+                    record * 6);
+            return 1;
+        }
+    }
+
+    /* The scene has to actually put that lift on the sprite. */
+    if (!allstar_game_init(&game, NULL)) {
+        fprintf(stderr, "[Test] Could not initialise the game\n");
+        return 1;
+    }
+    allstar_game_change_scene(&game, ALLSTAR_SCENE_ONE_ON_ONE);
+    allstar_scene_one_on_one_set_test_possession(game.active_scene, &game, 2);
+    allstar_scene_one_on_one_set_test_positions(
+        game.active_scene, 60.0f, 128.0f, 100.0f, 128.0f);
+    allstar_input_update(&game.input, 0);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    ground_x = debug.p1_x;
+    ground_y = debug.p1_y;
+    if (debug.p1_defense_jump_lift != 0.0f) {
+        fprintf(stderr, "[Test] A standing defender is already airborne\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    /* $2639 bit 0 is A, and $702D takes the $70FD branch while +$09 says the
+       player does not own the ball. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_A);
+    allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_input_update(&game.input, 0);
+    for (frame = 0; frame < ALLSTAR_ROM_DEFENSE_JUMP_FRAMES; frame++) {
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+        allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+        if (!debug.p1_defense_jump_active) break;
+        if (debug.p1_defense_jump_lift > peak_lift)
+            peak_lift = debug.p1_defense_jump_lift;
+        if (peak_lift > 0.0f &&
+            debug.p1_defense_jump_lift < peak_lift) descended = true;
+        /* $077D never leaves the floor, so neither may the anchor. */
+        if (debug.p1_y != ground_y || debug.p1_x != ground_x)
+            ground_moved = true;
+    }
+    if (peak_lift != 26.0f) {
+        fprintf(stderr,
+                "[Test] Defensive jump peaked at %.0f, expected the $6C4D "
+                "26 -- the defender never left the floor\n", peak_lift);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    if (!descended) {
+        fprintf(stderr, "[Test] Defensive jump never came back down\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    if (ground_moved) {
+        fprintf(stderr,
+                "[Test] $6C27 moved the $077D/+$15 anchor as well as +$05\n");
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (debug.p1_defense_jump_lift != 0.0f) {
+        fprintf(stderr, "[Test] The defender landed %.0f above the floor\n",
+                debug.p1_defense_jump_lift);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+
+    /* $6BF9 leaves the jump family through the twelfth record's $02 control
+       byte, so the landed defender has to move again. */
+    allstar_input_update(&game.input, ALLSTAR_BTN_LEFT);
+    for (frame = 0; frame < 40; frame++)
+        allstar_game_tick(&game, ALLSTAR_PHYSICS_STEP_SECONDS);
+    allstar_scene_one_on_one_get_debug_state(game.active_scene, &debug);
+    if (debug.p1_x >= ground_x || debug.p1_action == 0x05 ||
+        debug.p1_action == 0x0c || debug.p1_action == 0x14) {
+        fprintf(stderr,
+                "[Test] Defender stayed stuck in the jump family "
+                "(action=$%02X x=%.0f->%.0f)\n",
+                debug.p1_action, ground_x, debug.p1_x);
+        allstar_game_shutdown(&game);
+        return 1;
+    }
+    allstar_game_shutdown(&game);
+
+    printf("  $6C4D lifts the sprite 0-9-16-21-24-26-26-24-19-12-4-0 and "
+           "lands it\n");
+    printf("  the +$15 anchor $077D reads stays on the floor throughout\n");
+    printf("[Test] PASSED: $6C27, $6C4D, $6BF9\n");
+    return 0;
+}
+
+/*
  * ROM joypad poll, from the $2639..$267D disassembly.
  */
 int allstar_cli_test_pad_rom(void) {
@@ -7630,6 +7801,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_handshake_rom();
     failed += allstar_cli_test_session_rom();
     failed += allstar_cli_test_pad_rom();
+    failed += allstar_cli_test_defense_jump_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -7772,6 +7944,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_session_rom();
     } else if (strcmp(cmd, "--test-pad") == 0) {
         return allstar_cli_test_pad_rom();
+    } else if (strcmp(cmd, "--test-defense-jump") == 0) {
+        return allstar_cli_test_defense_jump_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

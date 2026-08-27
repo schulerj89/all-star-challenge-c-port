@@ -47,3 +47,12 @@ Start-Process $mesen -ArgumentList $arguments -Wait -NoNewWindow
 The Ghidra inventory records `$0A78`, `$2B14`, `$2B6C`, `$702D`, and `$7170`
 as verified mappings. The full player/CPU handoff and the additional CPU
 defense trace are documented in `ONE_ON_ONE_CONTROLLERS.md`.
+
+## The jump lift, `$6C27` (fixed 2026-08-26)
+
+The defensive jump ran its twelve records and recovered correctly, but the
+sprite never left the floor: `visual_lift` was fed only by the shot clock, so
+a defensive jump was 72 frames of a motionless, unmovable player and was
+reported as the game freezing. `$6C27` accumulates the twelve signed `$6C4D`
+deltas into player `+$05`, which `$2945` writes to OAM Y. See
+`DEFENSE_JUMP.md`; `--test-defense-jump` covers it.

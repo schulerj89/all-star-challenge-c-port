@@ -84,6 +84,17 @@
       ],
       "source": "src/gameplay/allstar_postgame.c",
       "test": ".\build\u0007llstar_port.exe --test-postgame-modes"
+    },
+    {
+      "id": 6,
+      "title": "VS and bracket screens",
+      "routines": [
+        "0:1343",
+        "0:139B",
+        "0:1464"
+      ],
+      "source": "src/gameplay/allstar_postgame.c",
+      "test": ".\build\u0007llstar_port.exe --test-postgame-bracket"
     }
   ],
   "routines": [
@@ -225,7 +236,10 @@
       "address": "$1343",
       "bytes": 81,
       "instructions": 31,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 6,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Pre-match VS screen; the GAME line and $C0BE digit appear only in the tournament."
     },
     {
       "id": "0:139B",
@@ -233,7 +247,10 @@
       "address": "$139B",
       "bytes": 201,
       "instructions": 76,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 6,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Bracket display; $C17F picks eight entrants or four semifinalists, rows interleaved."
     },
     {
       "id": "0:1464",
@@ -241,7 +258,10 @@
       "address": "$1464",
       "bytes": 7,
       "instructions": 4,
-      "status": "pending"
+      "status": "ported",
+      "chunk": 6,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Loads a player record for a bracket slot through $FFF6 and $2DD2."
     },
     {
       "id": "0:146F",

@@ -1,4 +1,5 @@
 #include "allstar_postgame.h"
+#include "allstar_tournament.h"
 
 /* $10D9: indexed by $FF8D. */
 static const uint16_t POSTGAME_SCREEN_TABLE[4] = { 0x10E1u, 0x1343u, 0x139Bu, 0x146Fu };
@@ -143,6 +144,18 @@ bool allstar_postgame_draw_detail(AllStarPostgameDrawKind kind, AllStarPostgameD
     case ALLSTAR_POSTGAME_DRAW_TOTAL_HI:                            /* $1229 -> $053C */
     case ALLSTAR_POSTGAME_DRAW_TOTAL_LO:                            /* $1234 -> $053C */
         out->routine = 0x053Cu; out->source = ALLSTAR_POSTGAME_DIGITS;
+        out->skip_spaces = false; out->is_score = false;
+        return true;
+    case ALLSTAR_POSTGAME_DRAW_TEXT_GAME:                           /* $1354 -> $06C0 */
+        out->routine = 0x06C0u; out->source = ALLSTAR_POSTGAME_TEXT_GAME;
+        out->skip_spaces = false; out->is_score = false;
+        return true;
+    case ALLSTAR_POSTGAME_DRAW_TEXT_VS:                             /* $1374 -> $06C0 */
+        out->routine = 0x06C0u; out->source = ALLSTAR_POSTGAME_TEXT_VS;
+        out->skip_spaces = false; out->is_score = false;
+        return true;
+    case ALLSTAR_POSTGAME_DRAW_MATCH_DIGIT:                         /* $135D -> $053C */
+        out->routine = 0x053Cu; out->source = ALLSTAR_POSTGAME_NAME_SCRATCH;
         out->skip_spaces = false; out->is_score = false;
         return true;
     default:
@@ -472,4 +485,102 @@ uint8_t allstar_postgame_record_surname(const uint8_t *record, uint8_t length) {
     if (i > 0) i--;                                                 /* $1334 */
     if (i >= length) i = (uint8_t)(length - 1u);
     return i;
+}
+
+/* $135D-$1365: $C0BE plus the digit base, stored as a single tile in $C1D3. */
+uint8_t allstar_postgame_match_digit(uint8_t match_count) {
+    return (uint8_t)(match_count + ALLSTAR_POSTGAME_DIGIT_BASE);
+}
+
+/*
+ * $1343..$1393.  The GAME line is drawn only when $FF8F is the tournament;
+ * every mode gets the two names and the VS between them.
+ */
+int allstar_postgame_matchup_layout(uint8_t mode, AllStarPostgameDraw *out, int max) {
+    int count = 0;
+    if (!out || max <= 0) return 0;
+
+    if (mode == ALLSTAR_POSTGAME_MODE_TOURNAMENT) {                 /* $134E-$1352 */
+        if (count < max) {                                          /* $1354 */
+            out[count].kind = ALLSTAR_POSTGAME_DRAW_TEXT_GAME;
+            out[count].d = 0x06u; out[count].e = 0x0Du; count++;
+        }
+        if (count < max) {                                          /* $1366 */
+            out[count].kind = ALLSTAR_POSTGAME_DRAW_MATCH_DIGIT;
+            out[count].d = 0x0Cu; out[count].e = 0x0Du; count++;
+        }
+    }
+    if (count < max) {                                              /* $136E-$1371 */
+        out[count].kind = ALLSTAR_POSTGAME_DRAW_NAME_1_RAW;
+        out[count].d = 0x05u; out[count].e = 0x05u; count++;
+    }
+    if (count < max) {                                              /* $1374-$137A */
+        out[count].kind = ALLSTAR_POSTGAME_DRAW_TEXT_VS;
+        out[count].d = 0x08u; out[count].e = 0x07u; count++;
+    }
+    if (count < max) {                                              /* $137D-$1380 */
+        out[count].kind = ALLSTAR_POSTGAME_DRAW_NAME_2_RAW;
+        out[count].d = 0x05u; out[count].e = 0x09u; count++;
+    }
+    return count;
+}
+
+/*
+ * $139B..$1463.  $C17F selects the stage: $01 returns without drawing, $04
+ * lists all eight round 1 entrants, anything else lists the four
+ * semifinalists.  Both lists interleave the left and right sides so a match
+ * pair lands on adjacent rows, and every slot goes through $1464 to load the
+ * player record before $1766 draws it.
+ */
+void allstar_postgame_bracket(uint8_t stage, AllStarPostgameBracket *out) {
+    /* $146B: indexed by $C17F, so slot 0 is never reached. */
+    static const uint8_t BRACKET_SOUND[4] = { 0x00u, 0x0Eu, 0x00u, 0x0Du };
+    static const uint16_t FULL_SLOTS[8] = {
+        ALLSTAR_TR_R1_LEFT,          ALLSTAR_TR_R1_RIGHT,
+        ALLSTAR_TR_R1_LEFT  + 1u,    ALLSTAR_TR_R1_RIGHT + 1u,
+        ALLSTAR_TR_R1_LEFT  + 2u,    ALLSTAR_TR_R1_RIGHT + 2u,
+        ALLSTAR_TR_R1_LEFT  + 3u,    ALLSTAR_TR_R1_RIGHT + 3u
+    };
+    static const uint16_t SEMI_SLOTS[4] = {
+        ALLSTAR_TR_R2_LEFT,          ALLSTAR_TR_R2_RIGHT,
+        ALLSTAR_TR_R2_LEFT  + 1u,    ALLSTAR_TR_R2_RIGHT + 1u
+    };
+    const uint16_t *slots;
+    uint8_t first_row;
+    uint8_t i;
+
+    if (!out) return;
+
+    out->draws = false;
+    out->sound = 0;
+    out->count = 0;
+    out->hold_frames = 0;
+    for (i = 0; i < ALLSTAR_POSTGAME_BRACKET_MAX_SLOTS; i++) {
+        out->entries[i].slot = 0;
+        out->entries[i].d = 0;
+        out->entries[i].e = 0;
+    }
+
+    if (stage == 0x01u) return;                                     /* $13A9-$13AA */
+    if (stage == 0 || stage > 0x04u) return;
+
+    out->draws = true;
+    out->sound = BRACKET_SOUND[stage - 1u];                         /* $13AB-$13B2 */
+    out->hold_frames = ALLSTAR_POSTGAME_BRACKET_HOLD_FRAMES;        /* $1459 */
+
+    if (stage == ALLSTAR_POSTGAME_BRACKET_FULL) {                   /* $13C0-$13C2 */
+        slots = FULL_SLOTS;
+        out->count = 8u;
+        first_row = 0x01u;                                          /* $13CA */
+    } else {
+        slots = SEMI_SLOTS;
+        out->count = 4u;
+        first_row = 0x05u;                                          /* $142C */
+    }
+
+    for (i = 0; i < out->count; i++) {
+        out->entries[i].slot = slots[i];
+        out->entries[i].d = 0x01u;
+        out->entries[i].e = (uint8_t)(first_row + (uint8_t)(i * 2u));
+    }
 }

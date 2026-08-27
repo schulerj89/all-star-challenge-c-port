@@ -68,10 +68,112 @@ Not yet ported: the bank 2 selector at `$4000` that consumes the candidate list
 and writes the entrant slots. `$2890`, `$2897`, and `$28B0` therefore raise a
 recorded selection request instead of filling those slots themselves.
 
+### Postgame dispatch (chunk 3)
+
+`$0F63` and `$0F91` call `$10A5`, which sets `$C16F`, puts screen `0` in `$FF8D`
+and falls into the shared tail at `$10B7`. That tail pages in bank 1, loads
+`$640F` into `$8C00` **unless the mode is `$01`**, then dispatches twice:
+
+| `$FF8D` | `$10D9` target | | mode `$FF8F` | `$10E4` target |
+|---|---|---|---|---|
+| 0 | `$10E1`, dispatches again on the mode | | 0 One-on-One | `$10EE` |
+| 1 | `$1343` | | 1 Free Throw | `$1121` |
+| 2 | `$139B`, reached from `$28D9` | | 2 H-O-R-S-E | `$11D5` |
+| 3 | `$146F` | | 3 Accuracy | `$1209` |
+| | | | 4 Tournament | `$12A6` |
+
+So a tournament match's postgame screen is `$12A6`, not the One-on-One `$10EE`.
+
+`$1726` converts a BCD score word — hundreds in H's low nibble, tens and units in
+L — into three tile codes at `$C1FB`, digit + `$C1`. A leading zero blanks, but a
+zero tens digit prints as `0` once the hundreds digit has printed, and the units
+digit always prints. `$1638` holds the screen until Start is newly pressed, which
+`$FFEC` can suppress, or until the BC frame counter expires.
+
+### Mode 1 and 2 postgame screens (chunk 4)
+
+`$1121` (Free Throw) is a **link-cable handshake**, not just a result screen.
+Each side writes `$F0` into its own score high byte and spins on the other
+side's until it reads `$F0`:
+
+| `$C199` | role | flags | polls | announce sound |
+|---|---|---|---|---|
+| `$00` | solo | none | none | none |
+| `$01`/`$02` | player 1 | `$C134` | `$C136` | `$19` |
+| `$03` | player 2 | `$C136` | `$C134` | `$18` |
+
+If the other side has already flagged, `$1152` sets this side's flag and skips
+the wait. The screen then draws the local player's name at `$0504`, the `$FF98`
+attempt count at `$1107`, and the local score at `$110A`.
+
+`$11D5` (H-O-R-S-E) picks a name with `$FFAB`, records the *other* player in
+`$C17D` as the survivor, copies the name through `$170D`, appends the six bytes
+at `$1203` (`"IS OUT"`, last byte OR `$80`), and draws the result at `$0207`.
+
+`$170D` is the ROM's string tidier: copy until a byte has bit 7 set, walk back
+clearing that bit and dropping trailing spaces, then append exactly one space.
+`$1786` clears sixteen tiles per row, six by six, from `$9800`.
+
+### Mode 3 and 4 postgame screens (chunk 5)
+
+`$12A6` is where tournament match results are resolved, and it changes what the
+bracket means.
+
+| `$C0BE` | `$28E1` | path |
+|---|---|---|
+| 1..6 | decided | `$10FA` panel, then return to `$0F2E` |
+| 1..6 | tied | **replay the match** |
+| `$07` | tied | `$C192 = 1`, `$10FA` panel, then replay |
+| `$07` | decided | champion screen at `$12FB` — `$10FA` is *not* drawn |
+
+**A tie does not advance the bracket; it replays the match.** `$12C9` sets
+`$C170`, plays sound `$16`, holds for `$00F0` frames through `$1638`, saves and
+forces `$FF95`, clears the music, calls `$0B9A` — the One-on-One match body —
+and then re-enters the dispatch at `$10A5`. That is the reason `$284D` and
+`$286E` return early on a tied verdict: the tie is resolved by replaying, so
+there is never a winner to record.
+
+The champion path reads `$FFAC` or `$FFC5` by the `$28E1` verdict, loads that
+player's record through bank 2 `$2DD2`, draws a field at record + `$16` at
+`$0107`, then walks the record to the surname — skip spaces from offset 1, step
+once more, step twice past a `.`, then back up one — and draws it at `$0507`
+before setting the `$8E` champion music.
+
+`$1209` (Accuracy) runs the same `$F0` handshake but gated on `$FF91 != $01`,
+with no `$1152` shortcut: it always flags and always polls. `$1277` stores
+whatever was in A, which is still the `$F0` it just wrote.
+
+### VS and bracket screens (chunk 6)
+
+`$1343` is the pre-match screen behind `$FF8D == $01`. Every mode gets both
+names at `$0505`/`$0509` with `"VS"` (`$1399`) between them at `$0807`; only
+`$FF8F == $04` adds the `"GAME"` string (`$1394`) at `$060D` and the match
+number at `$0C0D`. That number is `$C0BE + $C1` — the same digit base `$1726`
+uses, so match 1 draws tile `$C2`.
+
+`$139B` is the bracket display, reached from `$28D9` after the bank 2 selector.
+`$C17F` picks the stage:
+
+| `$C17F` | shows | sound | first row |
+|---|---|---|---|
+| `$01` | nothing, returns at `$13AA` | — | — |
+| `$02` | four semifinalists | `$0E` | 5 |
+| `$03` | four semifinalists | `$00` | 5 |
+| `$04` | all eight entrants | `$0D` | 1 |
+
+Both lists **interleave the two sides** — `$C0BF`, `$C0C3`, `$C0C0`, `$C0C4`, …
+— so each match pair lands on adjacent rows, two rows apart, in column 1. Every
+slot goes through `$1464`, which writes the id to `$FFF6` and calls bank 2
+`$2DD2` to load the record. The screen then holds for `$0384` frames.
+
 Run:
 
 ```powershell
 .\build\allstar_port.exe --test-tournament-rom
+.\build\allstar_port.exe --test-postgame-rom
+.\build\allstar_port.exe --test-postgame-screens
+.\build\allstar_port.exe --test-postgame-modes
+.\build\allstar_port.exe --test-postgame-bracket
 python tools\check_tournament_rom_coverage.py
 ```
 

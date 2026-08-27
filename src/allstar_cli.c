@@ -2251,6 +2251,111 @@ int allstar_cli_test_one_on_one_shooting(void) {
 }
 
 /*
+ * ROM VS screen and bracket display, from the $1343..$139A and $139B..$1463
+ * disassembly.
+ */
+int allstar_cli_test_postgame_bracket_rom(void) {
+    AllStarPostgameDraw layout[8];
+    AllStarPostgameDrawDetail detail;
+    AllStarPostgameBracket bracket;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM VS/Bracket Tests ($1343/$139B/$1464)...\n");
+
+    /* $134E: only the tournament gets the GAME line. */
+    count = allstar_postgame_matchup_layout(ALLSTAR_POSTGAME_MODE_TOURNAMENT, layout, 8);
+    if (count != ALLSTAR_POSTGAME_VS_LAYOUT_OPS ||
+        layout[0].kind != ALLSTAR_POSTGAME_DRAW_TEXT_GAME   || layout[0].d != 0x06u || layout[0].e != 0x0Du ||
+        layout[1].kind != ALLSTAR_POSTGAME_DRAW_MATCH_DIGIT || layout[1].d != 0x0Cu || layout[1].e != 0x0Du ||
+        layout[2].kind != ALLSTAR_POSTGAME_DRAW_NAME_1_RAW  || layout[2].d != 0x05u || layout[2].e != 0x05u ||
+        layout[3].kind != ALLSTAR_POSTGAME_DRAW_TEXT_VS     || layout[3].d != 0x08u || layout[3].e != 0x07u ||
+        layout[4].kind != ALLSTAR_POSTGAME_DRAW_NAME_2_RAW  || layout[4].d != 0x05u || layout[4].e != 0x09u) {
+        fprintf(stderr, "[Test] $1343 tournament layout diverged\n");
+        return 1;
+    }
+    count = allstar_postgame_matchup_layout(0u, layout, 8);
+    if (count != 3 ||
+        layout[0].kind != ALLSTAR_POSTGAME_DRAW_NAME_1_RAW ||
+        layout[1].kind != ALLSTAR_POSTGAME_DRAW_TEXT_VS ||
+        layout[2].kind != ALLSTAR_POSTGAME_DRAW_NAME_2_RAW) {
+        fprintf(stderr, "[Test] $1352 non-tournament layout kept the GAME line\n");
+        return 1;
+    }
+    if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_TEXT_VS, &detail) ||
+        detail.source != ALLSTAR_POSTGAME_TEXT_VS ||
+        !allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_TEXT_GAME, &detail) ||
+        detail.source != ALLSTAR_POSTGAME_TEXT_GAME) {
+        fprintf(stderr, "[Test] $1354/$1374 string sources diverged\n");
+        return 1;
+    }
+
+    /* $135D: the match counter shares the $C1 digit base with $1726. */
+    if (allstar_postgame_match_digit(1u) != 0xC2u ||
+        allstar_postgame_match_digit(7u) != 0xC8u) {
+        fprintf(stderr, "[Test] $1360 match digit diverged\n");
+        return 1;
+    }
+
+    /* $13A9: stage $01 returns before drawing anything. */
+    allstar_postgame_bracket(1u, &bracket);
+    if (bracket.draws || bracket.count != 0 || bracket.sound != 0 || bracket.hold_frames != 0) {
+        fprintf(stderr, "[Test] $13AA did not return early for $C17F == $01\n");
+        return 1;
+    }
+
+    /* Stage $04 lists all eight, interleaved left/right from row 1. */
+    allstar_postgame_bracket(ALLSTAR_POSTGAME_BRACKET_FULL, &bracket);
+    if (!bracket.draws || bracket.count != 8u || bracket.sound != 0x0Du ||
+        bracket.hold_frames != ALLSTAR_POSTGAME_BRACKET_HOLD_FRAMES) {
+        fprintf(stderr, "[Test] $13C4 full bracket header diverged\n");
+        return 1;
+    }
+    {
+        static const uint16_t EXPECTED[8] = {
+            0xC0BFu, 0xC0C3u, 0xC0C0u, 0xC0C4u, 0xC0C1u, 0xC0C5u, 0xC0C2u, 0xC0C6u
+        };
+        for (i = 0; i < 8; i++) {
+            if (bracket.entries[i].slot != EXPECTED[i] ||
+                bracket.entries[i].d != 0x01u ||
+                bracket.entries[i].e != (uint8_t)(1u + i * 2u)) {
+                fprintf(stderr, "[Test] Full bracket row %d read $%04X at (%u,%u)\n",
+                        i, bracket.entries[i].slot, bracket.entries[i].d, bracket.entries[i].e);
+                return 1;
+            }
+        }
+    }
+
+    /* Any other stage lists the four semifinalists, starting at row 5. */
+    allstar_postgame_bracket(2u, &bracket);
+    if (!bracket.draws || bracket.count != 4u || bracket.sound != 0x0Eu) {
+        fprintf(stderr, "[Test] $1426 semifinal bracket header diverged\n");
+        return 1;
+    }
+    {
+        static const uint16_t EXPECTED[4] = { 0xC0CBu, 0xC0CDu, 0xC0CCu, 0xC0CEu };
+        for (i = 0; i < 4; i++) {
+            if (bracket.entries[i].slot != EXPECTED[i] ||
+                bracket.entries[i].e != (uint8_t)(5u + i * 2u)) {
+                fprintf(stderr, "[Test] Semifinal row %d read $%04X at row %u\n",
+                        i, bracket.entries[i].slot, bracket.entries[i].e);
+                return 1;
+            }
+        }
+    }
+    allstar_postgame_bracket(3u, &bracket);
+    if (bracket.count != 4u || bracket.sound != 0x00u) {
+        fprintf(stderr, "[Test] $146B sound table diverged for stage 3\n");
+        return 1;
+    }
+
+    printf("  bracket rows interleave left and right so each pair is adjacent\n");
+    printf("  $C17F 2/3/4 -> sounds $0E/$00/$0D, hold $0384 frames\n");
+    printf("[Test] PASSED: $1343, $139B, $1464\n");
+    return 0;
+}
+
+/*
  * ROM mode-3 and mode-4 postgame screens, from the $1209..$12A5 and
  * $12A6..$1342 disassembly.
  */
@@ -4853,6 +4958,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_postgame_rom();
     failed += allstar_cli_test_postgame_screens_rom();
     failed += allstar_cli_test_postgame_modes_rom();
+    failed += allstar_cli_test_postgame_bracket_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -4959,6 +5065,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_postgame_screens_rom();
     } else if (strcmp(cmd, "--test-postgame-modes") == 0) {
         return allstar_cli_test_postgame_modes_rom();
+    } else if (strcmp(cmd, "--test-postgame-bracket") == 0) {
+        return allstar_cli_test_postgame_bracket_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

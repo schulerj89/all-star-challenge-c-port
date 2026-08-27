@@ -61,7 +61,10 @@ typedef enum {
     ALLSTAR_POSTGAME_DRAW_TOTAL_HI,    /* $1229, two tiles from $C1FB     */
     ALLSTAR_POSTGAME_DRAW_TOTAL_LO,    /* $1234, the next two tiles       */
     ALLSTAR_POSTGAME_DRAW_WORD_C137,   /* $123A, $1778 on $C137           */
-    ALLSTAR_POSTGAME_DRAW_WORD_C139    /* $1243, $1778 on $C139           */
+    ALLSTAR_POSTGAME_DRAW_WORD_C139,   /* $1243, $1778 on $C139           */
+    ALLSTAR_POSTGAME_DRAW_TEXT_GAME,   /* $1354, the $1394 string         */
+    ALLSTAR_POSTGAME_DRAW_MATCH_DIGIT, /* $135D, $C0BE rendered as a tile */
+    ALLSTAR_POSTGAME_DRAW_TEXT_VS      /* $1374, the $1399 string         */
 } AllStarPostgameDrawKind;
 
 /* What one of those writers reads and how it preprocesses it. */
@@ -258,5 +261,41 @@ void allstar_postgame_tournament(uint8_t match_count, uint8_t winner,
  * offset 1, step once more, step twice past a '.', then back up one.
  */
 uint8_t allstar_postgame_record_surname(const uint8_t *record, uint8_t length);
+
+/* ---- $1343: the pre-match VS screen ($FF8D == $01) ---- */
+
+#define ALLSTAR_POSTGAME_TEXT_GAME       0x1394u  /* "GAME", last byte | $80 */
+#define ALLSTAR_POSTGAME_TEXT_VS         0x1399u  /* "VS",   last byte | $80 */
+#define ALLSTAR_POSTGAME_VS_HOLD_FRAMES  0x00F0u
+#define ALLSTAR_POSTGAME_VS_LAYOUT_OPS   5
+#define ALLSTAR_POSTGAME_MODE_TOURNAMENT 0x04u
+
+/* $135D-$1365: the match counter becomes one tile in $C1D3. */
+uint8_t allstar_postgame_match_digit(uint8_t match_count);
+
+/* $134E..$1382: the GAME line only appears in the tournament. */
+int allstar_postgame_matchup_layout(uint8_t mode, AllStarPostgameDraw *out, int max);
+
+/* ---- $139B: the bracket display ($FF8D == $02, reached from $28D9) ---- */
+
+#define ALLSTAR_POSTGAME_BRACKET_HOLD_FRAMES 0x0384u
+#define ALLSTAR_POSTGAME_BRACKET_MAX_SLOTS   8
+#define ALLSTAR_POSTGAME_BRACKET_FULL        0x04u  /* $C17F showing all eight */
+
+typedef struct {
+    uint16_t slot;   /* the bracket byte handed to $1464 */
+    uint8_t d;
+    uint8_t e;
+} AllStarPostgameBracketEntry;
+
+typedef struct {
+    bool draws;             /* $C17F == $01 returns without drawing  */
+    uint8_t sound;          /* looked up in the $146B table          */
+    uint8_t count;          /* eight entrants, or four semifinalists */
+    uint16_t hold_frames;   /* $0384                                 */
+    AllStarPostgameBracketEntry entries[ALLSTAR_POSTGAME_BRACKET_MAX_SLOTS];
+} AllStarPostgameBracket;
+
+void allstar_postgame_bracket(uint8_t stage, AllStarPostgameBracket *out);
 
 #endif /* ALLSTAR_POSTGAME_H */

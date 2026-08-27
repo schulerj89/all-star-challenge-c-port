@@ -111,6 +111,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-kernel                      Verify the ROM vector table and helpers\n");
     printf("  --test-sfx-envelope                Verify the ROM NR12 cue envelopes\n");
     printf("  --test-rom-art                     Verify the ROM screen and portrait art\n");
+    printf("  --test-dunk                        Verify the ROM $70CB dunk arming\n");
     printf("  --test-title-music                 Verify the ROM $35B6 title-music routing\n");
     printf("  --test-defense-jump                Verify the ROM $6C27 defensive jump lift\n");
     printf("  --test-pad                         Verify the ROM $2639 joypad poll\n");
@@ -1420,7 +1421,15 @@ int allstar_cli_test_one_on_one_shooting(void) {
             fprintf(stderr, "[Test] $702D/$0AA3 shot-gather state diverged\n");
             return 1;
         }
-        controller.new_input = 0;
+        /*
+         * $70CB reads player +$11, which is $FFAE -- the new-input byte, the
+         * same one $02DB uses for the title's one-per-press toggle.  The dunk
+         * therefore arms on a FRESH B press.  This case used to feed held B
+         * with no fresh press and expect it to arm, which matched the
+         * implementation rather than the cartridge; --test-dunk now covers
+         * both directions.
+         */
+        controller.new_input = 2;
         controller.held_input = 2;
         controller_events = allstar_one_on_one_rom_player_controller_702d(
             &controller, &controller_context);
@@ -2276,6 +2285,134 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM dunk arming, from bank 1 $709A..$70E9 and $7F0A.
+ *
+ * The dunk is the phase-two shot.  After A starts the gather, $70CB arms it by
+ * setting player +$13 to one and $C16A to one; the next update decrements
+ * $C16A at $70AF, reaches $70E1, bumps +$13 to two and launches through
+ * $7C58 -> $7F0A with zero planar velocity and raw VZ -$0100.
+ *
+ * The byte $70CB tests is player +$11 -- the same one $70C2 just read for A.
+ * The records live at $FF9D and $FFB6, so +$11 is $FFAE/$FFC7, the NEW input
+ * byte, and +$12 is $FFAF/$FFC8, the held one.  Arming needs a fresh B press.
+ * Reading the held byte instead turns every shot taken while B happens to be
+ * down into a dunk, which is not what the cartridge does.
+ */
+int allstar_cli_test_dunk_rom(void) {
+    AllStarRomPlayerController player;
+    AllStarRomPlayerControllerContext context;
+    AllStarBall ball;
+    uint32_t events;
+    int frame;
+
+    printf("[Test] Running ROM Dunk Tests ($70CB/$70E1/$7F0A)...\n");
+
+    /* $70CB: a fresh B press with the ball arms the dunk. */
+    memset(&player, 0, sizeof(player));
+    memset(&context, 0, sizeof(context));
+    player.action = ALLSTAR_ROM_SHOT_ACTION_A;   /* already gathering */
+    player.new_input = 0x02u;                    /* B pressed this frame */
+    player.held_input = 0x02u;
+    context.possession_active = true;
+    allstar_one_on_one_rom_player_controller_702d(&player, &context);
+    if (player.shot_phase != 1u || player.release_latch != 1u) {
+        fprintf(stderr,
+                "[Test] $70DA did not arm the dunk (phase=%u latch=%u)\n",
+                player.shot_phase, player.release_latch);
+        return 1;
+    }
+
+    /*
+     * $70CB again: B merely HELD, with no fresh press, must not arm.  This is
+     * the case that separates a dunk from an ordinary jump shot -- hold B,
+     * then press A, and the cartridge gives you the jump shot.
+     */
+    memset(&player, 0, sizeof(player));
+    player.action = ALLSTAR_ROM_SHOT_ACTION_A;
+    player.new_input = 0x00u;                    /* no fresh press */
+    player.held_input = 0x02u;                   /* but B is down */
+    allstar_one_on_one_rom_player_controller_702d(&player, &context);
+    if (player.shot_phase != 0u || player.release_latch != 0u) {
+        fprintf(stderr,
+                "[Test] held B armed the dunk without a fresh press "
+                "(phase=%u latch=%u)\n",
+                player.shot_phase, player.release_latch);
+        return 1;
+    }
+
+    /* $70CF: no possession, no dunk, however B is pressed. */
+    memset(&player, 0, sizeof(player));
+    player.action = ALLSTAR_ROM_SHOT_ACTION_A;
+    player.new_input = 0x02u;
+    context.possession_active = false;
+    allstar_one_on_one_rom_player_controller_702d(&player, &context);
+    if (player.shot_phase != 0u) {
+        fprintf(stderr, "[Test] $70D2 armed a dunk without the ball\n");
+        return 1;
+    }
+    context.possession_active = true;
+
+    /* $70D3: once armed, a second B press must not re-arm or reset it. */
+    memset(&player, 0, sizeof(player));
+    player.action = ALLSTAR_ROM_SHOT_ACTION_A;
+    player.new_input = 0x02u;
+    allstar_one_on_one_rom_player_controller_702d(&player, &context);
+    player.new_input = 0x02u;
+    events = allstar_one_on_one_rom_player_controller_702d(&player, &context);
+    /* $70AF drops the latch to zero, which is the release, not a re-arm. */
+    if (player.shot_phase != 2u ||
+        (events & ALLSTAR_ROM_PLAYER_EVENT_SHOT_RELEASE) == 0) {
+        fprintf(stderr,
+                "[Test] $70E1 did not reach phase two (phase=%u events=%08X)\n",
+                player.shot_phase, (unsigned)events);
+        return 1;
+    }
+
+    /*
+     * $7F0A.  Phase two launches straight down: no planar motion at all, and
+     * raw vertical velocity -$0100.
+     */
+    memset(&ball, 0, sizeof(ball));
+    allstar_physics_shoot_ball_rom_7c58(&ball, 83.0f, 150.0f, 43.0f,
+                                        84.0f, 92.0f, 3, 0x0198,
+                                        player.shot_phase, 1, 2);
+    if (ball.rom_step_state.vx != 0 || ball.rom_step_state.vy != 0 ||
+        ball.rom_step_state.vz != -0x0100) {
+        fprintf(stderr,
+                "[Test] $7F0A vector was (%d,%d,%d)\n",
+                ball.rom_step_state.vx, ball.rom_step_state.vy,
+                ball.rom_step_state.vz);
+        return 1;
+    }
+    /* It must stay a vertical drop, not curve toward the hoop. */
+    for (frame = 0; frame < 20; frame++) {
+        allstar_physics_update_ball(&ball, ALLSTAR_PHYSICS_STEP_SECONDS);
+        if (ball.rom_step_state.vx != 0 || ball.rom_step_state.vy != 0) {
+            fprintf(stderr,
+                    "[Test] the dunk drop picked up planar motion on frame "
+                    "%d\n", frame);
+            return 1;
+        }
+    }
+
+    /* A phase-zero shot from the same spot is a normal arc, not a drop. */
+    memset(&ball, 0, sizeof(ball));
+    allstar_physics_shoot_ball_rom_7c58(&ball, 83.0f, 150.0f, 43.0f,
+                                        84.0f, 92.0f, 3, 0x0198, 0u, 1, 2);
+    if (ball.rom_step_state.vx == 0 && ball.rom_step_state.vy == 0) {
+        fprintf(stderr, "[Test] a phase-zero shot launched with no arc\n");
+        return 1;
+    }
+
+    printf("  $70CB arms on a fresh B press only; held B leaves an ordinary "
+           "jump shot\n");
+    printf("  $70E1 reaches phase two on the next update and $7F0A drops it "
+           "straight down\n");
+    printf("[Test] PASSED: $70CB, $70D3, $70E1, $7F0A\n");
     return 0;
 }
 
@@ -9387,6 +9524,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_kernel_rom();
     failed += allstar_cli_test_sfx_envelope_rom();
     failed += allstar_cli_test_rom_art();
+    failed += allstar_cli_test_dunk_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -9545,6 +9683,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_sfx_envelope_rom();
     } else if (strcmp(cmd, "--test-rom-art") == 0) {
         return allstar_cli_test_rom_art();
+    } else if (strcmp(cmd, "--test-dunk") == 0) {
+        return allstar_cli_test_dunk_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

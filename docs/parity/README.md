@@ -64,6 +64,7 @@ Shared with the other modes wherever the cartridge shares it.
 | [ONE_ON_ONE_PLAYER_COLLISION.md](ONE_ON_ONE_PLAYER_COLLISION.md) | `$6E3C`'s directional player-pair collision |
 | [ONE_ON_ONE_POSSESSION.md](ONE_ON_ONE_POSSESSION.md) | who owns the ball and how that changes |
 | [ONE_ON_ONE_SHOOTING.md](ONE_ON_ONE_SHOOTING.md) | gather, release, flight and rim contact |
+| [DUNK.md](DUNK.md) | `$70CB`'s fresh-B arming and `$7F0A`'s straight-down phase-two launch |
 | [ONE_ON_ONE_RNG.md](ONE_ON_ONE_RNG.md) | the `$0714`/`$072F` generator and its consumers |
 | [ONE_ON_ONE_ASSETS.md](ONE_ON_ONE_ASSETS.md) | the art the mode loads and where it comes from |
 | [ONE_ON_ONE_GHIDRA_PATH.md](ONE_ON_ONE_GHIDRA_PATH.md) | the original Ghidra route through the mode |

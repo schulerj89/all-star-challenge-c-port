@@ -1017,10 +1017,17 @@ uint32_t allstar_one_on_one_rom_player_controller_702d(
         }
         return events;
     }
-    if ((player->held_input & 0x02u) != 0 &&
+    /*
+     * $70CB reads player +$11 -- the SAME byte $70C2 just tested for A -- and
+     * the records live at $FF9D and $FFB6, so +$11 is $FFAE/$FFC7, the new
+     * input.  Arming the dunk therefore needs a fresh B press: holding B and
+     * then pressing A gives an ordinary jump shot on the cartridge, not a
+     * dunk.  Reading the held byte here converts every such shot into a dunk.
+     */
+    if ((player->new_input & 0x02u) != 0 &&
         context->possession_active && player->shot_phase == 0) {
-        player->shot_phase = 1;
-        player->release_latch = 1;
+        player->shot_phase = 1;                                 /* $70DA */
+        player->release_latch = 1;                              /* $70DD */
     }
     return events;
 }

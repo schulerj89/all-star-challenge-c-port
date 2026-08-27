@@ -1416,3 +1416,20 @@ void allstar_one_on_one_match_reset_shot_clock(AllStarOneOnOneMatch *match) {
     if (!match) return;
     match->shot_clock = match->shot_clock_seconds;
 }
+
+/* $7015..$702C */
+bool allstar_animation_advances_7015(uint8_t mode, uint8_t entity,
+                                     uint8_t shooter) {
+    /* $701B/$701F: only modes $02 and $03 gate on the shooter. */
+    if (mode != 0x02u && mode != 0x03u) return true;      /* $7027 */
+    return shooter == entity;                             /* $7025 */
+}
+
+/* Bank 1 $7914..$791C */
+int allstar_entity_slots_7914(uint16_t *out, int max) {
+    if (!out || max <= 0) return 0;
+    out[0] = 0xFF9Du;                 /* $7914, called */
+    if (max < 2) return 1;
+    out[1] = 0xFFB6u;                 /* $791A, fallen into */
+    return 2;
+}

@@ -70,4 +70,33 @@ uint16_t allstar_voice_active_slot(uint8_t channel);
 /* $326C/$3287: a zero flag means the channel is skipped this frame. */
 bool allstar_voice_channel_runs(uint8_t active_flag);
 
+/* ---- $3119 and $329B: resetting the APU, and starting a song ---- */
+
+#define ALLSTAR_APU_RESET_NR51    0x00u    /* $311B, everything unrouted   */
+#define ALLSTAR_APU_RESET_NR50    0x77u    /* $3124, both sides at maximum */
+#define ALLSTAR_APU_RESET_NR52    0x8Fu    /* $3128                        */
+#define ALLSTAR_APU_WAVE_CACHE    0xDD78u  /* $311F                        */
+#define ALLSTAR_APU_WAVE_INVALID  0xFFu    /* forces $366F to reload       */
+
+typedef struct {
+    uint8_t nr51;
+    uint8_t nr50;
+    uint8_t nr52;
+    uint8_t wave_cache;
+} AllStarApuReset;
+
+/*
+ * $3119.  Run by $1F7D on the way back to the title.  NR50 going to $77 is
+ * worth recording: master volume is maximum and symmetric, so the stereo image
+ * a song sets up through NR51 is the only thing placing its voices.
+ */
+void allstar_apu_reset_3119(AllStarApuReset *out);
+
+/*
+ * $329B.  Starting a song walks the same four music voices as $3264, in the
+ * same downward order, but runs $331A instead of the advance -- so a song
+ * begins with every voice initialised before any of them ticks.
+ */
+int allstar_voice_start_order_329b(uint8_t *out, int max);
+
 #endif /* ALLSTAR_VOICE_STATE_H */

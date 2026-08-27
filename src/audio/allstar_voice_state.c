@@ -59,3 +59,17 @@ uint16_t allstar_voice_active_slot(uint8_t channel) {
 bool allstar_voice_channel_runs(uint8_t active_flag) {
     return active_flag != 0;
 }
+
+/* $3119..$312A */
+void allstar_apu_reset_3119(AllStarApuReset *out) {
+    if (!out) return;
+    out->nr51 = ALLSTAR_APU_RESET_NR51;        /* $311B */
+    out->wave_cache = ALLSTAR_APU_WAVE_INVALID; /* $311F */
+    out->nr50 = ALLSTAR_APU_RESET_NR50;        /* $3124 */
+    out->nr52 = ALLSTAR_APU_RESET_NR52;        /* $3128 */
+}
+
+/* $329B..$32A8 -- the same 3..0 walk as $3264. */
+int allstar_voice_start_order_329b(uint8_t *out, int max) {
+    return allstar_voice_bank_order(ALLSTAR_VOICE_BANK_MUSIC, out, max);
+}

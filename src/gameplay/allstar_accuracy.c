@@ -128,3 +128,20 @@ void allstar_shooter_seed_6e1b(uint8_t shooter, AllStarShooterSeed *out) {
     out->slot_y = ALLSTAR_SHOOTER_SLOT_TWO + 1u;     /* $6E31 */
     out->slot_z = ALLSTAR_SHOOTER_SLOT_TWO + 2u;     /* $6E39 */
 }
+
+/* Bank 1 $7712..$7738 */
+int allstar_hud_writes_7712(AllStarHudWrite *out, int max) {
+    if (!out || max <= 0) return 0;
+    /* $7712-$7718: the left value goes through $772D. */
+    out[0].destination = ALLSTAR_HUD_LEFT_DEST;
+    out[0].source = ALLSTAR_HUD_LEFT_VALUE;
+    out[0].source_is_word = true;                  /* $772D dereferences */
+    out[0].digits_at = 0xC1FCu;                    /* $7733 */
+    if (max < 2) return 1;
+    /* $771B-$7724: the right value is the byte at $FFAB, zero-extended. */
+    out[1].destination = ALLSTAR_HUD_RIGHT_DEST;
+    out[1].source = ALLSTAR_HUD_RIGHT_VALUE;
+    out[1].source_is_word = false;                 /* $7722 sets H to zero */
+    out[1].digits_at = 0xC1FDu;                    /* $7727 */
+    return 2;
+}

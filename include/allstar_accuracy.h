@@ -78,4 +78,26 @@ typedef struct {
  */
 void allstar_shooter_seed_6e1b(uint8_t shooter, AllStarShooterSeed *out);
 
+/* ---- bank 1 $7712, $7721 and $772D: the paired HUD writers ---- */
+
+#define ALLSTAR_HUD_LEFT_DEST   0x9870u  /* $7712 */
+#define ALLSTAR_HUD_RIGHT_DEST  0x9861u  /* $771B */
+#define ALLSTAR_HUD_LEFT_VALUE  0xC133u  /* $7715, read as a word  */
+#define ALLSTAR_HUD_RIGHT_VALUE 0xFFABu  /* $771E, read as a byte  */
+
+typedef struct {
+    uint16_t destination;
+    uint16_t source;
+    bool source_is_word;  /* $772D dereferences, $7721 zero-extends */
+    uint16_t digits_at;   /* the $C1FC/$C1FD scratch $780A fills    */
+} AllStarHudWrite;
+
+/*
+ * $7712 writes two values side by side, and the pair differ in how they read
+ * their source: $772D loads a WORD through the pointer in $C133, while $7721
+ * takes the single byte at $FFAB and zero-extends it.  Both then run $780A and
+ * hand off to $77FB or $77F2.
+ */
+int allstar_hud_writes_7712(AllStarHudWrite *out, int max);
+
 #endif

@@ -132,3 +132,17 @@ void allstar_horse_handoff_0d2b(uint8_t shooter, AllStarHorseHandoff *out) {
     out->wait_frames = ALLSTAR_HORSE_HANDOFF_WAIT;       /* $0D4C */
     out->enables_objects = true;                         /* $0D54 */
 }
+
+/* Bank 1 $7AEA..$7AFC */
+void allstar_horse_pre_shot_7aea(uint8_t players, uint8_t shooter,
+                                 AllStarHorsePreShot *out) {
+    if (!out) return;
+    out->cleared[0] = 0xC0FDu;                    /* $7AF6 */
+    out->cleared[1] = 0xC145u;                    /* $7AF9 */
+    out->calls_6cab = false;
+    out->runs = false;
+    if (players != 1u) return;                    /* $7AED */
+    if (shooter == 1u) return;                    /* $7AF1 */
+    out->runs = true;
+    out->calls_6cab = true;                       /* $7AF2 */
+}

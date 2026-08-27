@@ -450,4 +450,27 @@ int allstar_one_on_one_compare_scores(uint16_t p1_score, uint16_t p2_score);
 bool allstar_one_on_one_result_can_dismiss(uint8_t buttons_pressed);
 bool allstar_one_on_one_overtime_can_dismiss(uint8_t buttons_pressed);
 
+/* ---- $7015: whose animation actually advances ---- */
+
+#define ALLSTAR_ANIMATION_OWNER_SLOT 0xC187u  /* $7015 */
+#define ALLSTAR_ANIMATION_SHOOTER    0xFFDAu  /* $7023, what $0D2B parked */
+
+/*
+ * $7015.  Parks the entity id in $C187, then in H-O-R-S-E and Accuracy -- modes
+ * $02 and $03 -- returns unless this entity is the one $FFDA names.  Every
+ * other mode advances both.  So the single-shooter modes freeze the other
+ * player's animation rather than hiding it.
+ */
+bool allstar_animation_advances_7015(uint8_t mode, uint8_t entity,
+                                     uint8_t shooter);
+
+/* ---- bank 1 $7914: running $791D over both entity slots ---- */
+
+/*
+ * $7914 calls $791D with $FF9D and then falls through into it with $FFB6, so
+ * the helper runs for both entities and the second one costs no call.  Those
+ * are the same two slots the fixed-bank $0773 picks between.
+ */
+int allstar_entity_slots_7914(uint16_t *out, int max);
+
 #endif /* ALLSTAR_ONE_ON_ONE_H */

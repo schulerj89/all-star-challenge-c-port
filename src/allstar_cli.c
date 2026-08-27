@@ -28,6 +28,7 @@
 #include "allstar_pad.h"
 #include "allstar_frame.h"
 #include "allstar_caption.h"
+#include "allstar_kernel.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,6 +108,7 @@ static void print_usage(const char *prog_name) {
     printf("  --test-frame                       Verify the ROM $2729 frame spine\n");
     printf("  --test-cpu-head                    Verify the ROM $73C9 steering head\n");
     printf("  --test-captions                    Verify the ROM $07E3 caption script\n");
+    printf("  --test-kernel                      Verify the ROM vector table and helpers\n");
     printf("  --test-title-music                 Verify the ROM $35B6 title-music routing\n");
     printf("  --test-defense-jump                Verify the ROM $6C27 defensive jump lift\n");
     printf("  --test-pad                         Verify the ROM $2639 joypad poll\n");
@@ -2272,6 +2274,278 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM kernel and the last of the small routines: the $0000..$005F vectors,
+ * $045E, $0466, $05FA, $0773, $0A91, $18D0, $1982, $20BA, $27EA, $2AA5,
+ * $2D0C, $2F79, $3119, $329B, $7015, $7712, $7914 and $7AEA.
+ *
+ * Individually these are a few bytes each.  Together they are the dispatch
+ * mechanism every other ported routine's comments point at, the OAM DMA copy,
+ * the interrupt mask and the frame waits.
+ */
+int allstar_cli_test_kernel_rom(void) {
+    AllStarKernelInterrupts interrupts;
+    AllStarKernelWait wait;
+    AllStarKernelCountdown countdown;
+    AllStarKernelOamFill fill;
+    AllStarKernelSequence sequence;
+    AllStarKernelStatusCopy status;
+    AllStarKernelOamEntry entries[4];
+    AllStarApuReset apu;
+    AllStarHorsePreShot pre_shot;
+    AllStarHudWrite hud[2];
+    const AllStarVector *vectors;
+    const uint16_t *cleared;
+    const uint8_t *dma;
+    static const uint8_t TILES[3] = {0x11u, 0x22u, 0x33u};
+    uint8_t oam[4];
+    uint16_t slots[2];
+    uint8_t order[4];
+    int count = 0;
+    int i;
+
+    printf("[Test] Running ROM Kernel Tests ($0000-$005F and friends)...\n");
+
+    /* The vector table, and the three entries that actually go somewhere. */
+    vectors = allstar_kernel_vectors(&count);
+    if (!vectors || count != ALLSTAR_VECTOR_COUNT) {
+        fprintf(stderr, "[Test] the vector table is the wrong size\n");
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (vectors[i].address == 0x0040u &&
+            (vectors[i].target != 0x2729u ||
+             vectors[i].kind != ALLSTAR_VECTOR_INTERRUPT)) {
+            fprintf(stderr, "[Test] vblank does not reach $2729\n");
+            return 1;
+        }
+        if (vectors[i].address == 0x0058u && vectors[i].target != 0x0061u) {
+            fprintf(stderr, "[Test] the serial vector does not reach $0061\n");
+            return 1;
+        }
+        if (vectors[i].address == 0x0030u && vectors[i].target != 0x0B4Fu) {
+            fprintf(stderr, "[Test] rst $30 does not reach $0B4F\n");
+            return 1;
+        }
+        if (i > 0 && vectors[i].address <= vectors[i - 1].address) {
+            fprintf(stderr, "[Test] the vector table is out of order\n");
+            return 1;
+        }
+    }
+
+    /* $0010 doubles the index; the table is words. */
+    if (allstar_kernel_dispatch_0010(0x738Du, 0u) != 0x738Du ||
+        allstar_kernel_dispatch_0010(0x738Du, 1u) != 0x738Fu ||
+        allstar_kernel_dispatch_0010(0x6C60u, 5u) != 0x6C6Au) {
+        fprintf(stderr, "[Test] $0010 did not double the index\n");
+        return 1;
+    }
+
+    /* $0466 installs the canonical DMA routine in HRAM. */
+    dma = allstar_kernel_dma_routine_0466(&count);
+    if (!dma || count != ALLSTAR_KERNEL_DMA_BYTES || dma[0] != 0x3Eu ||
+        dma[1] != ALLSTAR_KERNEL_OAM_PAGE || dma[3] != 0x46u ||
+        dma[5] != 0x28u || dma[count - 1] != 0xC9u) {
+        fprintf(stderr, "[Test] the $0474 DMA payload diverged\n");
+        return 1;
+    }
+
+    /* $045E clears the pending flags before enabling anything. */
+    allstar_kernel_set_interrupts_045e(0x1Fu, &interrupts);
+    if (interrupts.interrupt_flags != 0u ||
+        interrupts.interrupt_enable != 0x1Fu) {
+        fprintf(stderr, "[Test] $0460 did not clear $FF0F first\n");
+        return 1;
+    }
+
+    /* $0A91: a link game keeps the seed both cartridges agreed on. */
+    if (allstar_kernel_clears_rng_0a91(1u) ||
+        !allstar_kernel_clears_rng_0a91(2u)) {
+        fprintf(stderr, "[Test] $0A94 cleared the RNG in the wrong game\n");
+        return 1;
+    }
+    cleared = allstar_kernel_rng_cleared_0a91(&count);
+    if (!cleared || count != ALLSTAR_KERNEL_RNG_CLEARED ||
+        cleared[0] != ALLSTAR_FRAME_COUNTER) {
+        fprintf(stderr,
+                "[Test] $0A96 does not clear the counter $276D increments\n");
+        return 1;
+    }
+
+    /* $0773 and bank 1 $7914 name the same two slots. */
+    if (allstar_kernel_entity_slot_0773(0x02u) != ALLSTAR_KERNEL_SLOT_TWO ||
+        allstar_kernel_entity_slot_0773(0x01u) != ALLSTAR_KERNEL_SLOT_ONE ||
+        allstar_kernel_entity_slot_0773(0x00u) != ALLSTAR_KERNEL_SLOT_ONE) {
+        fprintf(stderr, "[Test] $0778 picked the wrong entity slot\n");
+        return 1;
+    }
+    if (allstar_entity_slots_7914(slots, 2) != 2 ||
+        slots[0] != ALLSTAR_KERNEL_SLOT_TWO ||
+        slots[1] != ALLSTAR_KERNEL_SLOT_ONE) {
+        fprintf(stderr, "[Test] $7914 does not cover both $0773 slots\n");
+        return 1;
+    }
+
+    /* $2D0C parks its count in the byte $276D decrements. */
+    allstar_kernel_wait_2d0c(ALLSTAR_HORSE_HANDOFF_WAIT, &wait);
+    if (wait.frames != 4u || !wait.clears_ffeb ||
+        ALLSTAR_KERNEL_WAIT_COUNTER != ALLSTAR_FRAME_DELAY_COUNTER) {
+        fprintf(stderr, "[Test] $2D0D does not use $276D's counter\n");
+        return 1;
+    }
+
+    /* $2F79: only the frame it reaches zero clears $C193. */
+    allstar_kernel_countdown_2f79(0u, &countdown);
+    if (countdown.counter != 0u || countdown.clears_state) {
+        fprintf(stderr, "[Test] $2F7D acted on an expired countdown\n");
+        return 1;
+    }
+    allstar_kernel_countdown_2f79(2u, &countdown);
+    if (countdown.counter != 1u || countdown.clears_state) {
+        fprintf(stderr, "[Test] $2F82 cleared $C193 early\n");
+        return 1;
+    }
+    allstar_kernel_countdown_2f79(1u, &countdown);
+    if (countdown.counter != 0u || !countdown.clears_state) {
+        fprintf(stderr, "[Test] $2F84 did not clear $C193 on expiry\n");
+        return 1;
+    }
+
+    /* $20BA reloads with $10 exactly on the frame it blanks. */
+    allstar_kernel_oam_fill_20ba(2u, &fill);
+    if (fill.blanks || fill.counter != 1u) {
+        fprintf(stderr, "[Test] $20BF blanked early\n");
+        return 1;
+    }
+    allstar_kernel_oam_fill_20ba(1u, &fill);
+    if (!fill.blanks || fill.blank_bytes != ALLSTAR_KERNEL_OAM_STRIDE ||
+        fill.counter != ALLSTAR_KERNEL_OAM_STRIDE) {
+        fprintf(stderr, "[Test] $20CB reload diverged\n");
+        return 1;
+    }
+
+    /* $27EA post-increments the step, so the dispatch uses the old value. */
+    allstar_kernel_sequence_27ea(3u, 4u, &sequence);
+    if (!sequence.waits || sequence.counter != 2u || sequence.next_step != 4u) {
+        fprintf(stderr, "[Test] $27EE did not keep waiting\n");
+        return 1;
+    }
+    allstar_kernel_sequence_27ea(1u, 4u, &sequence);
+    if (sequence.waits || sequence.counter != ALLSTAR_KERNEL_SEQUENCE_RELOAD ||
+        sequence.step != 4u || sequence.next_step != 5u) {
+        fprintf(stderr,
+                "[Test] $27FD sequence step diverged (step=%u next=%u)\n",
+                sequence.step, sequence.next_step);
+        return 1;
+    }
+
+    /* $05FA copies the bottom map row, 32 groups of 3. */
+    allstar_kernel_status_copy_05fa(&status);
+    if (!status.waits_vblank || status.source != 0xC271u ||
+        status.destination != 0x98E0u || status.groups != 0x20u ||
+        status.total_bytes != 96u) {
+        fprintf(stderr, "[Test] $05FE status copy diverged\n");
+        return 1;
+    }
+
+    /* $18D0 steps X by eight and only writes attributes while $FF8D is clear. */
+    if (allstar_kernel_oam_row_18d0(0x40u, 0x20u, TILES, 3, 0u, entries, 4)
+            != 3 ||
+        entries[0].x != 0x20u || entries[1].x != 0x28u ||
+        entries[2].x != 0x30u || entries[2].tile != 0x33u ||
+        entries[0].y != 0x40u || !entries[0].wrote_attributes) {
+        fprintf(stderr, "[Test] $18E0 OAM row diverged\n");
+        return 1;
+    }
+    if (allstar_kernel_oam_row_18d0(0x40u, 0x20u, TILES, 3, 1u, entries, 4)
+            != 3 || entries[0].wrote_attributes) {
+        fprintf(stderr, "[Test] $18DB wrote attributes with $FF8D set\n");
+        return 1;
+    }
+
+    /* $2AA5 builds one OAM entry with attribute $01 then a zero. */
+    allstar_kernel_oam_seed_2aa5(0x50u, 0x60u, oam);
+    if (oam[0] != 0x50u || oam[1] != 0x60u ||
+        oam[2] != ALLSTAR_KERNEL_OAM_ATTRIBUTE || oam[3] != 0u) {
+        fprintf(stderr, "[Test] $2AAE OAM seed diverged\n");
+        return 1;
+    }
+
+    /* $1982/$1984 are the two directions of a one-step trampoline. */
+    if (allstar_kernel_step_1982(true) != 1 ||
+        allstar_kernel_step_1982(false) != -1) {
+        fprintf(stderr, "[Test] $1982 trampoline diverged\n");
+        return 1;
+    }
+
+    /*
+     * $3119.  NR50 at $77 is maximum and symmetric, which is what lets the
+     * title song's NR51 routing be the only thing placing its voices.
+     */
+    allstar_apu_reset_3119(&apu);
+    if (apu.nr51 != 0x00u || apu.nr50 != 0x77u || apu.nr52 != 0x8Fu ||
+        apu.wave_cache != 0xFFu) {
+        fprintf(stderr, "[Test] $3119 APU reset diverged\n");
+        return 1;
+    }
+    /* $329B starts a song over the same voices $3264 later ticks. */
+    if (allstar_voice_start_order_329b(order, 4) != 4 || order[0] != 3u ||
+        order[3] != 0u) {
+        fprintf(stderr, "[Test] $329B did not walk voices 3..0\n");
+        return 1;
+    }
+
+    /* $7015: the single-shooter modes freeze the other player's animation. */
+    if (!allstar_animation_advances_7015(0x00u, 2u, 1u) ||
+        !allstar_animation_advances_7015(0x04u, 2u, 1u)) {
+        fprintf(stderr, "[Test] $7027 gated a mode it should not\n");
+        return 1;
+    }
+    if (allstar_animation_advances_7015(0x02u, 2u, 1u) ||
+        !allstar_animation_advances_7015(0x02u, 1u, 1u) ||
+        allstar_animation_advances_7015(0x03u, 1u, 2u)) {
+        fprintf(stderr, "[Test] $7025 shooter gate diverged\n");
+        return 1;
+    }
+
+    /* $7AEA has two gates and clears what $0D2B clears. */
+    allstar_horse_pre_shot_7aea(2u, 2u, &pre_shot);
+    if (pre_shot.runs) {
+        fprintf(stderr, "[Test] $7AED ran in a two-player game\n");
+        return 1;
+    }
+    allstar_horse_pre_shot_7aea(1u, 1u, &pre_shot);
+    if (pre_shot.runs) {
+        fprintf(stderr, "[Test] $7AF1 ran for shooter one\n");
+        return 1;
+    }
+    allstar_horse_pre_shot_7aea(1u, 2u, &pre_shot);
+    if (!pre_shot.runs || !pre_shot.calls_6cab ||
+        pre_shot.cleared[0] != 0xC0FDu || pre_shot.cleared[1] != 0xC145u) {
+        fprintf(stderr, "[Test] $7AF2 pre-shot reset diverged\n");
+        return 1;
+    }
+
+    /* $7712's two writers differ in how they read their source. */
+    if (allstar_hud_writes_7712(hud, 2) != 2 ||
+        hud[0].destination != ALLSTAR_HUD_LEFT_DEST ||
+        !hud[0].source_is_word ||
+        hud[1].destination != ALLSTAR_HUD_RIGHT_DEST ||
+        hud[1].source_is_word ||
+        hud[0].digits_at == hud[1].digits_at) {
+        fprintf(stderr, "[Test] $7712 HUD pair diverged\n");
+        return 1;
+    }
+
+    printf("  the vector table routes vblank to $2729 and serial to $0061\n");
+    printf("  $0A91 clears the RNG in one-player games only, so a link "
+           "session keeps its seed\n");
+    printf("  $3119 leaves NR50 at $77, symmetric, which is why NR51 alone "
+           "places the title song\n");
+    printf("[Test] PASSED: the $0000-$005F vectors and seventeen helpers\n");
     return 0;
 }
 
@@ -8628,6 +8902,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_frame_rom();
     failed += allstar_cli_test_cpu_head_rom();
     failed += allstar_cli_test_caption_rom();
+    failed += allstar_cli_test_kernel_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -8780,6 +9055,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_cpu_head_rom();
     } else if (strcmp(cmd, "--test-captions") == 0) {
         return allstar_cli_test_caption_rom();
+    } else if (strcmp(cmd, "--test-kernel") == 0) {
+        return allstar_cli_test_kernel_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

@@ -69,4 +69,21 @@ typedef struct {
  */
 void allstar_horse_handoff_0d2b(uint8_t shooter, AllStarHorseHandoff *out);
 
+/* ---- bank 1 $7AEA: the one-player pre-shot reset ---- */
+
+typedef struct {
+    bool runs;            /* both gates passed        */
+    bool calls_6cab;      /* $7AF2                    */
+    uint16_t cleared[2];  /* $C0FD and $C145, as $0D2B clears them */
+} AllStarHorsePreShot;
+
+/*
+ * Bank 1 $7AEA.  Two gates before it does anything: the game must be
+ * one-player ($FF91), and the shooter $0D2B parked in $FFDA must NOT be one.
+ * It then clears the same two bytes $0D2B does, which is what makes the two
+ * routines a matched pair around a turn.
+ */
+void allstar_horse_pre_shot_7aea(uint8_t players, uint8_t shooter,
+                                 AllStarHorsePreShot *out);
+
 #endif /* ALLSTAR_HORSE_H */

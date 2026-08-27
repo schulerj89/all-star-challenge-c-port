@@ -97,7 +97,12 @@ The "310 routines / 16,797 bytes of executable code" figure has now been shown
 to include at least three data misclassifications, all of the same kind — a
 pointer-table target that holds data rather than code:
 
-- the four `$7DD1` sub-tables in bank 1 (35 bytes)
+- the four `$7DD1` sub-tables in bank 1 (35 bytes).  This one is now proven
+  rather than inferred: `$7DC1` does a plain `ld hl,$7DD1`, and `$7DD1` holds
+  the four little-endian words `$7DD7`, `$7DE1`, `$7DEB`, `$7DF5`.  Three of
+  those are themselves five-word tables pointing into a `$0C`-strided record
+  array that starts at `$7DF5`, stepping `$7DF5`, `$7E01`, `$7E0D` and on to
+  `$7E9D`.  There is no instruction stream anywhere in the range
 - `$7391` (28 bytes)
 - the first 28 bytes of `$73AD`
 - the four cursor tables `$2AD0`, `$2AD2`, `$2AD4` and `$2ADA` (18 bytes),

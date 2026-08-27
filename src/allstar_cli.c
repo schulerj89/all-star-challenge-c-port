@@ -8,6 +8,8 @@
 #include "allstar_rng.h"
 #include "allstar_free_throw.h"
 #include "allstar_accuracy.h"
+#include "allstar_tournament.h"
+#include "allstar_postgame.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2248,6 +2250,753 @@ int allstar_cli_test_one_on_one_shooting(void) {
     return 0;
 }
 
+/*
+ * ROM mode-3 and mode-4 postgame screens, from the $1209..$12A5 and
+ * $12A6..$1342 disassembly.
+ */
+int allstar_cli_test_postgame_modes_rom(void) {
+    AllStarPostgameAccuracy accuracy;
+    AllStarPostgameTournament tournament;
+    AllStarPostgameDraw layout[8];
+    AllStarPostgameDrawDetail detail;
+    int count;
+
+    printf("[Test] Running ROM Postgame Mode Tests ($1209/$12A6)...\n");
+
+    /* $125E: $FF91 == $01 is a one-player game and skips the handshake. */
+    allstar_postgame_accuracy_entry(1u, 1u, &accuracy);
+    if (accuracy.two_player || accuracy.ready_flag != 0 || accuracy.poll_address != 0 ||
+        accuracy.music != 0) {
+        fprintf(stderr, "[Test] $125E one-player path diverged\n");
+        return 1;
+    }
+
+    /* Two players: flag and poll swap on $C199, and $C270 keeps the $F0. */
+    allstar_postgame_accuracy_entry(1u, 2u, &accuracy);
+    if (!accuracy.two_player ||
+        accuracy.ready_flag != ALLSTAR_POSTGAME_SCORE_1_HIGH ||
+        accuracy.poll_address != ALLSTAR_POSTGAME_SCORE_2_HIGH ||
+        accuracy.status_byte != ALLSTAR_POSTGAME_READY_FLAG ||
+        accuracy.music != ALLSTAR_POSTGAME_MUSIC_ACCURACY) {
+        fprintf(stderr, "[Test] $1264 player 1 handshake diverged\n");
+        return 1;
+    }
+    allstar_postgame_accuracy_entry(ALLSTAR_POSTGAME_ROLE_PLAYER_2, 2u, &accuracy);
+    if (accuracy.ready_flag != ALLSTAR_POSTGAME_SCORE_2_HIGH ||
+        accuracy.poll_address != ALLSTAR_POSTGAME_SCORE_1_HIGH ||
+        !accuracy.is_player_2) {
+        fprintf(stderr, "[Test] $1272 player 2 handshake diverged\n");
+        return 1;
+    }
+
+    /* $120E/$1229/$1234/$123A/$1243/$124C, in that order. */
+    count = allstar_postgame_accuracy_layout(false, layout, 8);
+    if (count != ALLSTAR_POSTGAME_ACC_LAYOUT_OPS ||
+        layout[0].kind != ALLSTAR_POSTGAME_DRAW_NAME_1_RAW  || layout[0].d != 0x05u || layout[0].e != 0x03u ||
+        layout[1].kind != ALLSTAR_POSTGAME_DRAW_TOTAL_HI    || layout[1].d != 0x0Fu || layout[1].e != 0x06u ||
+        layout[2].kind != ALLSTAR_POSTGAME_DRAW_TOTAL_LO    || layout[2].d != 0x10u || layout[2].e != 0x06u ||
+        layout[3].kind != ALLSTAR_POSTGAME_DRAW_WORD_C137   || layout[3].d != 0x11u || layout[3].e != 0x0Au ||
+        layout[4].kind != ALLSTAR_POSTGAME_DRAW_WORD_C139   || layout[4].d != 0x11u || layout[4].e != 0x08u ||
+        layout[5].kind != ALLSTAR_POSTGAME_DRAW_SCORE_1     || layout[5].d != 0x11u || layout[5].e != 0x0Cu) {
+        fprintf(stderr, "[Test] $1209 draw layout diverged\n");
+        return 1;
+    }
+    if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_WORD_C139, &detail) ||
+        detail.source != ALLSTAR_POSTGAME_WORD_C139 || detail.routine != 0x1778u) {
+        fprintf(stderr, "[Test] $1243 word source diverged\n");
+        return 1;
+    }
+
+    /* $12A6: a decided quarterfinal draws the panel and returns to $0F2E. */
+    allstar_postgame_tournament(1u, 1u, &tournament);
+    if (tournament.path != ALLSTAR_POSTGAME_TR_RETURN || tournament.is_final ||
+        !tournament.draws_score_panel || tournament.writes_tie_flag ||
+        tournament.sound != 0) {
+        fprintf(stderr, "[Test] $12B4 decided-match return diverged\n");
+        return 1;
+    }
+
+    /* A tie in any earlier round replays the match rather than advancing. */
+    allstar_postgame_tournament(3u, 0u, &tournament);
+    if (tournament.path != ALLSTAR_POSTGAME_TR_REPLAY ||
+        tournament.sound != ALLSTAR_POSTGAME_SOUND_REPLAY ||
+        tournament.hold_frames != ALLSTAR_POSTGAME_REPLAY_FRAMES ||
+        tournament.writes_tie_flag || tournament.tie_flag != 0) {
+        fprintf(stderr, "[Test] $12B5 tie replay diverged\n");
+        return 1;
+    }
+
+    /* Match $07 with a winner is the only path to the champion screen. */
+    allstar_postgame_tournament(ALLSTAR_POSTGAME_FINAL_MATCH, 1u, &tournament);
+    if (tournament.path != ALLSTAR_POSTGAME_TR_CHAMPION || !tournament.is_final ||
+        tournament.draws_score_panel ||
+        tournament.sound != ALLSTAR_POSTGAME_SOUND_CHAMPION ||
+        tournament.champion_source != ALLSTAR_POSTGAME_ENTRANT_1 ||
+        tournament.music != ALLSTAR_POSTGAME_MUSIC_CHAMPION ||
+        !tournament.writes_tie_flag || tournament.tie_flag != 0) {
+        fprintf(stderr, "[Test] $12FB champion path diverged for player 1\n");
+        return 1;
+    }
+    allstar_postgame_tournament(ALLSTAR_POSTGAME_FINAL_MATCH, 2u, &tournament);
+    if (tournament.champion_source != ALLSTAR_POSTGAME_ENTRANT_2) {
+        fprintf(stderr, "[Test] $130D did not pick $FFC5 for a player 2 champion\n");
+        return 1;
+    }
+
+    /* A tied final sets $C192, draws the panel, and replays. */
+    allstar_postgame_tournament(ALLSTAR_POSTGAME_FINAL_MATCH, 0u, &tournament);
+    if (tournament.path != ALLSTAR_POSTGAME_TR_REPLAY || tournament.tie_flag != 1u ||
+        !tournament.draws_score_panel || !tournament.writes_tie_flag ||
+        tournament.champion_source != 0) {
+        fprintf(stderr, "[Test] $12C1 tied-final path diverged\n");
+        return 1;
+    }
+
+    /* $1323: skip spaces from offset 1, step on, step past a '.', back up one. */
+    {
+        static const uint8_t DOTTED[12] = { 0x00u, 0x20u, 0x4Du, 0x2Eu, 0x20u, 0x4Au,
+                                            0x4Fu, 0x52u, 0x44u, 0x41u, 0x4Eu, 0x00u };
+        static const uint8_t PLAIN[8] = { 0x00u, 0x42u, 0x49u, 0x52u, 0x44u, 0x00u, 0x00u, 0x00u };
+        if (allstar_postgame_record_surname(DOTTED, 12u) != 4u) {
+            fprintf(stderr, "[Test] $132D dotted-initial walk landed on %u, expected 4\n",
+                    allstar_postgame_record_surname(DOTTED, 12u));
+            return 1;
+        }
+        if (allstar_postgame_record_surname(PLAIN, 8u) != 1u) {
+            fprintf(stderr, "[Test] $1334 plain-name walk landed on %u, expected 1\n",
+                    allstar_postgame_record_surname(PLAIN, 8u));
+            return 1;
+        }
+    }
+
+    printf("  a tie replays the match through $0B9A and re-enters $10A5 -- the bracket never advances\n");
+    printf("  only $C0BE == $07 with a winner reaches $12FB, and that path skips $10FA\n");
+    printf("[Test] PASSED: $1209, $12A6\n");
+    return 0;
+}
+
+/*
+ * ROM mode-1 and mode-2 postgame screens, from the $1121..$1208, $170D..$1725
+ * and $1786..$17A9 disassembly.
+ */
+int allstar_cli_test_postgame_screens_rom(void) {
+    AllStarPostgameFreeThrow entry;
+    AllStarPostgameHorse horse;
+    AllStarPostgameClear clear;
+    AllStarPostgameDraw layout[4];
+    AllStarPostgameDrawDetail detail;
+    uint8_t scratch[24];
+    uint8_t written;
+    int count;
+
+    printf("[Test] Running ROM Postgame Screen Tests ($1121/$11D5/$170D/$1786)...\n");
+
+    /* $C199 == 0 is a solo game: no handshake, straight to the draw at $1195. */
+    allstar_postgame_free_throw_entry(0u, 0x00u, 0x00u, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_DRAW || entry.ready_flag != 0 ||
+        entry.poll_address != 0 || entry.announce_sound != 0 || entry.is_player_2) {
+        fprintf(stderr, "[Test] $112C solo path diverged\n");
+        return 1;
+    }
+
+    /* Player 1 waiting: flags $C134, polls $C136, announces with sound $19. */
+    allstar_postgame_free_throw_entry(1u, 0x00u, 0x00u, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_WAIT ||
+        entry.ready_flag != ALLSTAR_POSTGAME_SCORE_1_HIGH ||
+        entry.poll_address != ALLSTAR_POSTGAME_SCORE_2_HIGH ||
+        entry.announce_sound != ALLSTAR_POSTGAME_SOUND_READY_1 || entry.is_player_2) {
+        fprintf(stderr, "[Test] $1132 player 1 wait path diverged\n");
+        return 1;
+    }
+
+    /* Player 2 is the mirror image: flags $C136, polls $C134, sound $18. */
+    allstar_postgame_free_throw_entry(ALLSTAR_POSTGAME_ROLE_PLAYER_2, 0x00u, 0x00u, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_WAIT ||
+        entry.ready_flag != ALLSTAR_POSTGAME_SCORE_2_HIGH ||
+        entry.poll_address != ALLSTAR_POSTGAME_SCORE_1_HIGH ||
+        entry.announce_sound != ALLSTAR_POSTGAME_SOUND_READY_2 || !entry.is_player_2) {
+        fprintf(stderr, "[Test] $1142 player 2 wait path diverged\n");
+        return 1;
+    }
+
+    /* If the other side already flagged $F0, $1152 syncs and skips the wait. */
+    allstar_postgame_free_throw_entry(1u, 0x00u, ALLSTAR_POSTGAME_READY_FLAG, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_SYNC ||
+        entry.ready_flag != ALLSTAR_POSTGAME_SCORE_1_HIGH ||
+        entry.poll_address != 0 || entry.announce_sound != 0) {
+        fprintf(stderr, "[Test] $1152 sync path diverged for player 1\n");
+        return 1;
+    }
+    allstar_postgame_free_throw_entry(ALLSTAR_POSTGAME_ROLE_PLAYER_2,
+                                      ALLSTAR_POSTGAME_READY_FLAG, 0x00u, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_SYNC ||
+        entry.ready_flag != ALLSTAR_POSTGAME_SCORE_2_HIGH) {
+        fprintf(stderr, "[Test] $1152 sync path diverged for player 2\n");
+        return 1;
+    }
+    /* Player 1's own $F0 must not be mistaken for the other side being ready. */
+    allstar_postgame_free_throw_entry(1u, ALLSTAR_POSTGAME_READY_FLAG, 0x00u, &entry);
+    if (entry.path != ALLSTAR_POSTGAME_FT_WAIT) {
+        fprintf(stderr, "[Test] $1132 read the local flag instead of the remote one\n");
+        return 1;
+    }
+
+    /* $11A2/$11B4/$11BF: name at $0504, attempts at $1107, score at $110A. */
+    count = allstar_postgame_free_throw_layout(false, layout, 4);
+    if (count != ALLSTAR_POSTGAME_FT_LAYOUT_OPS ||
+        layout[0].kind != ALLSTAR_POSTGAME_DRAW_NAME_1_RAW || layout[0].d != 0x05u || layout[0].e != 0x04u ||
+        layout[1].kind != ALLSTAR_POSTGAME_DRAW_ATTEMPTS   || layout[1].d != 0x11u || layout[1].e != 0x07u ||
+        layout[2].kind != ALLSTAR_POSTGAME_DRAW_SCORE_1    || layout[2].d != 0x11u || layout[2].e != 0x0Au) {
+        fprintf(stderr, "[Test] $1121 player 1 draw layout diverged\n");
+        return 1;
+    }
+    count = allstar_postgame_free_throw_layout(true, layout, 4);
+    if (layout[0].kind != ALLSTAR_POSTGAME_DRAW_NAME_2_RAW ||
+        layout[2].kind != ALLSTAR_POSTGAME_DRAW_SCORE_2 ||
+        layout[1].kind != ALLSTAR_POSTGAME_DRAW_ATTEMPTS) {
+        fprintf(stderr, "[Test] $1121 player 2 draw layout diverged\n");
+        return 1;
+    }
+    /* The attempt counter comes from $FF98, not from a score word. */
+    if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_ATTEMPTS, &detail) ||
+        detail.routine != 0x177Bu || detail.source != ALLSTAR_POSTGAME_ATTEMPTS) {
+        fprintf(stderr, "[Test] $11B4 attempt source diverged\n");
+        return 1;
+    }
+
+    /* $11D5: $FFAB picks the eliminated player, $C17D records the survivor. */
+    allstar_postgame_horse(0u, &horse);
+    if (horse.loser_name != ALLSTAR_POSTGAME_NAME_1 || horse.winner != 2u ||
+        horse.message != ALLSTAR_POSTGAME_HORSE_MESSAGE ||
+        horse.message_length != ALLSTAR_POSTGAME_HORSE_MESSAGE_LEN ||
+        horse.d != 0x02u || horse.e != 0x07u) {
+        fprintf(stderr, "[Test] $11D5 with $FFAB clear diverged\n");
+        return 1;
+    }
+    allstar_postgame_horse(1u, &horse);
+    if (horse.loser_name != ALLSTAR_POSTGAME_NAME_2 || horse.winner != 1u) {
+        fprintf(stderr, "[Test] $11D5 with $FFAB set diverged\n");
+        return 1;
+    }
+
+    /* $170D: bit 7 terminates, trailing spaces go, one space is appended. */
+    {
+        /* "JORDAN   " with the terminator bit on the last space. */
+        static const uint8_t PADDED[9] = { 0x4Au, 0x4Fu, 0x52u, 0x44u, 0x41u, 0x4Eu, 0x20u, 0x20u, 0xA0u };
+        static const uint8_t TIGHT[4] = { 0x42u, 0x49u, 0x52u, 0xC4u };  /* "BIRD" terminated */
+        written = allstar_postgame_copy_name(PADDED, 9u, scratch, 24u);
+        if (written != 7u || scratch[0] != 0x4Au || scratch[5] != 0x4Eu || scratch[6] != 0x20u) {
+            fprintf(stderr, "[Test] $170D padded copy wrote %u bytes\n", written);
+            return 1;
+        }
+        written = allstar_postgame_copy_name(TIGHT, 4u, scratch, 24u);
+        if (written != 5u || scratch[3] != 0x44u || scratch[4] != 0x20u) {
+            fprintf(stderr, "[Test] $170D did not clear bit 7 on the last character\n");
+            return 1;
+        }
+    }
+
+    /* $1786 clears sixteen tiles per row, six by six, from $9800. */
+    allstar_postgame_clear_shape(&clear);
+    if (clear.base != 0x9800u || clear.outer != 6u || clear.inner != 6u ||
+        clear.per_row != 16u || clear.fill != 0u) {
+        fprintf(stderr, "[Test] $1786 clear shape diverged\n");
+        return 1;
+    }
+
+    printf("  $C199 0/1/3 -> draw/wait/wait, flags $C134 or $C136, sounds $19 and $18\n");
+    printf("  H-O-R-S-E prints the eliminated name plus \"IS OUT\" at $0207\n");
+    printf("[Test] PASSED: $1121, $11D5, $170D, $1786\n");
+    return 0;
+}
+
+/*
+ * ROM postgame spine parity, from the $10A5..$1120, $1638..$1670, $1726..$1750
+ * and $1751..$1785 disassembly.  Both dispatch tables are decoded from the
+ * bytes the ROM stores inline after each rst $08.
+ */
+int allstar_cli_test_postgame_rom(void) {
+    static const uint16_t SCREEN_TABLE[4] = { 0x10E1u, 0x1343u, 0x139Bu, 0x146Fu };
+    static const uint16_t MODE_TABLE[5]   = { 0x10EEu, 0x1121u, 0x11D5u, 0x1209u, 0x12A6u };
+    static const AllStarPostgameDrawKind LAYOUT_KIND[6] = {
+        ALLSTAR_POSTGAME_DRAW_PANEL, ALLSTAR_POSTGAME_DRAW_NAME_1, ALLSTAR_POSTGAME_DRAW_SCORE_1,
+        ALLSTAR_POSTGAME_DRAW_PANEL, ALLSTAR_POSTGAME_DRAW_NAME_2, ALLSTAR_POSTGAME_DRAW_SCORE_2
+    };
+    static const uint8_t LAYOUT_D[6] = { 0x03u, 0x04u, 0x0Du, 0x03u, 0x04u, 0x0Du };
+    static const uint8_t LAYOUT_E[6] = { 0x05u, 0x06u, 0x06u, 0x0Bu, 0x0Cu, 0x0Cu };
+
+    AllStarPostgameEnter enter;
+    AllStarPostgameDraw layout[8];
+    const uint16_t *table;
+    uint16_t sources[ALLSTAR_POSTGAME_PANEL_ROWS];
+    uint8_t rows[ALLSTAR_POSTGAME_PANEL_ROWS];
+    uint8_t digits[3];
+    uint8_t bank;
+    uint16_t frames;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Postgame Dispatch Tests ($10A5/$10D9/$10E4/$1726)...\n");
+
+    /* $10D9 and $10E4 are literal pointer tables stored after the rst $08. */
+    table = allstar_postgame_screen_table(&count);
+    if (count != 4) {
+        fprintf(stderr, "[Test] $10D9 table has %d entries, expected 4\n", count);
+        return 1;
+    }
+    for (i = 0; i < 4; i++) {
+        if (table[i] != SCREEN_TABLE[i]) {
+            fprintf(stderr, "[Test] $10D9 slot %d is $%04X, expected $%04X\n", i, table[i], SCREEN_TABLE[i]);
+            return 1;
+        }
+    }
+    table = allstar_postgame_mode_table(&count);
+    if (count != 5) {
+        fprintf(stderr, "[Test] $10E4 table has %d entries, expected 5\n", count);
+        return 1;
+    }
+    for (i = 0; i < 5; i++) {
+        if (table[i] != MODE_TABLE[i]) {
+            fprintf(stderr, "[Test] $10E4 slot %d is $%04X, expected $%04X\n", i, table[i], MODE_TABLE[i]);
+            return 1;
+        }
+    }
+
+    /* $10A5 is the stub the tournament driver uses; mode 4 must reach $12A6. */
+    allstar_postgame_enter(ALLSTAR_POSTGAME_ENTRY_RESULT, 4u, &enter);
+    if (enter.screen != 0u || !enter.sets_result_flag || enter.bank != 1u ||
+        enter.route != ALLSTAR_POSTGAME_ROUTE_BY_MODE || enter.handler != 0x12A6u) {
+        fprintf(stderr, "[Test] $10A5 with mode 4 resolved to $%04X, expected $12A6\n", enter.handler);
+        return 1;
+    }
+    if (!enter.loads_tiles) {
+        fprintf(stderr, "[Test] $10BC skipped the tile load for a mode other than $01\n");
+        return 1;
+    }
+
+    /* Mode $01 is the one mode that skips the $0444/$047E/$050F block. */
+    allstar_postgame_enter(ALLSTAR_POSTGAME_ENTRY_RESULT, 1u, &enter);
+    if (enter.loads_tiles || enter.handler != 0x1121u) {
+        fprintf(stderr, "[Test] $10BC-$10C0 mode $01 shortcut diverged\n");
+        return 1;
+    }
+
+    /* Every mode routes through $10E1 for screen 0. */
+    for (i = 0; i < 5; i++) {
+        allstar_postgame_enter(ALLSTAR_POSTGAME_ENTRY_RESULT, (uint8_t)i, &enter);
+        if (enter.handler != MODE_TABLE[i]) {
+            fprintf(stderr, "[Test] $10E1 mode %d resolved to $%04X, expected $%04X\n",
+                    i, enter.handler, MODE_TABLE[i]);
+            return 1;
+        }
+    }
+
+    /* $10B1 is what $28D9 calls after the bank 2 selector: screen 2 -> $139B. */
+    allstar_postgame_enter(ALLSTAR_POSTGAME_ENTRY_SELECT, 4u, &enter);
+    if (enter.screen != 2u || enter.sets_result_flag ||
+        enter.route != ALLSTAR_POSTGAME_ROUTE_139B || enter.handler != 0x139Bu) {
+        fprintf(stderr, "[Test] $10B1 resolved to $%04X, expected $139B\n", enter.handler);
+        return 1;
+    }
+
+    /* $10EE: only a tie continues into $12C9. */
+    if (allstar_postgame_result_route(1u) != ALLSTAR_POSTGAME_RESULT_DRAW_ONLY ||
+        allstar_postgame_result_route(2u) != ALLSTAR_POSTGAME_RESULT_DRAW_ONLY ||
+        allstar_postgame_result_route(0u) != ALLSTAR_POSTGAME_RESULT_DRAW_THEN_12C9) {
+        fprintf(stderr, "[Test] $10EE result routing diverged\n");
+        return 1;
+    }
+
+    /* $10FA loads six DE pairs, in order. */
+    count = allstar_postgame_final_score_layout(layout, 8);
+    if (count != ALLSTAR_POSTGAME_LAYOUT_OPS) {
+        fprintf(stderr, "[Test] $10FA emitted %d draw calls, expected 6\n", count);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (layout[i].kind != LAYOUT_KIND[i] || layout[i].d != LAYOUT_D[i] || layout[i].e != LAYOUT_E[i]) {
+            fprintf(stderr, "[Test] $10FA call %d used DE=$%02X%02X, expected $%02X%02X\n",
+                    i, layout[i].d, layout[i].e, LAYOUT_D[i], LAYOUT_E[i]);
+            return 1;
+        }
+    }
+
+    /* $1657 stacks three rows from $166F/$167D/$168B at E, E+1, E+2. */
+    allstar_postgame_panel_rows(0x03u, 0x05u, sources, rows);
+    if (sources[0] != 0x166Fu || sources[1] != 0x167Du || sources[2] != 0x168Bu ||
+        rows[0] != 0x05u || rows[1] != 0x06u || rows[2] != 0x07u) {
+        fprintf(stderr, "[Test] $1657 row stacking diverged\n");
+        return 1;
+    }
+
+    /* $1751/$1756/$175B/$1760/$1770/$1775 read the buffers the ROM names. */
+    {
+        AllStarPostgameDrawDetail detail;
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_NAME_1, &detail) ||
+            detail.routine != 0x175Bu || detail.source != ALLSTAR_POSTGAME_NAME_1 ||
+            !detail.skip_spaces || detail.is_score) {
+            fprintf(stderr, "[Test] $175B draw detail diverged\n");
+            return 1;
+        }
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_NAME_1_RAW, &detail) ||
+            detail.routine != 0x1751u || detail.skip_spaces) {
+            fprintf(stderr, "[Test] $1751 must not skip leading spaces\n");
+            return 1;
+        }
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_NAME_2_RAW, &detail) ||
+            detail.routine != 0x1756u || detail.source != ALLSTAR_POSTGAME_NAME_2) {
+            fprintf(stderr, "[Test] $1756 draw detail diverged\n");
+            return 1;
+        }
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_NAME_2, &detail) ||
+            detail.routine != 0x1760u || !detail.skip_spaces) {
+            fprintf(stderr, "[Test] $1760 draw detail diverged\n");
+            return 1;
+        }
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_SCORE_1, &detail) ||
+            detail.routine != 0x1770u || detail.source != ALLSTAR_POSTGAME_SCORE_1 || !detail.is_score) {
+            fprintf(stderr, "[Test] $1770 draw detail diverged\n");
+            return 1;
+        }
+        if (!allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_SCORE_2, &detail) ||
+            detail.routine != 0x1775u || detail.source != ALLSTAR_POSTGAME_SCORE_2) {
+            fprintf(stderr, "[Test] $1775 draw detail diverged\n");
+            return 1;
+        }
+        if (allstar_postgame_draw_detail(ALLSTAR_POSTGAME_DRAW_PANEL, &detail)) {
+            fprintf(stderr, "[Test] $1657 is a panel, not a name or score writer\n");
+            return 1;
+        }
+    }
+
+    /* $177B writes exactly the three $1726 tiles. */
+    {
+        uint8_t tiles[3];
+        if (allstar_postgame_score_tiles(0x0042u, tiles) != ALLSTAR_POSTGAME_SCORE_TILES ||
+            tiles[0] != 0x00u || tiles[1] != 0xC5u || tiles[2] != 0xC3u) {
+            fprintf(stderr, "[Test] $177B tile write diverged\n");
+            return 1;
+        }
+    }
+
+    /* $1769 stops at the first non-space. */
+    {
+        static const uint8_t PADDED[8] = { 0x20u, 0x20u, 0x20u, 0x4Au, 0x4Fu, 0x52u, 0x44u, 0x20u };
+        static const uint8_t EMPTY[3] = { 0x20u, 0x20u, 0x20u };
+        if (allstar_postgame_skip_spaces(PADDED, 8u) != 3u ||
+            allstar_postgame_skip_spaces(PADDED + 3, 5u) != 0u ||
+            allstar_postgame_skip_spaces(EMPTY, 3u) != 3u) {
+            fprintf(stderr, "[Test] $1769 space skip diverged\n");
+            return 1;
+        }
+    }
+
+    /*
+     * $1726: BCD hundreds in H's low nibble, tens and units in L.  Leading zeros
+     * blank, but a zero tens digit prints once the hundreds digit has printed.
+     */
+    allstar_postgame_score_digits(0x0021u, digits);
+    if (digits[0] != 0x00u || digits[1] != 0xC3u || digits[2] != 0xC2u) {
+        fprintf(stderr, "[Test] $1726 on 21 gave $%02X $%02X $%02X\n", digits[0], digits[1], digits[2]);
+        return 1;
+    }
+    allstar_postgame_score_digits(0x0007u, digits);
+    if (digits[0] != 0x00u || digits[1] != 0x00u || digits[2] != 0xC8u) {
+        fprintf(stderr, "[Test] $1726 on 7 gave $%02X $%02X $%02X\n", digits[0], digits[1], digits[2]);
+        return 1;
+    }
+    allstar_postgame_score_digits(0x0100u, digits);
+    if (digits[0] != 0xC2u || digits[1] != 0xC1u || digits[2] != 0xC1u) {
+        fprintf(stderr, "[Test] $1726 on 100 gave $%02X $%02X $%02X\n", digits[0], digits[1], digits[2]);
+        return 1;
+    }
+    allstar_postgame_score_digits(0x0000u, digits);
+    if (digits[0] != 0x00u || digits[1] != 0x00u || digits[2] != 0xC1u) {
+        fprintf(stderr, "[Test] $1726 on 0 gave $%02X $%02X $%02X\n", digits[0], digits[1], digits[2]);
+        return 1;
+    }
+    allstar_postgame_score_digits(0x0999u, digits);
+    if (digits[0] != 0xCAu || digits[1] != 0xCAu || digits[2] != 0xCAu) {
+        fprintf(stderr, "[Test] $1726 on 999 gave $%02X $%02X $%02X\n", digits[0], digits[1], digits[2]);
+        return 1;
+    }
+
+    /* $146F pages in bank 2 and dispatches on $C181 through $147B. */
+    if (allstar_postgame_route_146f(0u, &bank) != 0x1483u || bank != 2u ||
+        allstar_postgame_route_146f(1u, &bank) != 0x14B6u ||
+        allstar_postgame_route_146f(2u, &bank) != 0x1493u ||
+        allstar_postgame_route_146f(3u, &bank) != 0x14BDu) {
+        fprintf(stderr, "[Test] $146F/$147B dispatch diverged\n");
+        return 1;
+    }
+
+    /* $1638: Start exits only while $FFEC is clear, otherwise BC has to expire. */
+    frames = 3u;
+    if (allstar_postgame_hold_step(&frames, 0u, ALLSTAR_POSTGAME_START_MASK) != ALLSTAR_POSTGAME_HOLD_INPUT ||
+        frames != 3u) {
+        fprintf(stderr, "[Test] $1645 did not exit the hold on new Start\n");
+        return 1;
+    }
+    frames = 3u;
+    if (allstar_postgame_hold_step(&frames, 1u, ALLSTAR_POSTGAME_START_MASK) != ALLSTAR_POSTGAME_HOLD_WAITING ||
+        frames != 2u) {
+        fprintf(stderr, "[Test] $1640 let Start through while $FFEC was set\n");
+        return 1;
+    }
+    if (allstar_postgame_hold_step(&frames, 1u, 0u) != ALLSTAR_POSTGAME_HOLD_WAITING ||
+        allstar_postgame_hold_step(&frames, 1u, 0u) != ALLSTAR_POSTGAME_HOLD_TIMEOUT) {
+        fprintf(stderr, "[Test] $164B frame countdown diverged\n");
+        return 1;
+    }
+
+    printf("  $FF8D 0..3 -> $10E1/$1343/$139B/$146F; mode 0..4 -> $10EE/$1121/$11D5/$1209/$12A6\n");
+    printf("  tournament postgame lands on $12A6; $1726 blanks leading zeros, never the units\n");
+    printf("[Test] PASSED: $10A5, $10B1, $10E1, $10EE, $10FA, $146F, $1638, $1657, $1726, $1751-$177B\n");
+    return 0;
+}
+
+/*
+ * ROM $0F2E driver parity.  The expected call order, the entrant address read
+ * for each of the seven matches, the $C0BE values, and the bracket slots that
+ * $284D/$286E fill are all taken from the $0F2E..$0FBA, $2835..$28E0 and
+ * $28E1..$290A disassembly.
+ */
+int allstar_cli_test_tournament_rom(void) {
+    static const AllStarTournamentStep EXPECTED[] = {
+        ALLSTAR_TR_STEP_RESET, ALLSTAR_TR_STEP_PICK_FIELD, ALLSTAR_TR_STEP_BANK_WINS,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R1,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R1,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R1,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R1,
+        ALLSTAR_TR_STEP_SEED_SEMIS, ALLSTAR_TR_STEP_BANK_WINS,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R2,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH, ALLSTAR_TR_STEP_POSTGAME, ALLSTAR_TR_STEP_ADVANCE_R2,
+        ALLSTAR_TR_STEP_SEED_FINAL, ALLSTAR_TR_STEP_BANK_WINS,
+        ALLSTAR_TR_STEP_LOAD_PLAYERS, ALLSTAR_TR_STEP_PLAY_MATCH,
+        ALLSTAR_TR_STEP_DONE
+    };
+    /* Entrants the bank 2 selector will place, and which side wins each match. */
+    static const uint8_t R1_LEFT[4]  = { 10, 11, 12, 13 };
+    static const uint8_t R1_RIGHT[4] = { 20, 21, 22, 23 };
+    static const uint8_t R2_LEFT[2]  = { 10, 12 };
+    static const uint8_t R2_RIGHT[2] = { 21, 23 };
+    static const uint8_t WINNING_SIDE[7] = { 1, 2, 1, 2, 1, 2, 1 };
+    static const uint8_t EXPECTED_LEFT[7]  = { 10, 11, 12, 13, 10, 12, 10 };
+    static const uint8_t EXPECTED_RIGHT[7] = { 20, 21, 22, 23, 21, 23, 23 };
+    static const uint8_t EXPECTED_R1_WINNERS[4] = { 10, 21, 12, 23 };
+    static const uint8_t EXPECTED_R2_WINNERS[2] = { 10, 23 };
+
+    AllStarTournamentRom rom;
+    size_t index;
+    int match = 0;
+    int i;
+
+    printf("[Test] Running ROM Tournament Driver Tests ($0F2E/$22DE/$0FBB/$284D/$286E)...\n");
+
+    allstar_tournament_rom_begin(&rom);
+
+    /* $22DE must clear the counter and both win-counter pairs, and nothing else. */
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_MATCH_COUNT, 0x77u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_STAGE_WINS_LEFT, 0x77u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT, 0x77u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_TOTAL_WINS_LEFT, 0x77u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_TOTAL_WINS_RIGHT, 0x77u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_R1_WINNERS, 0x77u);
+
+    for (index = 0; index < sizeof(EXPECTED) / sizeof(EXPECTED[0]); index++) {
+        AllStarTournamentStep step = allstar_tournament_rom_step(&rom);
+        if (step != EXPECTED[index]) {
+            fprintf(stderr,
+                    "[Test] $0F2E call %u was %s, expected %s\n",
+                    (unsigned)index,
+                    allstar_tournament_rom_step_name(step),
+                    allstar_tournament_rom_step_name(EXPECTED[index]));
+            return 1;
+        }
+
+        switch (step) {
+        case ALLSTAR_TR_STEP_RESET:
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_MATCH_COUNT) != 0 ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_LEFT) != 0 ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT) != 0 ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_LEFT) != 0 ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_RIGHT) != 0) {
+                fprintf(stderr, "[Test] $22DE did not clear $C0BE/$C0D4-$C0D7\n");
+                return 1;
+            }
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_R1_WINNERS) != 0x77u) {
+                fprintf(stderr, "[Test] $22DE cleared bracket slots it must not touch\n");
+                return 1;
+            }
+            if ((rom.lcdc & 0x83u) != 0x80u) {
+                fprintf(stderr, "[Test] $0F2E left $FF40 at $%02X, expected bit 7 set and bits 0-1 clear\n", rom.lcdc);
+                return 1;
+            }
+            break;
+
+        case ALLSTAR_TR_STEP_PICK_FIELD:
+            /* $2890 -> $0B35 builds ids 0..26 between $FF sentinels. */
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_SELECT_LIST) != 0xFFu ||
+                allstar_tournament_rom_peek(&rom, 0xC0F4u) != 0xFFu ||
+                allstar_tournament_rom_peek(&rom, 0xC0D9u) != 0u ||
+                allstar_tournament_rom_peek(&rom, 0xC0F3u) != 26u) {
+                fprintf(stderr, "[Test] $0B35 candidate list diverged\n");
+                return 1;
+            }
+            if (!rom.select.pending || rom.select.count != 4u || rom.select_flag != 1u) {
+                fprintf(stderr, "[Test] $2890 did not request a four-pair selection\n");
+                return 1;
+            }
+            for (i = 0; i < 4; i++) {
+                allstar_tournament_rom_poke(&rom, (uint16_t)(ALLSTAR_TR_R1_LEFT + i), R1_LEFT[i]);
+                allstar_tournament_rom_poke(&rom, (uint16_t)(ALLSTAR_TR_R1_RIGHT + i), R1_RIGHT[i]);
+            }
+            break;
+
+        case ALLSTAR_TR_STEP_SEED_SEMIS:
+            for (i = 0; i < 4; i++) {
+                if (allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_R1_WINNERS + i)) != EXPECTED_R1_WINNERS[i]) {
+                    fprintf(stderr,
+                            "[Test] $284D put %u in $%04X, expected %u\n",
+                            allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_R1_WINNERS + i)),
+                            (unsigned)(ALLSTAR_TR_R1_WINNERS + i), EXPECTED_R1_WINNERS[i]);
+                    return 1;
+                }
+                if (allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_SELECT_LIST + 1u + i)) != EXPECTED_R1_WINNERS[i]) {
+                    fprintf(stderr, "[Test] $2897 did not copy the round 1 winners into the list\n");
+                    return 1;
+                }
+            }
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_SELECT_LIST) != 0xFFu ||
+                allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_SELECT_LIST + 5u)) != 0xFFu ||
+                rom.select.count != 2u || rom.select.destination != ALLSTAR_TR_R2_LEFT) {
+                fprintf(stderr, "[Test] $2897 selection request diverged\n");
+                return 1;
+            }
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_LEFT) != 2u ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT) != 2u) {
+                fprintf(stderr, "[Test] Round 1 stage win counters diverged\n");
+                return 1;
+            }
+            for (i = 0; i < 2; i++) {
+                allstar_tournament_rom_poke(&rom, (uint16_t)(ALLSTAR_TR_R2_LEFT + i), R2_LEFT[i]);
+                allstar_tournament_rom_poke(&rom, (uint16_t)(ALLSTAR_TR_R2_RIGHT + i), R2_RIGHT[i]);
+            }
+            break;
+
+        case ALLSTAR_TR_STEP_SEED_FINAL:
+            for (i = 0; i < 2; i++) {
+                if (allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_R2_WINNERS + i)) != EXPECTED_R2_WINNERS[i]) {
+                    fprintf(stderr,
+                            "[Test] $286E put %u in $%04X, expected %u\n",
+                            allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_R2_WINNERS + i)),
+                            (unsigned)(ALLSTAR_TR_R2_WINNERS + i), EXPECTED_R2_WINNERS[i]);
+                    return 1;
+                }
+            }
+            if (rom.select.count != 1u || rom.select.destination != ALLSTAR_TR_FINAL_LEFT ||
+                allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_SELECT_LIST + 3u)) != 0xFFu) {
+                fprintf(stderr, "[Test] $28B0 selection request diverged\n");
+                return 1;
+            }
+            allstar_tournament_rom_poke(&rom, ALLSTAR_TR_FINAL_LEFT, EXPECTED_R2_WINNERS[0]);
+            allstar_tournament_rom_poke(&rom, ALLSTAR_TR_FINAL_RIGHT, EXPECTED_R2_WINNERS[1]);
+            break;
+
+        case ALLSTAR_TR_STEP_BANK_WINS:
+            if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_LEFT) != 0 ||
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT) != 0) {
+                fprintf(stderr, "[Test] $2835 did not clear $C0D4/$C0D5\n");
+                return 1;
+            }
+            break;
+
+        case ALLSTAR_TR_STEP_LOAD_PLAYERS:
+            if (rom.current_left != EXPECTED_LEFT[match] ||
+                rom.current_right != EXPECTED_RIGHT[match]) {
+                fprintf(stderr,
+                        "[Test] Match %d loaded ($FFAC=%u,$FFC5=%u), expected (%u,%u)\n",
+                        match + 1, rom.current_left, rom.current_right,
+                        EXPECTED_LEFT[match], EXPECTED_RIGHT[match]);
+                return 1;
+            }
+            if (rom.loaded_slot[0] != rom.current_left ||
+                rom.loaded_slot[1] != rom.current_right ||
+                rom.loaded_bank != 1u) {
+                fprintf(stderr, "[Test] $0FBB slot load or bank restore diverged on match %d\n", match + 1);
+                return 1;
+            }
+            if ((rom.lcdc & 0x03u) != 0) {
+                fprintf(stderr, "[Test] $0F4A did not clear $FF40 bits 0-1 before match %d\n", match + 1);
+                return 1;
+            }
+            break;
+
+        case ALLSTAR_TR_STEP_PLAY_MATCH:
+            if (allstar_tournament_rom_match_number(&rom) != (uint8_t)(match + 1)) {
+                fprintf(stderr,
+                        "[Test] $C0BE was %u entering match %d, expected %d\n",
+                        allstar_tournament_rom_match_number(&rom), match + 1, match + 1);
+                return 1;
+            }
+            /* $0B80 leaves the two score words behind for $28E1 to compare. */
+            rom.score_left = (WINNING_SIDE[match] == 1u) ? 21u : 15u;
+            rom.score_right = (WINNING_SIDE[match] == 1u) ? 15u : 21u;
+            match++;
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    if (match != 7) {
+        fprintf(stderr, "[Test] $0F2E ran %d matches, expected 7\n", match);
+        return 1;
+    }
+    if (rom.music_command != 0) {
+        fprintf(stderr, "[Test] $0F40 did not clear the $DD73 music command\n");
+        return 1;
+    }
+    /* The final runs no advance routine, so the round 2 slots must be untouched. */
+    if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_R2_WINNERS) != EXPECTED_R2_WINNERS[0] ||
+        allstar_tournament_rom_peek(&rom, (uint16_t)(ALLSTAR_TR_R2_WINNERS + 1u)) != EXPECTED_R2_WINNERS[1] ||
+        allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_LEFT) != 0 ||
+        allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT) != 0) {
+        fprintf(stderr, "[Test] The final mutated bracket state the ROM leaves alone\n");
+        return 1;
+    }
+    if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_LEFT) != 3u ||
+        allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_RIGHT) != 3u) {
+        fprintf(stderr, "[Test] $2835 banked totals diverged (%u/%u), expected 3/3\n",
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_LEFT),
+                allstar_tournament_rom_peek(&rom, ALLSTAR_TR_TOTAL_WINS_RIGHT));
+        return 1;
+    }
+    if (allstar_tournament_rom_step(&rom) != ALLSTAR_TR_STEP_DONE) {
+        fprintf(stderr, "[Test] $0F2E did not stay returned after the final\n");
+        return 1;
+    }
+
+    /* $2850/$2871: a tied match records nothing at all. */
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_MATCH_COUNT, 0x01u);
+    allstar_tournament_rom_poke(&rom, ALLSTAR_TR_R1_WINNERS, 0x5Au);
+    rom.score_left = 17u;
+    rom.score_right = 17u;
+    allstar_tournament_rom_advance_round_1(&rom);
+    if (allstar_tournament_rom_peek(&rom, ALLSTAR_TR_R1_WINNERS) != 0x5Au ||
+        allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_LEFT) != 0 ||
+        allstar_tournament_rom_peek(&rom, ALLSTAR_TR_STAGE_WINS_RIGHT) != 0) {
+        fprintf(stderr, "[Test] A tied $28E1 result still advanced the bracket\n");
+        return 1;
+    }
+
+    printf("  7 matches, $C0BE 1..7, round breaks at $04 and $06, final skips $10A5\n");
+    printf("  bracket: $C0C7-$C0CA = 10/21/12/23, $C0CF/$C0D0 = 10/23, totals 3/3\n");
+    printf("[Test] PASSED: $0F2E order, $22DE, $0FBB, $0B35, $2835, $284D, $286E, $2890, $2897, $28B0, $28E1\n");
+    return 0;
+}
+
 int allstar_cli_test_tournament(void) {
     AllStarTournamentState tournament;
     AllStarGame game;
@@ -4101,6 +4850,10 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_free_throw();
     failed += allstar_cli_test_horse();
     failed += allstar_cli_test_accuracy();
+    failed += allstar_cli_test_postgame_rom();
+    failed += allstar_cli_test_postgame_screens_rom();
+    failed += allstar_cli_test_postgame_modes_rom();
+    failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
 
@@ -4198,6 +4951,14 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_accuracy();
     } else if (strcmp(cmd, "--test-tournament") == 0) {
         return allstar_cli_test_tournament();
+    } else if (strcmp(cmd, "--test-tournament-rom") == 0) {
+        return allstar_cli_test_tournament_rom();
+    } else if (strcmp(cmd, "--test-postgame-rom") == 0) {
+        return allstar_cli_test_postgame_rom();
+    } else if (strcmp(cmd, "--test-postgame-screens") == 0) {
+        return allstar_cli_test_postgame_screens_rom();
+    } else if (strcmp(cmd, "--test-postgame-modes") == 0) {
+        return allstar_cli_test_postgame_modes_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

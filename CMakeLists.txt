@@ -27,6 +27,8 @@ set(ALLSTAR_CORE_SOURCES
     src/gameplay/allstar_free_throw.c
     src/gameplay/allstar_horse.c
     src/gameplay/allstar_accuracy.c
+    src/gameplay/allstar_tournament.c
+    src/gameplay/allstar_postgame.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c
     src/scenes/scene_settings.c

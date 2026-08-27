@@ -1,0 +1,714 @@
+{
+  "schema_version": 1,
+  "metric": {
+    "name": "tournament_rom_routine_bytes",
+    "description": "Bytes of tournament-exclusive ROM code with a native implementation. A routine counts only when a named C symbol reproduces it and a deterministic test covers it.",
+    "total_routines": 64,
+    "total_bytes": 2961
+  },
+  "chunks": [
+    {
+      "id": 1,
+      "title": "Driver core",
+      "routines": [
+        "0:0F2E",
+        "0:0FBB",
+        "0:10A5",
+        "0:22DE"
+      ],
+      "source": "src/gameplay/allstar_tournament.c",
+      "test": ".\build\u0007llstar_port.exe --test-tournament-rom"
+    },
+    {
+      "id": 2,
+      "title": "Winner propagation",
+      "routines": [
+        "0:2835",
+        "0:284D",
+        "0:286E",
+        "0:2890",
+        "0:2897",
+        "0:28B0",
+        "0:28E1",
+        "0:0B35"
+      ],
+      "source": "src/gameplay/allstar_tournament.c",
+      "test": ".\build\u0007llstar_port.exe --test-tournament-rom"
+    },
+    {
+      "id": 3,
+      "title": "Postgame dispatch",
+      "routines": [
+        "0:10A5",
+        "0:10B1",
+        "0:10E1",
+        "0:10EE",
+        "0:10FA",
+        "0:146F",
+        "0:1638",
+        "0:1657",
+        "0:1726",
+        "0:1751",
+        "0:1756",
+        "0:175B",
+        "0:1760",
+        "0:1763",
+        "0:1766",
+        "0:1769",
+        "0:1770",
+        "0:1775",
+        "0:1778",
+        "0:177B"
+      ],
+      "source": "src/gameplay/allstar_postgame.c",
+      "test": ".\build\u0007llstar_port.exe --test-postgame-rom"
+    },
+    {
+      "id": 4,
+      "title": "Mode 1 and 2 screens",
+      "routines": [
+        "0:1121",
+        "0:11D5",
+        "0:170D",
+        "0:1786"
+      ],
+      "source": "src/gameplay/allstar_postgame.c",
+      "test": ".\build\u0007llstar_port.exe --test-postgame-screens"
+    },
+    {
+      "id": 5,
+      "title": "Mode 3 and 4 screens",
+      "routines": [
+        "0:1209",
+        "0:12A6"
+      ],
+      "source": "src/gameplay/allstar_postgame.c",
+      "test": ".\build\u0007llstar_port.exe --test-postgame-modes"
+    }
+  ],
+  "routines": [
+    {
+      "id": "0:0B35",
+      "bank": 0,
+      "address": "$0B35",
+      "bytes": 15,
+      "instructions": 9,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Fills $C0D9..$C0F3 with ids 0..26 between $FF sentinels."
+    },
+    {
+      "id": "0:0F2E",
+      "bank": 0,
+      "address": "$0F2E",
+      "bytes": 141,
+      "instructions": 65,
+      "status": "ported",
+      "chunk": 1,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Seven-match bracket driver: round breaks at $C0BE==$04 and $06, final skips $10A5."
+    },
+    {
+      "id": "0:0FBB",
+      "bank": 0,
+      "address": "$0FBB",
+      "bytes": 84,
+      "instructions": 44,
+      "status": "ported",
+      "chunk": 1,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Loads $FFAC into slot 1 and $FFC5 into slot 2 across a bank-2 excursion."
+    },
+    {
+      "id": "0:10A5",
+      "bank": 0,
+      "address": "$10A5",
+      "bytes": 8,
+      "instructions": 4,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Sets $C16F and screen 0, then falls into the $10B7 tail."
+    },
+    {
+      "id": "0:10B1",
+      "bank": 0,
+      "address": "$10B1",
+      "bytes": 40,
+      "instructions": 18,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Screen 2 stub plus the shared $10B7 tail and the $10D9 dispatch."
+    },
+    {
+      "id": "0:10E1",
+      "bank": 0,
+      "address": "$10E1",
+      "bytes": 3,
+      "instructions": 2,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Second dispatch: reads $FF8F and indexes the $10E4 table."
+    },
+    {
+      "id": "0:10EE",
+      "bank": 0,
+      "address": "$10EE",
+      "bytes": 12,
+      "instructions": 5,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Mode 0 result screen; a tie continues into $12C9."
+    },
+    {
+      "id": "0:10FA",
+      "bank": 0,
+      "address": "$10FA",
+      "bytes": 39,
+      "instructions": 13,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Six draw calls with the DE pairs $0305/$0406/$0D06/$030B/$040C/$0D0C."
+    },
+    {
+      "id": "0:1121",
+      "bank": 0,
+      "address": "$1121",
+      "bytes": 180,
+      "instructions": 78,
+      "status": "ported",
+      "chunk": 4,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Free Throw postgame: $C199 handshake on the $F0 score-high flags, then name/attempts/score."
+    },
+    {
+      "id": "0:11D5",
+      "bank": 0,
+      "address": "$11D5",
+      "bytes": 46,
+      "instructions": 18,
+      "status": "ported",
+      "chunk": 4,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "H-O-R-S-E postgame: names the $FFAB-selected loser and appends the $1203 message."
+    },
+    {
+      "id": "0:1209",
+      "bank": 0,
+      "address": "$1209",
+      "bytes": 157,
+      "instructions": 66,
+      "status": "ported",
+      "chunk": 5,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Accuracy postgame: name, the $780A total, two words, score, then the $FF91-gated $F0 handshake."
+    },
+    {
+      "id": "0:12A6",
+      "bank": 0,
+      "address": "$12A6",
+      "bytes": 157,
+      "instructions": 75,
+      "status": "ported",
+      "chunk": 5,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Tournament postgame: return when decided, replay through $0B9A on a tie, champion screen only on match $07."
+    },
+    {
+      "id": "0:1343",
+      "bank": 0,
+      "address": "$1343",
+      "bytes": 81,
+      "instructions": 31,
+      "status": "pending"
+    },
+    {
+      "id": "0:139B",
+      "bank": 0,
+      "address": "$139B",
+      "bytes": 201,
+      "instructions": 76,
+      "status": "pending"
+    },
+    {
+      "id": "0:1464",
+      "bank": 0,
+      "address": "$1464",
+      "bytes": 7,
+      "instructions": 4,
+      "status": "pending"
+    },
+    {
+      "id": "0:146F",
+      "bank": 0,
+      "address": "$146F",
+      "bytes": 12,
+      "instructions": 6,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Banks to 2, sets $C170, dispatches on $C181 through $147B."
+    },
+    {
+      "id": "0:1483",
+      "bank": 0,
+      "address": "$1483",
+      "bytes": 16,
+      "instructions": 7,
+      "status": "pending"
+    },
+    {
+      "id": "0:1493",
+      "bank": 0,
+      "address": "$1493",
+      "bytes": 35,
+      "instructions": 17,
+      "status": "pending"
+    },
+    {
+      "id": "0:14B6",
+      "bank": 0,
+      "address": "$14B6",
+      "bytes": 7,
+      "instructions": 3,
+      "status": "pending"
+    },
+    {
+      "id": "0:14BD",
+      "bank": 0,
+      "address": "$14BD",
+      "bytes": 151,
+      "instructions": 77,
+      "status": "pending"
+    },
+    {
+      "id": "0:1554",
+      "bank": 0,
+      "address": "$1554",
+      "bytes": 87,
+      "instructions": 41,
+      "status": "pending"
+    },
+    {
+      "id": "0:1638",
+      "bank": 0,
+      "address": "$1638",
+      "bytes": 31,
+      "instructions": 18,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Hold loop: Start exits only while $FFEC is clear, else BC expires."
+    },
+    {
+      "id": "0:1657",
+      "bank": 0,
+      "address": "$1657",
+      "bytes": 24,
+      "instructions": 12,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Stacks the $166F/$167D/$168B rows at E, E+1, E+2."
+    },
+    {
+      "id": "0:170D",
+      "bank": 0,
+      "address": "$170D",
+      "bytes": 25,
+      "instructions": 17,
+      "status": "ported",
+      "chunk": 4,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Copies a name to $C1D3, clears the bit-7 terminator, trims trailing spaces, appends one."
+    },
+    {
+      "id": "0:1726",
+      "bank": 0,
+      "address": "$1726",
+      "bytes": 43,
+      "instructions": 28,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "BCD word to three tile codes with leading-zero blanking."
+    },
+    {
+      "id": "0:1751",
+      "bank": 0,
+      "address": "$1751",
+      "bytes": 5,
+      "instructions": 2,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Player 1 name at DE, no space skip."
+    },
+    {
+      "id": "0:1756",
+      "bank": 0,
+      "address": "$1756",
+      "bytes": 5,
+      "instructions": 2,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Player 2 name at DE, no space skip."
+    },
+    {
+      "id": "0:175B",
+      "bank": 0,
+      "address": "$175B",
+      "bytes": 5,
+      "instructions": 2,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Player 1 name with leading spaces skipped."
+    },
+    {
+      "id": "0:1760",
+      "bank": 0,
+      "address": "$1760",
+      "bytes": 3,
+      "instructions": 1,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Player 2 name with leading spaces skipped."
+    },
+    {
+      "id": "0:1763",
+      "bank": 0,
+      "address": "$1763",
+      "bytes": 3,
+      "instructions": 1,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Shared space-skip then write tail."
+    },
+    {
+      "id": "0:1766",
+      "bank": 0,
+      "address": "$1766",
+      "bytes": 3,
+      "instructions": 1,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Shared write tail into $06C0."
+    },
+    {
+      "id": "0:1769",
+      "bank": 0,
+      "address": "$1769",
+      "bytes": 7,
+      "instructions": 5,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Advance past $20 bytes."
+    },
+    {
+      "id": "0:1770",
+      "bank": 0,
+      "address": "$1770",
+      "bytes": 5,
+      "instructions": 2,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Load the $C133 score word, then print it."
+    },
+    {
+      "id": "0:1775",
+      "bank": 0,
+      "address": "$1775",
+      "bytes": 3,
+      "instructions": 1,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Load the $C135 score word, then print it."
+    },
+    {
+      "id": "0:1778",
+      "bank": 0,
+      "address": "$1778",
+      "bytes": 3,
+      "instructions": 3,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Dereference HL into the 16-bit score."
+    },
+    {
+      "id": "0:177B",
+      "bank": 0,
+      "address": "$177B",
+      "bytes": 11,
+      "instructions": 4,
+      "status": "ported",
+      "chunk": 3,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Convert via $1726 and write three digits from $C1FB."
+    },
+    {
+      "id": "0:1786",
+      "bank": 0,
+      "address": "$1786",
+      "bytes": 36,
+      "instructions": 28,
+      "status": "ported",
+      "chunk": 4,
+      "source": "src/gameplay/allstar_postgame.c",
+      "note": "Clears sixteen tiles per row, six by six, from $9800."
+    },
+    {
+      "id": "0:22DE",
+      "bank": 0,
+      "address": "$22DE",
+      "bytes": 17,
+      "instructions": 7,
+      "status": "ported",
+      "chunk": 1,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Clears $C0BE and both win-counter pairs $C0D4-$C0D7."
+    },
+    {
+      "id": "0:2835",
+      "bank": 0,
+      "address": "$2835",
+      "bytes": 24,
+      "instructions": 12,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Adds $C0D4/$C0D5 into $C0D6/$C0D7 and clears the stage pair."
+    },
+    {
+      "id": "0:284D",
+      "bank": 0,
+      "address": "$284D",
+      "bytes": 33,
+      "instructions": 19,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Credits the round 1 winner and copies it into $C0C6+N."
+    },
+    {
+      "id": "0:286E",
+      "bank": 0,
+      "address": "$286E",
+      "bytes": 34,
+      "instructions": 19,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Credits the round 2 winner into $C0CF or $C0D0 by $C0BE."
+    },
+    {
+      "id": "0:2890",
+      "bank": 0,
+      "address": "$2890",
+      "bytes": 7,
+      "instructions": 3,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Builds the 27-id candidate list and asks for four pairs."
+    },
+    {
+      "id": "0:2897",
+      "bank": 0,
+      "address": "$2897",
+      "bytes": 25,
+      "instructions": 15,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Copies the four round 1 winners into $C0D9 and asks for two pairs."
+    },
+    {
+      "id": "0:28B0",
+      "bank": 0,
+      "address": "$28B0",
+      "bytes": 49,
+      "instructions": 27,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Copies the two round 2 winners and points the selector at $C0D1."
+    },
+    {
+      "id": "0:28E1",
+      "bank": 0,
+      "address": "$28E1",
+      "bytes": 82,
+      "instructions": 55,
+      "status": "ported",
+      "chunk": 2,
+      "source": "src/gameplay/allstar_tournament.c",
+      "note": "Unsigned compare of $C133/$C134 against $C135/$C136."
+    },
+    {
+      "id": "0:2AB5",
+      "bank": 0,
+      "address": "$2AB5",
+      "bytes": 5,
+      "instructions": 2,
+      "status": "pending"
+    },
+    {
+      "id": "0:2D85",
+      "bank": 0,
+      "address": "$2D85",
+      "bytes": 14,
+      "instructions": 6,
+      "status": "pending"
+    },
+    {
+      "id": "0:2D93",
+      "bank": 0,
+      "address": "$2D93",
+      "bytes": 43,
+      "instructions": 25,
+      "status": "pending"
+    },
+    {
+      "id": "0:2DBE",
+      "bank": 0,
+      "address": "$2DBE",
+      "bytes": 20,
+      "instructions": 8,
+      "status": "pending"
+    },
+    {
+      "id": "0:2DD2",
+      "bank": 0,
+      "address": "$2DD2",
+      "bytes": 17,
+      "instructions": 11,
+      "status": "pending"
+    },
+    {
+      "id": "0:2DEA",
+      "bank": 0,
+      "address": "$2DEA",
+      "bytes": 134,
+      "instructions": 67,
+      "status": "pending"
+    },
+    {
+      "id": "0:2E70",
+      "bank": 0,
+      "address": "$2E70",
+      "bytes": 3,
+      "instructions": 1,
+      "status": "pending"
+    },
+    {
+      "id": "0:2E73",
+      "bank": 0,
+      "address": "$2E73",
+      "bytes": 25,
+      "instructions": 10,
+      "status": "pending"
+    },
+    {
+      "id": "0:2E8C",
+      "bank": 0,
+      "address": "$2E8C",
+      "bytes": 23,
+      "instructions": 9,
+      "status": "pending"
+    },
+    {
+      "id": "0:2EA3",
+      "bank": 0,
+      "address": "$2EA3",
+      "bytes": 5,
+      "instructions": 4,
+      "status": "pending"
+    },
+    {
+      "id": "1:780A",
+      "bank": 1,
+      "address": "$780A",
+      "bytes": 36,
+      "instructions": 27,
+      "status": "pending"
+    },
+    {
+      "id": "2:4000",
+      "bank": 2,
+      "address": "$4000",
+      "bytes": 52,
+      "instructions": 22,
+      "status": "pending"
+    },
+    {
+      "id": "2:4034",
+      "bank": 2,
+      "address": "$4034",
+      "bytes": 17,
+      "instructions": 7,
+      "status": "pending"
+    },
+    {
+      "id": "2:4045",
+      "bank": 2,
+      "address": "$4045",
+      "bytes": 14,
+      "instructions": 8,
+      "status": "pending"
+    },
+    {
+      "id": "2:4053",
+      "bank": 2,
+      "address": "$4053",
+      "bytes": 23,
+      "instructions": 9,
+      "status": "pending"
+    },
+    {
+      "id": "2:406A",
+      "bank": 2,
+      "address": "$406A",
+      "bytes": 71,
+      "instructions": 36,
+      "status": "pending"
+    },
+    {
+      "id": "2:40B1",
+      "bank": 2,
+      "address": "$40B1",
+      "bytes": 67,
+      "instructions": 39,
+      "status": "pending"
+    },
+    {
+      "id": "2:40F4",
+      "bank": 2,
+      "address": "$40F4",
+      "bytes": 87,
+      "instructions": 50,
+      "status": "pending"
+    },
+    {
+      "id": "2:414B",
+      "bank": 2,
+      "address": "$414B",
+      "bytes": 343,
+      "instructions": 188,
+      "status": "pending"
+    }
+  ]
+}

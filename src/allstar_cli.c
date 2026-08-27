@@ -26,6 +26,7 @@
 #include "allstar_handshake.h"
 #include "allstar_session.h"
 #include "allstar_pad.h"
+#include "allstar_frame.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2264,6 +2265,275 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM frame spine and lifecycle, from $2729, $276D, $279E, $0271, $1F7A,
+ * $1FA4, $1FE1 and $1699.
+ *
+ * These seven are one story.  $2729 is the vblank handler; it copies OAM and
+ * calls $2757, which trampolines into bank 1 for $276D.  $276D runs the pad
+ * poll and the link send in a role-dependent order and bumps $FF8B.  $279E
+ * decides which byte the link actually transmits.  $0271, $1F7A, $1FA4 and
+ * $1FE1 are the lifecycle around all of that, and $1699 flashes the winner
+ * banner off the same $FF8B counter $276D increments.
+ */
+int allstar_cli_test_frame_rom(void) {
+    AllStarFrameVblank vblank;
+    AllStarFrameBody body;
+    AllStarFrameLinkSend send;
+    AllStarCreditsScreen credits;
+    AllStarBanner banner;
+    AllStarLinkTransmit tx;
+    const uint16_t *cleared;
+    int count = 0;
+    int i;
+    int j;
+
+    printf("[Test] Running ROM Frame Spine Tests ($2729/$276D/$279E)...\n");
+
+    /* $2743: every role but $03 copies OAM and runs the frame. */
+    allstar_frame_vblank_2729(0x02u, 0u, &vblank);
+    if (!vblank.runs_oam_dma || !vblank.runs_update || vblank.advances_stall) {
+        fprintf(stderr, "[Test] $2746 normal vblank path diverged\n");
+        return 1;
+    }
+    /* $273E: role $03 copies OAM but never calls $2757. */
+    allstar_frame_vblank_2729(ALLSTAR_FRAME_LINK_ROLE_3, 0u, &vblank);
+    if (!vblank.runs_oam_dma || vblank.runs_update) {
+        fprintf(stderr, "[Test] $2730 role $03 ran the frame update\n");
+        return 1;
+    }
+    /* $2738: a stalled role $03 skips the OAM copy as well. */
+    allstar_frame_vblank_2729(ALLSTAR_FRAME_LINK_ROLE_3, 0x04u, &vblank);
+    if (vblank.runs_oam_dma || vblank.runs_update ||
+        !vblank.advances_stall || vblank.stall_counter != 0x05u) {
+        fprintf(stderr,
+                "[Test] $2739 stall path diverged (dma=%d update=%d "
+                "counter=$%02X)\n",
+                vblank.runs_oam_dma ? 1 : 0, vblank.runs_update ? 1 : 0,
+                vblank.stall_counter);
+        return 1;
+    }
+
+    /* $2749: bit 1 of STAT, set in modes 2 and 3. */
+    if (allstar_frame_stat_busy_2749(0x00u) ||
+        allstar_frame_stat_busy_2749(0x01u) ||
+        !allstar_frame_stat_busy_2749(0x02u) ||
+        !allstar_frame_stat_busy_2749(0x03u)) {
+        fprintf(stderr, "[Test] $274B watched the wrong STAT bit\n");
+        return 1;
+    }
+
+    /* $2780: the two cartridges do not transmit from the same half. */
+    allstar_frame_body_276d(0x02u, 0u, 0x10u, 0x00u, &body);
+    if (body.order != ALLSTAR_FRAME_ORDER_INPUT_FIRST ||
+        body.serial_spin != 0 || body.frame_counter != 0x11u) {
+        fprintf(stderr, "[Test] $278C body diverged\n");
+        return 1;
+    }
+    allstar_frame_body_276d(ALLSTAR_FRAME_LINK_ROLE_3, 1u, 0xFFu, 0x03u,
+                            &body);
+    if (body.order != ALLSTAR_FRAME_ORDER_LINK_FIRST ||
+        body.serial_spin != ALLSTAR_FRAME_SERIAL_SPIN ||
+        body.frame_counter != 0x00u || body.delay_counter != 0x02u) {
+        fprintf(stderr,
+                "[Test] $2784 role $03 body diverged (spin=%d counter=$%02X "
+                "delay=$%02X)\n", body.serial_spin, body.frame_counter,
+                body.delay_counter);
+        return 1;
+    }
+    /* $2799: the countdown stops at zero rather than wrapping. */
+    allstar_frame_body_276d(0x02u, 0u, 0x00u, 0x00u, &body);
+    if (body.delay_counter != 0x00u) {
+        fprintf(stderr, "[Test] $2799 wrapped $FF8A past zero\n");
+        return 1;
+    }
+
+    /*
+     * $279E: only modes $01 and $03, with two players and $FF90 set, put
+     * $C18D on the wire in place of the live pad byte.
+     */
+    allstar_frame_link_send_279e(0x02u, 2u, 1u, 0x3Cu, 0x77u, &send);
+    if (send.substitutes || send.transmitted != 0x3Cu) {
+        fprintf(stderr, "[Test] $27A6 substituted outside modes $01/$03\n");
+        return 1;
+    }
+    allstar_frame_link_send_279e(0x01u, 1u, 1u, 0x3Cu, 0x77u, &send);
+    if (send.substitutes) {
+        fprintf(stderr, "[Test] $27AC substituted in a one-player game\n");
+        return 1;
+    }
+    allstar_frame_link_send_279e(0x03u, 2u, 0u, 0x3Cu, 0x77u, &send);
+    if (send.substitutes) {
+        fprintf(stderr, "[Test] $27B2 substituted while $FF90 was clear\n");
+        return 1;
+    }
+    allstar_frame_link_send_279e(0x03u, 2u, 1u, 0x3Cu, 0x77u, &send);
+    if (!send.substitutes || send.transmitted != 0x77u ||
+        send.restored != 0x3Cu) {
+        fprintf(stderr,
+                "[Test] $27BF substitution diverged (sent $%02X restored "
+                "$%02X)\n", send.transmitted, send.restored);
+        return 1;
+    }
+    /* $27BF hands that byte to $2FD0, which is already ported. */
+    allstar_link_transmit(1u, 0x02u, send.transmitted, 0u, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_STATE || tx.byte != 0x77u) {
+        fprintf(stderr, "[Test] $2FD0 did not send the byte $279E staged\n");
+        return 1;
+    }
+
+    /* $0271: four seconds, and only on a cold boot. */
+    allstar_credits_screen_0271(0u, &credits);
+    if (!credits.shown || credits.hold_frames != ALLSTAR_CREDITS_FRAMES ||
+        credits.hold_frames != 240u || credits.tile_bank != 1u ||
+        credits.tilemap_bank != 3u) {
+        fprintf(stderr,
+                "[Test] $0292 cold-boot credits diverged (%u frames)\n",
+                credits.hold_frames);
+        return 1;
+    }
+    /* $0274: $0263 sends every finished game back through $0156, which sets
+       $C191 -- so only the first game of a session sees this screen. */
+    allstar_credits_screen_0271(1u, &credits);
+    if (credits.shown || credits.hold_frames != 0u) {
+        fprintf(stderr, "[Test] $0275 showed the credits on a warm boot\n");
+        return 1;
+    }
+
+    /* $1F81/$1F84: clearing both mailboxes is what stops the music. */
+    cleared = allstar_teardown_cleared_1f7a(&count);
+    if (!cleared || count != ALLSTAR_TEARDOWN_CLEARED ||
+        cleared[0] != 0xDD72u || cleared[1] != 0xDD73u) {
+        fprintf(stderr, "[Test] $1F7A did not clear both sound mailboxes\n");
+        return 1;
+    }
+
+    /* $1FBB..$1FD9, and two of them matter to routines already ported. */
+    cleared = allstar_title_reset_cleared_1fa4(&count);
+    if (!cleared || count != ALLSTAR_TITLE_RESET_CLEARED) {
+        fprintf(stderr, "[Test] $1FA4 cleared %d bytes, expected %d\n",
+                count, ALLSTAR_TITLE_RESET_CLEARED);
+        return 1;
+    }
+    {
+        bool clears_outgoing = false;
+        bool clears_stall = false;
+        for (i = 0; i < count; i++) {
+            if (cleared[i] == ALLSTAR_PAD_OUTGOING) clears_outgoing = true;
+            if (cleared[i] == 0xC176u) clears_stall = true;
+        }
+        if (!clears_outgoing) {
+            fprintf(stderr,
+                    "[Test] $1FC3 left $2639's outgoing byte $C16E set\n");
+            return 1;
+        }
+        if (!clears_stall) {
+            fprintf(stderr,
+                    "[Test] $1FD4 left $2729's role $03 stall counter set\n");
+            return 1;
+        }
+    }
+
+    /* $1FE1: SC and SB first, then the role the whole serial layer keys on. */
+    cleared = allstar_serial_reset_cleared_1fe1(&count);
+    if (!cleared || count != ALLSTAR_SERIAL_RESET_CLEARED ||
+        cleared[0] != 0xFF02u || cleared[1] != 0xFF01u ||
+        cleared[2] != 0xC199u) {
+        fprintf(stderr, "[Test] $1FE1 serial reset order diverged\n");
+        return 1;
+    }
+    /* None of the three lists may name the same byte twice. */
+    for (j = 0; j < 3; j++) {
+        const uint16_t *list = j == 0 ? allstar_teardown_cleared_1f7a(&count)
+            : (j == 1 ? allstar_title_reset_cleared_1fa4(&count)
+                      : allstar_serial_reset_cleared_1fe1(&count));
+        for (i = 0; i < count; i++) {
+            int k;
+            for (k = i + 1; k < count; k++) {
+                if (list[i] == list[k]) {
+                    fprintf(stderr,
+                            "[Test] clear list %d names $%04X twice\n",
+                            j, list[i]);
+                    return 1;
+                }
+            }
+        }
+    }
+
+    /*
+     * $1699.  The caller passes `$FF8B & $08`, so the banner is on for eight
+     * frames and off for eight -- and $FF8B is exactly the counter $276D
+     * increments, which is the coupling worth holding onto.
+     */
+    allstar_postgame_banner_1699(0u, 0x01u, 1u, &banner);
+    if (banner.kind != ALLSTAR_BANNER_BLANK ||
+        banner.source != ALLSTAR_BANNER_BLANK_TEXT) {
+        fprintf(stderr, "[Test] $169A off-half of the flash diverged\n");
+        return 1;
+    }
+    allstar_postgame_banner_1699(0x08u, 0x01u, 0u, &banner);
+    if (banner.kind != ALLSTAR_BANNER_TIE ||
+        banner.source != ALLSTAR_BANNER_TIE_TEXT) {
+        fprintf(stderr, "[Test] $16BB tie line diverged\n");
+        return 1;
+    }
+    allstar_postgame_banner_1699(0x08u, 0x01u, 1u, &banner);
+    if (banner.kind != ALLSTAR_BANNER_NAME_WINS ||
+        banner.name_source != 0xC23Cu || !banner.copies_name ||
+        banner.trims_spaces || banner.source != ALLSTAR_BANNER_NAME_BUFFER) {
+        fprintf(stderr, "[Test] $16C4 player one banner diverged\n");
+        return 1;
+    }
+    allstar_postgame_banner_1699(0x08u, 0x01u, 2u, &banner);
+    if (banner.name_source != 0xC255u) {
+        fprintf(stderr, "[Test] $16CA player two name source diverged\n");
+        return 1;
+    }
+    /* $16D1: only H-O-R-S-E trims the leading spaces, and it moves the line. */
+    allstar_postgame_banner_1699(0x08u, ALLSTAR_BANNER_HORSE_MODE, 1u,
+                                 &banner);
+    if (!banner.trims_spaces || banner.d != 0x02u || banner.e != 0x0Au) {
+        fprintf(stderr, "[Test] $16EC H-O-R-S-E banner placement diverged\n");
+        return 1;
+    }
+    /* $16C2: in H-O-R-S-E a zero $C17D is not a tie, it is still nothing. */
+    allstar_postgame_banner_1699(0x08u, ALLSTAR_BANNER_HORSE_MODE, 0u,
+                                 &banner);
+    if (banner.kind != ALLSTAR_BANNER_BLANK) {
+        fprintf(stderr, "[Test] $16B6 called an unfinished H-O-R-S-E a tie\n");
+        return 1;
+    }
+
+    /* Every frame the counter advances, the banner alternates. */
+    {
+        uint8_t counter = 0u;
+        int on = 0;
+        int off = 0;
+        for (i = 0; i < 32; i++) {
+            allstar_frame_body_276d(0x02u, 0u, counter, 0u, &body);
+            counter = body.frame_counter;
+            allstar_postgame_banner_1699((uint8_t)(counter & 0x08u), 0x01u,
+                                         1u, &banner);
+            if (banner.kind == ALLSTAR_BANNER_BLANK) off++; else on++;
+        }
+        if (on != 16 || off != 16) {
+            fprintf(stderr,
+                    "[Test] $FF8B flash was %d on / %d off over 32 frames\n",
+                    on, off);
+            return 1;
+        }
+    }
+
+    printf("  $2729 stalls role $03 without even copying OAM; $276D swaps "
+           "the pad/link order by role\n");
+    printf("  $0271 holds the credits 240 frames and only on a cold boot\n");
+    printf("  $1699 flashes 16 on / 16 off against the $FF8B counter $276D "
+           "increments\n");
+    printf("[Test] PASSED: $2729, $276D, $279E, $0271, $1F7A, $1FA4, $1FE1, "
+           "$1699\n");
     return 0;
 }
 
@@ -7961,6 +8231,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_pad_rom();
     failed += allstar_cli_test_defense_jump_rom();
     failed += allstar_cli_test_title_music_rom();
+    failed += allstar_cli_test_frame_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -8107,6 +8378,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_defense_jump_rom();
     } else if (strcmp(cmd, "--test-title-music") == 0) {
         return allstar_cli_test_title_music_rom();
+    } else if (strcmp(cmd, "--test-frame") == 0) {
+        return allstar_cli_test_frame_rom();
     } else if (strcmp(cmd, "--export-title-music") == 0) {
         AllStarAssetPack pack;
         if (argc < 4) {

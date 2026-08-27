@@ -356,4 +356,42 @@ typedef struct {
 /* $1554..$15AA: two three-row boxes that swap rows as the selection moves. */
 int allstar_postgame_chooser_layout(uint8_t selection, AllStarPostgameChooserCell *out, int max);
 
+/* ---- $1699..$16F1: the flashing winner banner ---- */
+
+#define ALLSTAR_BANNER_WINS_TEXT   0x16F2u  /* $16D7, "WINS" + $84   */
+#define ALLSTAR_BANNER_WINS_BYTES  0x0005u  /* $16DA, bc for $0496   */
+#define ALLSTAR_BANNER_TIE_TEXT    0x16F7u  /* $16BB, "A TIE" + $84  */
+#define ALLSTAR_BANNER_BLANK_TEXT  0x16FDu  /* $169C, fifteen spaces */
+#define ALLSTAR_BANNER_NAME_BUFFER 0xC1D3u  /* $16E0                 */
+#define ALLSTAR_BANNER_HORSE_MODE  0x02u    /* $16A4, $FF8F          */
+
+/*
+ * The caller passes `$FF8B & $08`, so the banner alternates with the frame
+ * counter $276D increments: eight frames of the message, eight of the blank
+ * line.  That is the flash.
+ */
+typedef enum {
+    ALLSTAR_BANNER_BLANK = 0,  /* $169C, the off half of the flash */
+    ALLSTAR_BANNER_TIE,        /* $16BB                            */
+    ALLSTAR_BANNER_NAME_WINS   /* $16C4, "<name> WINS"             */
+} AllStarBannerKind;
+
+typedef struct {
+    AllStarBannerKind kind;
+    uint16_t source;      /* what HL is left pointing at for $06C0 */
+    uint8_t d;            /* $06C0's row/column pair               */
+    uint8_t e;
+    uint16_t name_source; /* $16C4/$16CA, whose name is copied     */
+    bool trims_spaces;    /* $16D1 calls $1769 in H-O-R-S-E only   */
+    bool copies_name;     /* $16D4 calls $170D                     */
+} AllStarBanner;
+
+/*
+ * $1699.  `flash` is the caller's `$FF8B & $08`; `mode` is $FF8F; `winner` is
+ * the value $28E1 returns outside H-O-R-S-E, or $C17D inside it.  Zero means
+ * nobody has won yet and the line reads as a tie.
+ */
+void allstar_postgame_banner_1699(uint8_t flash, uint8_t mode, uint8_t winner,
+                                  AllStarBanner *out);
+
 #endif /* ALLSTAR_POSTGAME_H */

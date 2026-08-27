@@ -709,3 +709,42 @@ int allstar_postgame_chooser_layout(uint8_t selection, AllStarPostgameChooserCel
     }
     return count;
 }
+
+/* $1699..$16F1 */
+void allstar_postgame_banner_1699(uint8_t flash, uint8_t mode, uint8_t winner,
+                                  AllStarBanner *out) {
+    bool horse;
+    if (!out) return;
+
+    horse = mode == ALLSTAR_BANNER_HORSE_MODE;
+
+    out->kind = ALLSTAR_BANNER_BLANK;
+    out->source = ALLSTAR_BANNER_BLANK_TEXT;
+    out->name_source = 0u;
+    out->trims_spaces = false;
+    out->copies_name = false;
+    /* $169F/$16A8: H-O-R-S-E puts the line somewhere else on the map. */
+    out->d = horse ? 0x02u : 0x03u;
+    out->e = horse ? 0x0Au : 0x02u;
+
+    if (flash == 0) return;                                     /* $169A */
+
+    /* $16AD-$16C2: outside H-O-R-S-E the winner comes from $28E1, and zero
+       there means the game is still tied. */
+    if (winner == 0) {                                          /* $16C2 */
+        if (horse) return;   /* $C17D was zero; the blank line stands  */
+        out->kind = ALLSTAR_BANNER_TIE;                         /* $16BB */
+        out->source = ALLSTAR_BANNER_TIE_TEXT;
+        out->d = 0x07u;
+        out->e = 0x02u;
+        return;
+    }
+
+    /* $16C4-$16CA: player one's name lives at $C23C, player two's at $C255. */
+    out->kind = ALLSTAR_BANNER_NAME_WINS;
+    out->name_source = (winner == 1u) ? 0xC23Cu : 0xC255u;
+    out->trims_spaces = horse;                                  /* $16D1 */
+    out->copies_name = true;                                    /* $16D4 */
+    /* $16E0: the assembled "<name> WINS" is read back out of $C1D3. */
+    out->source = ALLSTAR_BANNER_NAME_BUFFER;
+}

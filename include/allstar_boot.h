@@ -79,4 +79,61 @@ typedef struct {
 
 void allstar_title_confirm(uint8_t players, AllStarTitleConfirm *out);
 
+/* ---- $0271..$029B: the copyright screen ---- */
+
+#define ALLSTAR_CREDITS_FRAMES    0x00F0u  /* $0292, 240 frames = ~4.0 s   */
+#define ALLSTAR_CREDITS_TILES     0x640Fu  /* $0279, bank 1 -> $9000       */
+#define ALLSTAR_CREDITS_TILEMAP   0x4000u  /* $0285, bank 3 -> $9800       */
+#define ALLSTAR_CREDITS_LCDC      0x81u    /* $028E                        */
+
+/*
+ * $0271.  The copyright screen is shown for a fixed 240 frames and then falls
+ * through to the title.  It is gated on $C191, the warm-boot flag, so it runs
+ * on a cold start only -- and because $0263 sends every finished game back
+ * through $0156, the second and later games of a session skip it entirely.
+ */
+typedef struct {
+    bool shown;             /* $0274, only while $C191 is clear */
+    uint16_t hold_frames;   /* $0292                            */
+    uint8_t tile_bank;      /* $0276                            */
+    uint8_t tilemap_bank;   /* $0282                            */
+} AllStarCreditsScreen;
+
+void allstar_credits_screen_0271(uint8_t warm_flag,
+                                 AllStarCreditsScreen *out);
+
+/* ---- $1F7A..$1FE0: leaving a game, and resetting to the title ---- */
+
+/*
+ * $1F7A.  Run before the title is drawn.  Zeroing both sound mailboxes is what
+ * actually stops the music: $DD73 is the song command $029C later re-posts as
+ * $81, and $DD72 is the effect command.
+ */
+#define ALLSTAR_TEARDOWN_CLEARED  6
+
+const uint16_t* allstar_teardown_cleared_1f7a(int *count);
+
+/*
+ * $1FA4.  The full return to the title.  LCDC keeps only bit 7, the player
+ * count goes back to one, $048B wipes the $C000 OAM shadow, a dozen link and
+ * presentation bytes are cleared, and $C12C is left at one.
+ */
+#define ALLSTAR_TITLE_RESET_CLEARED 12
+#define ALLSTAR_TITLE_RESET_LCDC_MASK 0x80u  /* $1FA9 */
+#define ALLSTAR_TITLE_RESET_OAM_SHADOW 0xC000u
+#define ALLSTAR_TITLE_RESET_OAM_BYTES  0x00A0u /* $048B..$0495, 160 bytes */
+
+const uint16_t* allstar_title_reset_cleared_1fa4(int *count);
+
+/*
+ * $1FE1.  The serial reset both of the above run first: SC and SB are cleared,
+ * the role and the three handshake bytes go to zero, and $C1A0 is seeded with
+ * $B3 before control passes to $2FE3.
+ */
+#define ALLSTAR_SERIAL_RESET_SEED 0xB3u    /* $1FF2, into $C1A0 */
+#define ALLSTAR_SERIAL_RESET_TAIL 0x2FE3u  /* $1FF7             */
+#define ALLSTAR_SERIAL_RESET_CLEARED 6
+
+const uint16_t* allstar_serial_reset_cleared_1fe1(int *count);
+
 #endif /* ALLSTAR_BOOT_H */

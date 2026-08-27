@@ -93,3 +93,10 @@ $2639 polls -> $C16E -> $2FD0 sends -> the peer's $007B receives into $C19B
 
 `--test-pad` proves the coupling by feeding the dispatch result straight into
 `allstar_link_transmit` rather than by comparing constants.
+
+## `$279E` can substitute the byte on the wire
+
+`$276D` calls `$279E` before `$2FD0`. In modes `$01` and `$03` with two players
+and `$FF90` set it swaps `$C18D` into `$C16E` for exactly one transmit and puts
+the real pad byte back afterwards. `$276D` also decides, from the role, whether
+the send happens before or after the pad poll. See `FRAME_SPINE.md`.

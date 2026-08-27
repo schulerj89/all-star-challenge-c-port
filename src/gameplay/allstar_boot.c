@@ -63,3 +63,63 @@ void allstar_title_confirm(uint8_t players, AllStarTitleConfirm *out) {
     out->role = 0x01u;                                              /* $0329 */
     out->attempts = 0x0Au;                                          /* $0322 */
 }
+
+/* $0271..$029B */
+void allstar_credits_screen_0271(uint8_t warm_flag,
+                                 AllStarCreditsScreen *out) {
+    if (!out) return;
+    out->hold_frames = ALLSTAR_CREDITS_FRAMES;                  /* $0292 */
+    out->tile_bank = 1u;                                        /* $0276 */
+    out->tilemap_bank = 3u;                                     /* $0282 */
+    /* $0271-$0275: a warm boot returns before any of it runs. */
+    out->shown = warm_flag == 0;
+    if (!out->shown) out->hold_frames = 0u;
+}
+
+/* $1F80..$1F91: what the teardown zeroes, in ROM order. */
+const uint16_t* allstar_teardown_cleared_1f7a(int *count) {
+    static const uint16_t cleared[ALLSTAR_TEARDOWN_CLEARED] = {
+        0xDD72u,  /* $1F81, the effect command  */
+        0xDD73u,  /* $1F84, the song command    */
+        0xC194u,  /* $1F87                      */
+        0xC193u,  /* $1F8A                      */
+        0xFF90u,  /* $1F8D                      */
+        0xC19Au   /* $1F8F                      */
+    };
+    if (count) *count = ALLSTAR_TEARDOWN_CLEARED;
+    return cleared;
+}
+
+/* $1FBB..$1FD9: what the title reset zeroes, in ROM order. */
+const uint16_t* allstar_title_reset_cleared_1fa4(int *count) {
+    static const uint16_t cleared[ALLSTAR_TITLE_RESET_CLEARED] = {
+        0xFFE5u,  /* $1FBC */
+        0xFF90u,  /* $1FBE */
+        0xC174u,  /* $1FC0 */
+        0xC16Eu,  /* $1FC3, the outgoing pad byte $2FD0 sends */
+        0xC19Cu,  /* $1FC6 */
+        0xC177u,  /* $1FC9 */
+        0xFFECu,  /* $1FCC */
+        0xC16Fu,  /* $1FCE */
+        0xC170u,  /* $1FD1 */
+        0xC176u,  /* $1FD4, the role $03 stall counter $2729 bumps */
+        0xFFF9u,  /* $1FD7 */
+        0xC18Bu   /* $1FD9, the link-game flag */
+    };
+    if (count) *count = ALLSTAR_TITLE_RESET_CLEARED;
+    return cleared;
+}
+
+/* $1FE1..$1FF1: what the serial reset zeroes, in ROM order. */
+const uint16_t* allstar_serial_reset_cleared_1fe1(int *count) {
+    static const uint16_t cleared[ALLSTAR_SERIAL_RESET_CLEARED] = {
+        0xFF02u,  /* $1FE2, SC */
+        0xFF01u,  /* $1FE4, SB */
+        0xC199u,  /* $1FE6, the role the whole serial layer keys on */
+        0xC19Du,  /* $1FE9 */
+        0xC19Eu,  /* $1FEC */
+        0xC19Fu   /* $1FEF */
+    };
+    if (count) *count = ALLSTAR_SERIAL_RESET_CLEARED;
+    return cleared;
+}

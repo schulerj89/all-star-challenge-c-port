@@ -43,6 +43,7 @@ set(ALLSTAR_CORE_SOURCES
     src/gameplay/allstar_handshake.c
     src/gameplay/allstar_session.c
     src/gameplay/allstar_pad.c
+    src/gameplay/allstar_frame.c
     src/audio/allstar_voice_state.c
     src/audio/allstar_apu_program.c
     src/scenes/scene_intro.c

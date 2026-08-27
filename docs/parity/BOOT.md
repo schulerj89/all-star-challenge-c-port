@@ -134,3 +134,11 @@ This ports the wipe layout, the preserved words, the reset notification, the
 title toggle, the confirm branch, both handshake entries, the attract setup and
 the session sequence.
 The bank 2 selector's own attract behaviour was ported earlier as `$2D85`.
+
+## The copyright screen and the returns, added 2026-08-27
+
+`$01F1`'s loop calls `$1F7A` and `$0271` once before it starts, and `$1FA4` at
+the top of every pass. `$0271` is the copyright screen: 240 frames, and gated on
+`$C191` so it runs on a cold boot only. `$1FA4` is the full return to the title
+and `$1FE1` the serial reset both it and `$1F7A` run first. See
+`FRAME_SPINE.md`, which also covers the vblank handler that drives all of it.

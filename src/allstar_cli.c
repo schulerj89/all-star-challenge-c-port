@@ -11,6 +11,7 @@
 #include "allstar_tournament.h"
 #include "allstar_postgame.h"
 #include "allstar_select.h"
+#include "allstar_shot_result.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2248,6 +2249,194 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM rim and backboard outcomes, from the $1AF9 table, the $1B3F..$1BBC
+ * handlers and the bounce routine at $1E74.
+ */
+int allstar_cli_test_shot_result_rom(void) {
+    static const uint16_t TABLE[ALLSTAR_SHOT_RESULT_SLOTS] = {
+        0x1BA7u, 0x1B3Fu, 0x1E74u, 0x1B93u, 0x1B53u, 0x1BBDu,
+        0x1B59u, 0x1B99u, 0x1E74u, 0x1B45u, 0x1BADu
+    };
+    AllStarShotHandler handler;
+    AllStarShotSettle settle;
+    AllStarShotScore score;
+    const uint16_t *table;
+    uint8_t timer;
+    uint8_t remaining;
+    uint8_t bounces;
+    uint8_t height;
+    bool clears;
+    bool sets_c128;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Shot Result Tests ($1AF9/$1B3F/$1E74)...\n");
+
+    table = allstar_shot_result_table(&count);
+    if (count != ALLSTAR_SHOT_RESULT_SLOTS) {
+        fprintf(stderr, "[Test] $1AF9 has %d slots, expected %d\n", count, ALLSTAR_SHOT_RESULT_SLOTS);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != TABLE[i]) {
+            fprintf(stderr, "[Test] $1AF9 slot %d is $%04X, expected $%04X\n", i, table[i], TABLE[i]);
+            return 1;
+        }
+    }
+
+    /* $1B3F..$1BBC: mirrored velocity pairs, except the settle pair. */
+    if (!allstar_shot_handler(0x1B3Fu, &handler) || handler.velocity != -50 ||
+        handler.route != ALLSTAR_SHOT_ROUTE_BOUNCE) {
+        fprintf(stderr, "[Test] $1B3F diverged\n");
+        return 1;
+    }
+    if (!allstar_shot_handler(0x1B45u, &handler) || handler.velocity != 50) {
+        fprintf(stderr, "[Test] $1B45 diverged\n");
+        return 1;
+    }
+    if (!allstar_shot_handler(0x1B93u, &handler) || handler.velocity != 110 ||
+        !allstar_shot_handler(0x1B99u, &handler) || handler.velocity != -110) {
+        fprintf(stderr, "[Test] $1B93/$1B99 diverged\n");
+        return 1;
+    }
+    /* $1BA7 and $1BAD carry the same magnitudes but skip $1E74 entirely. */
+    if (!allstar_shot_handler(0x1BA7u, &handler) || handler.velocity != -110 ||
+        handler.route != ALLSTAR_SHOT_ROUTE_CUE ||
+        !allstar_shot_handler(0x1BADu, &handler) || handler.velocity != 110 ||
+        handler.route != ALLSTAR_SHOT_ROUTE_CUE) {
+        fprintf(stderr, "[Test] $1BA7/$1BAD route diverged\n");
+        return 1;
+    }
+    /* The settle pair is not symmetric: +165 against -147. */
+    if (!allstar_shot_handler(0x1B53u, &handler) || handler.velocity != 165 ||
+        handler.route != ALLSTAR_SHOT_ROUTE_SETTLE ||
+        !allstar_shot_handler(0x1B59u, &handler) || handler.velocity != -147 ||
+        handler.route != ALLSTAR_SHOT_ROUTE_SETTLE) {
+        fprintf(stderr, "[Test] $1B53/$1B59 settle pair diverged\n");
+        return 1;
+    }
+    if (allstar_shot_handler(0x1BBDu, &handler)) {
+        fprintf(stderr, "[Test] $1BBD is not one of these handlers\n");
+        return 1;
+    }
+
+    /* $1B64: a rightward settle resets the vertical velocity and counts nothing. */
+    bounces = 0u; height = 40u;
+    allstar_shot_settle(165, &bounces, &height, &settle);
+    if (settle.counts_bounce || settle.lowers_height || !settle.resets_vertical ||
+        bounces != 0u || height != 40u) {
+        fprintf(stderr, "[Test] $1B7E rightward settle diverged\n");
+        return 1;
+    }
+    /* The first leftward bounce counts but still resets. */
+    allstar_shot_settle(-147, &bounces, &height, &settle);
+    if (!settle.counts_bounce || settle.lowers_height || !settle.resets_vertical ||
+        bounces != 1u || height != 40u) {
+        fprintf(stderr, "[Test] $1B68 first leftward bounce diverged\n");
+        return 1;
+    }
+    /* The second drops the height by three and takes the other exit. */
+    allstar_shot_settle(-147, &bounces, &height, &settle);
+    if (!settle.lowers_height || settle.resets_vertical ||
+        bounces != 2u || height != 37u) {
+        fprintf(stderr, "[Test] $1B73 second bounce gave count %u height %u\n", bounces, height);
+        return 1;
+    }
+
+    /* $1E7A: two's-complement reversal. */
+    if (allstar_shot_reverse(1000) != -1000 || allstar_shot_reverse(-1000) != 1000 ||
+        allstar_shot_reverse(0) != 0) {
+        fprintf(stderr, "[Test] $1E80 reversal diverged\n");
+        return 1;
+    }
+
+    /* $1E8F: Free Throw damps hard only while $C0AB is clear. */
+    if (allstar_shot_damping(1u, 0u, 0u, &clears, &sets_c128) != ALLSTAR_SHOT_DAMP_FREETHROW ||
+        clears || !sets_c128) {
+        fprintf(stderr, "[Test] $1EA2 free-throw damping diverged\n");
+        return 1;
+    }
+    if (allstar_shot_damping(1u, 1u, 0u, &clears, &sets_c128) != ALLSTAR_SHOT_DAMP_NORMAL ||
+        !sets_c128) {
+        fprintf(stderr, "[Test] $1EAA suppressed free-throw damping diverged\n");
+        return 1;
+    }
+    /* Outside Free Throw a pending $FFD4 damps hardest and is consumed. */
+    if (allstar_shot_damping(0u, 0u, 1u, &clears, &sets_c128) != ALLSTAR_SHOT_DAMP_HEAVY ||
+        !clears || sets_c128) {
+        fprintf(stderr, "[Test] $1EB8 heavy damping diverged\n");
+        return 1;
+    }
+    if (allstar_shot_damping(0u, 1u, 1u, &clears, NULL) != ALLSTAR_SHOT_DAMP_NORMAL || clears) {
+        fprintf(stderr, "[Test] $1EAD suppression must beat the $FFD4 request\n");
+        return 1;
+    }
+    if (allstar_shot_damping(0u, 0u, 0u, &clears, NULL) != ALLSTAR_SHOT_DAMP_NORMAL) {
+        fprintf(stderr, "[Test] $1EAA default damping diverged\n");
+        return 1;
+    }
+
+    /* $1ECC: fifteen frames per rim step. */
+    timer = 3u; remaining = 2u;
+    if (allstar_shot_tick(&timer, &remaining) != ALLSTAR_SHOT_TICK_WAIT || timer != 2u ||
+        allstar_shot_tick(&timer, &remaining) != ALLSTAR_SHOT_TICK_WAIT || timer != 1u) {
+        fprintf(stderr, "[Test] $1ECF countdown diverged\n");
+        return 1;
+    }
+    if (allstar_shot_tick(&timer, &remaining) != ALLSTAR_SHOT_TICK_ADVANCE ||
+        timer != ALLSTAR_SHOT_RIM_RELOAD || remaining != 1u) {
+        fprintf(stderr, "[Test] $1ED1 reload gave timer %u remaining %u\n", timer, remaining);
+        return 1;
+    }
+    timer = 1u; remaining = 0u;
+    if (allstar_shot_tick(&timer, &remaining) != ALLSTAR_SHOT_TICK_IDLE ||
+        timer != ALLSTAR_SHOT_RIM_RELOAD || remaining != 0u) {
+        fprintf(stderr, "[Test] $1ED7 idle path diverged\n");
+        return 1;
+    }
+
+    /* $1EF4: the cue threshold is three, or two when $C12A is set. */
+    allstar_shot_outcome(3u, 0u, 1u, 0u, &score);
+    if (score.outcome != ALLSTAR_SHOT_RIM_CUE || score.sound != ALLSTAR_SHOT_SOUND_RIM) {
+        fprintf(stderr, "[Test] $1F26 rim cue at three diverged\n");
+        return 1;
+    }
+    allstar_shot_outcome(3u, 1u, 1u, 0u, &score);
+    if (score.outcome != ALLSTAR_SHOT_NOTHING) {
+        fprintf(stderr, "[Test] $1EFC moved the threshold the wrong way\n");
+        return 1;
+    }
+    allstar_shot_outcome(2u, 1u, 1u, 0u, &score);
+    if (score.outcome != ALLSTAR_SHOT_RIM_CUE) {
+        fprintf(stderr, "[Test] $1EFC two-step cue diverged\n");
+        return 1;
+    }
+
+    /* $1F06: the score lands only at zero, on the shooter's word. */
+    allstar_shot_outcome(1u, 0u, 1u, 0u, &score);
+    if (score.outcome != ALLSTAR_SHOT_NOTHING) {
+        fprintf(stderr, "[Test] $1F04 scored before the counter ran out\n");
+        return 1;
+    }
+    allstar_shot_outcome(0u, 0u, 1u, 0u, &score);
+    if (score.outcome != ALLSTAR_SHOT_SCORE || score.sound != ALLSTAR_SHOT_SOUND_SCORE ||
+        score.score_address != ALLSTAR_SHOT_SCORE_1 || score.points != 2u) {
+        fprintf(stderr, "[Test] $1F12 player 1 two-point score diverged\n");
+        return 1;
+    }
+    allstar_shot_outcome(0u, 0u, 2u, 1u, &score);
+    if (score.score_address != ALLSTAR_SHOT_SCORE_2 || score.points != 3u) {
+        fprintf(stderr, "[Test] $1F17 player 2 three-point score diverged\n");
+        return 1;
+    }
+
+    printf("  rim velocities come in mirrored pairs; the settle pair is +165 against -147\n");
+    printf("  $1E74 reverses the vertical word, damps by -57/-250/-300, then scores 2 or 3\n");
+    printf("[Test] PASSED: $1AF9, $1B3F, $1B45, $1B53, $1B59, $1B93, $1B99, $1BA7, $1BAD, $1C12, $1E74\n");
     return 0;
 }
 
@@ -5494,6 +5683,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_select_rom();
     failed += allstar_cli_test_select_card_rom();
     failed += allstar_cli_test_select_records_rom();
+    failed += allstar_cli_test_shot_result_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -5610,6 +5800,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_select_card_rom();
     } else if (strcmp(cmd, "--test-select-records") == 0) {
         return allstar_cli_test_select_records_rom();
+    } else if (strcmp(cmd, "--test-shot-result") == 0) {
+        return allstar_cli_test_shot_result_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

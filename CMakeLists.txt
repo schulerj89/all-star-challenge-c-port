@@ -30,6 +30,7 @@ set(ALLSTAR_CORE_SOURCES
     src/gameplay/allstar_tournament.c
     src/gameplay/allstar_postgame.c
     src/gameplay/allstar_select.c
+    src/gameplay/allstar_shot_result.c
     src/scenes/scene_intro.c
     src/scenes/scene_menu.c
     src/scenes/scene_settings.c

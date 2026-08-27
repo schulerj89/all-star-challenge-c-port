@@ -66,4 +66,18 @@ AllStarWatchdogResult allstar_watchdog(uint8_t attract, uint8_t suppress,
                                        uint8_t held, uint8_t attract_armed,
                                        uint8_t new_buttons, uint16_t *countdown);
 
+/* ---- small helpers swept up with the rest ---- */
+
+#define ALLSTAR_BUSY_WAIT_COUNT 0x02BCu  /* $0386 */
+
+/* $0386..$038E: a plain busy loop of $02BC iterations. */
+uint16_t allstar_busy_wait_count(void);
+
+/* $718F: the no-op slot modes $01 and $03 take in the bank 1 $7185 table. */
+void allstar_bank1_mode_noop(void);
+
+/* $331A..$3325: c doubled indexes the $3111 table, whose entry is added to $DD7A. */
+#define ALLSTAR_SOUND_OFFSET_TABLE 0x3111u
+uint16_t allstar_sound_offset_slot(uint8_t channel);
+
 #endif /* ALLSTAR_SYSTEM_H */

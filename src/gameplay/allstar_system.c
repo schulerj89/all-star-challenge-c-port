@@ -116,3 +116,17 @@ AllStarWatchdogResult allstar_watchdog(uint8_t attract, uint8_t suppress,
     }
     return ALLSTAR_WATCHDOG_CONTINUE;
 }
+
+/* $0386..$038E */
+uint16_t allstar_busy_wait_count(void) {
+    return ALLSTAR_BUSY_WAIT_COUNT;
+}
+
+/* $718F */
+void allstar_bank1_mode_noop(void) {
+}
+
+/* $331A..$3323: `ld a,c / rlca` doubles the channel before indexing. */
+uint16_t allstar_sound_offset_slot(uint8_t channel) {
+    return (uint16_t)(ALLSTAR_SOUND_OFFSET_TABLE + (uint16_t)((uint8_t)(channel << 1)));
+}

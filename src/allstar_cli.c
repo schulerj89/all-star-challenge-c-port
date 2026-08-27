@@ -19,6 +19,7 @@
 #include "allstar_voice_state.h"
 #include "allstar_settings_screen.h"
 #include "allstar_system.h"
+#include "allstar_link.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2256,6 +2257,163 @@ int allstar_cli_test_one_on_one_shooting(void) {
     allstar_game_shutdown(&game);
 
     printf("[Test] PASSED: shooting, steals, contest jumps, ROM no-goaltend behavior, and recovery\n");
+    return 0;
+}
+
+/*
+ * ROM serial link layer, from the $267F, $2FD0..$2FFF and $2718 disassembly.
+ */
+int allstar_cli_test_link_rom(void) {
+    static const uint16_t SEND[ALLSTAR_LINK_SEND_SLOTS] = {
+        0x2FE2u, 0x2FE8u, 0x2FF1u, 0x2FF6u
+    };
+    AllStarLinkInject rx;
+    AllStarLinkTransmit tx;
+    AllStarLinkPadRefresh pad;
+    const uint16_t *table;
+    int count;
+    int i;
+
+    printf("[Test] Running ROM Serial Link Tests ($267F/$2FD0/$2718)...\n");
+
+    /* $269B: a solo game injects nothing. */
+    allstar_link_receive(1u, 0u, 0u, 0u, 0u, 0x3Cu, 0x00u, &rx);
+    if (rx.target != ALLSTAR_LINK_RX_NOTHING) {
+        fprintf(stderr, "[Test] $269F injected in a solo game\n");
+        return 1;
+    }
+
+    /*
+     * $26AA vs $26B8: the received byte is the *other* player's input, so a
+     * cartridge that is player 2 writes it into pad 1 and vice versa.
+     */
+    allstar_link_receive(1u, 0u, 0u, 0u, ALLSTAR_LINK_ROLE_PLAYER_2, 0x3Cu, 0x00u, &rx);
+    if (rx.target != ALLSTAR_LINK_RX_PAD_1) {
+        fprintf(stderr, "[Test] $26AA player 2 did not write pad 1\n");
+        return 1;
+    }
+    allstar_link_receive(1u, 0u, 0u, 0u, 0x01u, 0x3Cu, 0x00u, &rx);
+    if (rx.target != ALLSTAR_LINK_RX_PAD_2) {
+        fprintf(stderr, "[Test] $26B8 player 1 did not write pad 2\n");
+        return 1;
+    }
+
+    /* $26AE: pressed is (held ^ received) & received, so only new bits count. */
+    allstar_link_receive(1u, 0u, 0u, 0u, 0x01u, 0x0Fu, 0x03u, &rx);
+    if (rx.held != 0x0Fu || rx.pressed != 0x0Cu) {
+        fprintf(stderr, "[Test] $26B0 edge detect gave held $%02X pressed $%02X\n",
+                rx.held, rx.pressed);
+        return 1;
+    }
+    /* Holding the same bits reports nothing newly pressed. */
+    allstar_link_receive(1u, 0u, 0u, 0u, 0x01u, 0x0Fu, 0x0Fu, &rx);
+    if (rx.pressed != 0x00u) {
+        fprintf(stderr, "[Test] $26B0 reported a repeat as newly pressed\n");
+        return 1;
+    }
+    /* Releasing bits never shows up as a press. */
+    allstar_link_receive(1u, 0u, 0u, 0u, 0x01u, 0x00u, 0x0Fu, &rx);
+    if (rx.pressed != 0x00u || rx.held != 0x00u) {
+        fprintf(stderr, "[Test] $26B0 turned a release into a press\n");
+        return 1;
+    }
+
+    /* $2685: a dropped link clears the received byte before anything uses it. */
+    allstar_link_receive(0u, 0u, 0u, 0u, 0x01u, 0xFFu, 0x00u, &rx);
+    if (!rx.clears_received || rx.held != 0x00u || rx.pressed != 0x00u) {
+        fprintf(stderr, "[Test] $2685 did not clear the received byte\n");
+        return 1;
+    }
+
+    /* $2694: a link game that is mid-update hands off to $2EE5. */
+    allstar_link_receive(1u, 1u, 0u, 1u, 0x01u, 0x3Cu, 0x00u, &rx);
+    if (rx.target != ALLSTAR_LINK_RX_DIVERT) {
+        fprintf(stderr, "[Test] $2698 did not divert\n");
+        return 1;
+    }
+    /* Neither condition alone diverts. */
+    allstar_link_receive(1u, 1u, 0u, 0u, 0x01u, 0x3Cu, 0x00u, &rx);
+    if (rx.target == ALLSTAR_LINK_RX_DIVERT) {
+        fprintf(stderr, "[Test] $2694 diverted without a link game\n");
+        return 1;
+    }
+    allstar_link_receive(1u, 0u, 0u, 1u, 0x01u, 0x3Cu, 0x00u, &rx);
+    if (rx.target == ALLSTAR_LINK_RX_DIVERT) {
+        fprintf(stderr, "[Test] $268F diverted while idle\n");
+        return 1;
+    }
+
+    /* $2FDA: the send table is indexed by the same role byte. */
+    table = allstar_link_send_table(&count);
+    if (count != ALLSTAR_LINK_SEND_SLOTS) {
+        fprintf(stderr, "[Test] $2FDA has %d slots\n", count);
+        return 1;
+    }
+    for (i = 0; i < count; i++) {
+        if (table[i] != SEND[i]) {
+            fprintf(stderr, "[Test] $2FDA slot %d is $%04X, expected $%04X\n", i, table[i], SEND[i]);
+            return 1;
+        }
+    }
+
+    /* $2FD4: a dropped link sends a zero. */
+    allstar_link_transmit(0u, 0x02u, 0x5Au, 0u, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_ZERO || !tx.transmits || tx.byte != 0x00u) {
+        fprintf(stderr, "[Test] $2FD4 dropped-link send diverged\n");
+        return 1;
+    }
+    /* Role $00 sends nothing at all. */
+    allstar_link_transmit(1u, 0x00u, 0x5Au, 0u, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_IDLE || tx.transmits) {
+        fprintf(stderr, "[Test] $2FE2 role 0 transmitted\n");
+        return 1;
+    }
+    /* Role $01 sends the $D5 sync byte. */
+    allstar_link_transmit(1u, 0x01u, 0x5Au, 0u, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_SYNC || tx.byte != ALLSTAR_LINK_SYNC_BYTE) {
+        fprintf(stderr, "[Test] $2FED sync byte diverged, got $%02X\n", tx.byte);
+        return 1;
+    }
+    /* ...unless a serial interrupt is still pending. */
+    allstar_link_transmit(1u, 0x01u, 0x5Au, ALLSTAR_LINK_IF_SERIAL, &tx);
+    if (tx.transmits) {
+        fprintf(stderr, "[Test] $2FEA sent while an interrupt was pending\n");
+        return 1;
+    }
+    /* Roles $02 and $03 send the state byte from $C16E. */
+    allstar_link_transmit(1u, 0x02u, 0x5Au, 0u, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_STATE || tx.byte != 0x5Au) {
+        fprintf(stderr, "[Test] $2FF1 state send diverged\n");
+        return 1;
+    }
+    allstar_link_transmit(1u, 0x03u, 0x5Au, ALLSTAR_LINK_IF_SERIAL, &tx);
+    if (tx.kind != ALLSTAR_LINK_TX_STATE || tx.byte != 0x5Au) {
+        fprintf(stderr, "[Test] $2FF6 must ignore the interrupt flag\n");
+        return 1;
+    }
+
+    /* $2718: both pad 2 bytes take the same merged value. */
+    allstar_link_refresh_pad_2(0x02u, 0x30u, 0x0Cu, &pad);
+    if (pad.context != 0x02u || pad.held != 0x3Cu || pad.pressed != 0x3Cu) {
+        fprintf(stderr, "[Test] $2724 pad refresh gave $%02X/$%02X\n", pad.held, pad.pressed);
+        return 1;
+    }
+
+    /* The strays swept up alongside. */
+    if (allstar_busy_wait_count() != ALLSTAR_BUSY_WAIT_COUNT) {
+        fprintf(stderr, "[Test] $0386 loop count diverged\n");
+        return 1;
+    }
+    allstar_bank1_mode_noop();
+    if (allstar_sound_offset_slot(0u) != ALLSTAR_SOUND_OFFSET_TABLE ||
+        allstar_sound_offset_slot(3u) != (uint16_t)(ALLSTAR_SOUND_OFFSET_TABLE + 6u)) {
+        fprintf(stderr, "[Test] $331B channel doubling diverged\n");
+        return 1;
+    }
+
+    printf("  the received byte drives the other player's pad, so role $03 writes pad 1\n");
+    printf("  role $01 sends $D5 unless a serial interrupt is pending; $02 and $03 send $C16E\n");
+    printf("[Test] PASSED: $267F, $2718, $2FD0, $2FE2, $2FE8, $2FF1, $2FF6, $2FF9, $0386, $331A, $718F\n");
     return 0;
 }
 
@@ -6499,6 +6657,7 @@ int allstar_cli_test_all(void) {
     failed += allstar_cli_test_status_panel_rom();
     failed += allstar_cli_test_menu_voice_rom();
     failed += allstar_cli_test_shell_rom();
+    failed += allstar_cli_test_link_rom();
     failed += allstar_cli_test_tournament_rom();
     failed += allstar_cli_test_tournament();
     failed += allstar_cli_test_headless_frames();
@@ -6627,6 +6786,8 @@ int allstar_cli_main(int argc, char **argv) {
         return allstar_cli_test_menu_voice_rom();
     } else if (strcmp(cmd, "--test-shell") == 0) {
         return allstar_cli_test_shell_rom();
+    } else if (strcmp(cmd, "--test-link") == 0) {
+        return allstar_cli_test_link_rom();
     } else if (strcmp(cmd, "--test-headless-frames") == 0) {
         return allstar_cli_test_headless_frames();
     } else if (strcmp(cmd, "--test-all") == 0) {

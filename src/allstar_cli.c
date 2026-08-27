@@ -2414,11 +2414,60 @@ int allstar_cli_test_rom_art(void) {
         free(pack);
         return 1;
     }
-    /* $4199 fills the portrait map with a plain 1..24. */
-    for (i = 0; i < ALLSTAR_ROM_PORTRAIT_CELLS; i++) {
-        if (art->portrait_cells[i] != (uint8_t)(i + 1)) {
-            fprintf(stderr, "[Test] $4199 portrait cell %d is %u\n", i,
-                    art->portrait_cells[i]);
+    /*
+     * $4199 fills the portrait map with 1..24, but $41B0 then patches it for
+     * any player whose $42A2 byte is not $FF: the named cell is blanked and
+     * every cell after it decrements.  Exactly seven of the 27 take that path,
+     * and missing it leaves those seven with the wrong portrait.
+     */
+    {
+        int patched = 0;
+        int p;
+        for (p = 0; p < ALLSTAR_ROM_PLAYER_ART_COUNT; p++) {
+            const AllStarRomPlayerArt *a = &pack->rom_player_art[p];
+            uint8_t flag = a->portrait_patch;
+            int cell;
+            if (flag == 0xFFu) {
+                /* Untouched: a plain 1..24. */
+                for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++) {
+                    if (a->portrait_cells[cell] != (uint8_t)(cell + 1)) {
+                        fprintf(stderr,
+                                "[Test] player %d cell %d is %u, expected the "
+                                "unpatched %d\n", p, cell,
+                                a->portrait_cells[cell], cell + 1);
+                        free(pack);
+                        return 1;
+                    }
+                }
+                continue;
+            }
+            patched++;
+            if (flag >= ALLSTAR_ROM_PORTRAIT_CELLS ||
+                a->portrait_cells[flag] != 0u) {
+                fprintf(stderr,
+                        "[Test] player %d did not blank cell $%02X\n", p, flag);
+                free(pack);
+                return 1;
+            }
+            /* Before the gap the map is untouched; after it, shifted down. */
+            for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++) {
+                uint8_t want;
+                if (cell == (int)flag) continue;
+                want = cell < (int)flag ? (uint8_t)(cell + 1)
+                                        : (uint8_t)cell;
+                if (a->portrait_cells[cell] != want) {
+                    fprintf(stderr,
+                            "[Test] player %d cell %d is %u, expected %u\n",
+                            p, cell, a->portrait_cells[cell], want);
+                    free(pack);
+                    return 1;
+                }
+            }
+        }
+        if (patched != 7) {
+            fprintf(stderr,
+                    "[Test] $41B0 patched %d portraits, expected 7\n",
+                    patched);
             free(pack);
             return 1;
         }

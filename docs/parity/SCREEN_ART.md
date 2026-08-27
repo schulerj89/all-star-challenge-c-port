@@ -43,37 +43,41 @@ picked by mode, which could not represent the Accuracy and Tournament variants.
 Bank 2 `$418D` indexes a pointer table at `$2D4F` by the roster entry and
 RLE-decodes one stream per player — about 40 tiles.
 
-- **Portrait**: `$4199` fills the cell map with a plain 1..24 and `$41C7` draws
-  it four wide by six tall, so it is simply stream tiles 1 through 24.
-- **Logo**: `$41E7` is more interesting. It walks a per-player list at `$42BD`,
-  terminated by `$FE`, whose entries name cells to leave **blank**; every other
-  cell takes a running counter plus `$18`, or `$19` when that player's `$42A2`
-  byte is `$FF`. `$421D` then draws the first sixteen of those cells four by
-  four. Across the 27 players `$42BD` blanks 42 cells, and twelve players have
-  none at all.
+- **Portrait**: `$4199` fills the cell map with a plain 1..24 — but that is
+  not the whole story. `$41B0` reads a per-player byte from `$42A2` and, unless
+  it is `$FF`, **blanks the cell that byte names and decrements every cell after
+  it**, so the tiles past the gap all shift down by one. Exactly seven of the 27
+  players take that path. `$41C7` then draws the map four wide by six tall.
+- **Logo**: `$41E7` walks a per-player list at `$42BD`, terminated by `$FE`,
+  whose entries name cells to leave **blank**; every other cell takes a running
+  counter plus `$18`, or `$19` when that player's `$42A2` byte is `$FF`.
+  `$421D` then draws the first sixteen of those cells four by four. Across the
+  27 players `$42BD` blanks 42 cells, and twelve players have none at all.
+
+Note that the same `$42A2` byte drives both: `$FF` means no portrait patch and
+a logo base of `$19`; anything else patches the portrait and uses `$18`.
 
 ## Verification
 
 The migration was checked by composing every image from the ROM in a scratch
-decoder and diffing it against the bitmap it replaced:
-
-| | result |
-|---|---|
-| all five screen bitmaps | **pixel-identical** |
-| 27 team logos | **27 of 27 identical** |
-| 27 player portraits | **20 of 27 identical** |
-
-The seven portraits that differed were **wrong in the committed header**, not
-in the extraction — the method reproduces the other twenty exactly with a
-straight identity mapping. Player 0 was off by 182 pixels, which is precisely
-the amount the two roster screenshots changed by:
+decoder and diffing it against the bitmap it replaced. **All five screens, all
+27 logos and all 27 portraits are pixel-identical**, and
 
 ```
-58 of 60 --dump-screenshots captures are byte-identical before and after;
-the two that changed are the player-select screens, both by 182 pixels.
+60 of 60 --dump-screenshots captures are byte-identical before and after.
 ```
 
-So the migration also corrects seven portraits that had been wrong.
+That took two passes, and the first one was wrong in an instructive way. The
+initial extractor treated the portrait map as an unconditional 1..24 and
+reproduced only 20 of 27 portraits. Seven differed, and the tempting conclusion
+— that the committed bitmaps were wrong — was itself wrong. The seven turned
+out to be exactly the seven players whose `$42A2` byte is not `$FF`, which is
+the set `$41B0` patches. The extractor was incomplete; the old bitmaps were
+right all along.
+
+The lesson is worth keeping: a clean correlation between the failures and one
+ROM byte is a much better hypothesis than "the old data was wrong", and it is
+cheap to check.
 
 ```powershell
 .\build\allstar_port.exe --test-rom-art
@@ -81,7 +85,8 @@ So the migration also corrects seven portraits that had been wrong.
 
 The test pins the `$04EF` records, that slot 5 is empty and slot 8 comes from
 bank 1, that every map stays inside its own tile stream, that the settings
-variants share tiles but not maps, and the two cell-map rules above including
-the 42-blank total.
+variants share tiles but not maps, and both cell-map rules — including that
+`$41B0` patches exactly seven portraits, that each patched map is untouched
+before its gap and shifted after it, and that `$42BD` blanks 42 logo cells.
 
 `ALLSTAR_ASSET_VERSION` is now 20; rebuild `allstar.assetpack` from the ROM.

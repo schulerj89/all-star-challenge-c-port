@@ -239,8 +239,10 @@ typedef struct {
  * Per-player portrait and team logo.  Bank 2 $418D indexes the pointer table
  * at $2D4F by the roster entry and RLE-decodes one stream per player.
  *
- * $4199 fills the map with 1..24 and $41C7 draws it four wide by six tall --
- * so the portrait is stream tiles 1 through 24, in order.  The logo is built
+ * $4199 fills the map with 1..24, but that is not the whole story: $41B0
+ * reads a per-player byte from $42A2 and, unless it is $FF, blanks the cell it
+ * names and DECREMENTS every cell after it.  Seven of the 27 players take that
+ * path.  $41C7 then draws the map four wide by six tall.  The logo is built
  * differently: $41E7 walks a per-player list at $42BD whose entries name cells
  * to leave BLANK, and every other cell takes a running counter plus $18 (or
  * $19 when the $42A2 byte is $FF).  $421D then draws the first sixteen of
@@ -260,6 +262,7 @@ typedef struct {
     uint16_t stream_pointer;
     uint8_t tile_count;
     uint8_t logo_base;                 /* $18 or $19, from the $42A2 byte */
+    uint8_t portrait_patch;            /* the raw $42A2 byte; $FF means none */
     AllStarTile tiles[ALLSTAR_ROM_PORTRAIT_MAX_TILES];
     uint8_t portrait_cells[ALLSTAR_ROM_PORTRAIT_CELLS];
     uint8_t logo_cells[ALLSTAR_ROM_PORTRAIT_CELLS];

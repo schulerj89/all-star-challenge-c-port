@@ -563,13 +563,33 @@ static bool extract_rom_player_art(AllStarAssetPack *pack,
                               &tile_count)) return false;
         art->tile_count = (uint8_t)tile_count;
 
-        /* $4199: the portrait is simply stream tiles 1..24. */
+        /* $4199: the map starts as a plain 1..24. */
         for (cell = 0; cell < ALLSTAR_ROM_PORTRAIT_CELLS; cell++)
             art->portrait_cells[cell] = (uint8_t)(cell + 1u);
 
         /* $41A5/$41E0: $FF in the $42A2 byte keeps the base at $19. */
         flag = rom->data[rom_bank_offset(2u, 0x42A2u) + player];
         art->logo_base = flag == 0xFFu ? 0x19u : 0x18u;
+        art->portrait_patch = flag;
+
+        /*
+         * $41B0.  Anything but $FF names a portrait cell to blank, and $41C0
+         * then decrements the twenty-four cells that follow it -- so the tiles
+         * after the gap all shift down by one.  Skipping this leaves seven
+         * players with the wrong portrait.
+         */
+        if (flag != 0xFFu) {
+            size_t shifted;
+            if (flag < ALLSTAR_ROM_PORTRAIT_CELLS)
+                art->portrait_cells[flag] = 0u;            /* $41BE */
+            for (shifted = (size_t)flag + 1u;
+                 shifted <= (size_t)flag + ALLSTAR_ROM_PORTRAIT_CELLS;
+                 shifted++) {
+                if (shifted >= ALLSTAR_ROM_PORTRAIT_CELLS) break;
+                art->portrait_cells[shifted] =
+                    (uint8_t)(art->portrait_cells[shifted] - 1u);  /* $41C3 */
+            }
+        }
 
         /* $41E7: skip this player's share of the $FE-terminated sublists. */
         list = rom_bank_offset(2u, 0x42BDu);

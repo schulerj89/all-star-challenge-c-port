@@ -157,16 +157,31 @@ adjustment that ever fires is the half-carry subtract of six.
 The warning at `$7A38` plays sound `$0B` while the game clock shows no minutes
 and its seconds read below `$12` — but not at exactly 1.
 
-### A latent ROM bug
+### A ROM bug, kept out of the port
 
-`$7A3A` and `$7A3E` test for modes `$01` and `$02` and branch to `$7A5A`, which
-is a `pop hl` with **no matching `push`**. On the cartridge that would take the
-return address into HL and then return through whatever was underneath it.
+`$7A3A` and `$7A3E` test for modes `$01` and `$02` and branch to `$7A5A` — the
+`pop hl` that pairs with the `push hl` at `$7A42`. Both branches skip that push.
+
+Both displacements are **one short**:
+
+| site | ROM | should be |
+|---|---|---|
+| `$7A3C` | `28 1C` → `$7A5A` | `28 1D` → `$7A5B` |
+| `$7A40` | `28 18` → `$7A5A` | `28 19` → `$7A5B` |
+
+`$7A5B` is the next instruction and rejoins the same code, so landing there
+skips the unbalanced pop and is almost certainly what was meant. As written, the
+routine takes its own return address into HL and then returns through whatever
+lay beneath it on the stack.
 
 It is unreachable in practice: bit 0 of `$C0BD` is never set in Free Throw or
-H-O-R-S-E, so `$7A34` always branches away before those tests run. The port
-reproduces the branch — no warning for those modes — without the stack damage,
-which is identical behaviour everywhere the ROM can actually reach.
+H-O-R-S-E, so `$7A34` always branches away before those tests run.
+
+**The port is deliberately not bug-compatible here.** It keeps the observable
+behaviour — no warning in those modes — and drops the stack damage. If that path
+were ever reached, the cartridge would crash and the port would carry on. The
+"unreachable" claim is an inference from what writes `$C0BD`, not something
+traced on hardware.
 
 Run:
 

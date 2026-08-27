@@ -61,11 +61,22 @@ bool allstar_clock_tick(uint8_t *counter);
  * $7A38..$7A5A.  The warning beeps while the game clock's seconds read below
  * $12, except at exactly 1.
  *
- * The ROM checks for modes $01 and $02 here and branches to $7A5A, which is a
- * `pop hl` with no matching `push` -- on the cartridge that would return through
- * a corrupted address.  It is unreachable in practice because bit 0 of $C0BD is
- * never set in those modes, so this reproduces the branch (no warning) without
- * the stack damage, and the behaviour is identical wherever the ROM can reach.
+ * ROM BUG, not reproduced.  The mode $01 and $02 tests branch to $7A5A, which
+ * is the `pop hl` paired with the `push hl` at $7A42 -- and those branches skip
+ * that push.  Both displacements are one short:
+ *
+ *     $7A3C  28 1C   jr z,$7A5A     should be  28 1D   jr z,$7A5B
+ *     $7A40  28 18   jr z,$7A5A     should be  28 19   jr z,$7A5B
+ *
+ * Landing on $7A5B instead skips the unbalanced pop and rejoins the same code.
+ * As written the routine would take its own return address into HL and then
+ * return through whatever lay beneath it.
+ *
+ * It is unreachable in practice -- bit 0 of $C0BD is never set in those modes,
+ * so $7A34 always branches away first -- so the port keeps the observable
+ * behaviour (no warning for those modes) and drops the stack damage.  That
+ * makes it deliberately not bug-compatible: if the path were ever reached the
+ * cartridge would crash and this would not.
  */
 bool allstar_clock_warns(uint8_t mode, uint16_t game_clock);
 

@@ -7,8 +7,6 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(ALLSTAR_BUILD_SDL_GAME "Build the cross-platform SDL game" ON)
-option(ALLSTAR_BUILD_WIN32_REFERENCE
-       "Build the original Win32 game host for transition testing" OFF)
 set(ALLSTAR_ASSETPACK_PATH "" CACHE FILEPATH
     "Path to a user-generated allstar.assetpack to bundle with the game")
 
@@ -197,13 +195,4 @@ if(ALLSTAR_BUILD_SDL_GAME)
     if(NOT MSVC)
         target_compile_options(allstar_port_game PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-endif()
-
-if(WIN32 AND ALLSTAR_BUILD_WIN32_REFERENCE)
-    add_executable(allstar_port_game_win32 WIN32
-        src/win32_game_main.c
-        src/audio/allstar_audio.c
-    )
-    target_link_libraries(allstar_port_game_win32
-        PRIVATE allstar_core user32 gdi32 winmm)
 endif()

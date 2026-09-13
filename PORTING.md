@@ -123,7 +123,7 @@ void allstar_game_tick(AllStarGame *game, float dt) {
 }
 ```
 
-Input is updated by the SDL host (or the optional Win32 reference host) before
+Input is updated by the SDL host before
 this call.
 
 ## 5. Game-Mode Status

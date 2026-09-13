@@ -14,7 +14,7 @@ These notes define standards and procedures for AI agents (Antigravity/Codex) wo
 ## 2. Standard Build & Test Commands
 
 ```powershell
-# Build both CLI test executable and Win32 game executable
+# Build the CLI test executable and the SDL game executable
 .\build.ps1
 
 # Run ROM validation
@@ -42,5 +42,7 @@ These notes define standards and procedures for AI agents (Antigravity/Codex) wo
 - `src/`: Core logic, CLI parsing, ROM loading, and asset packing.
 - `src/scenes/`: Individual scene state machines (Intro, Menu, 1-on-1, 3-Point, Free Throw, HORSE).
 - `src/gameplay/`: Physics, rules, and AI decision logic.
-- `src/audio/`: Native audio output. The current implementation is a Win32 PCM mixer; ROM sequence interpretation remains planned work.
+- `src/audio/`: Native audio output. Shared PCM mixer with an SDL backend
+  (used by the game on all platforms) and a Win32 waveOut backend (used by the
+  Windows CLI test runner).
 - `tools/`: Reverse engineering helpers, Ghidra MCP server bridge, and extraction scripts.

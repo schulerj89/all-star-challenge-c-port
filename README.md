@@ -4,8 +4,7 @@ Native C99 port of **NBA All-Star Challenge** for Game Boy (Beam Software / LJN)
 
 The project is a native reimplementation, not an emulator wrapper: a
 cross-platform SDL 3 host, a software renderer, the five game modes, and a DMG
-audio path that decodes the cartridge's own programs. A Win32 host is also
-available.
+audio path that decodes the cartridge's own programs.
 
 All five modes play, and the port **names every reachable instruction in the
 cartridge**; the audited figure lives in
@@ -108,11 +107,15 @@ connected phone. The local asset pack remains inside the ignored build tree.
 Press `1`, `2`, or `3` to select the original green, grayscale, or modern
 palette. Press `P` or the iPhone `COLOR` button to cycle palettes.
 
-### Windows with MSVC
+### Windows with MSVC and CMake
 
 ```powershell
 .\build.ps1
 ```
+
+This configures and builds with CMake (Visual Studio generator) and produces
+the same executables the old raw `cl.exe` script built, except the game is now
+the SDL 3 build instead of the removed Win32 host.
 
 To build the executable and regenerate its local gameplay asset pack in one
 step, provide the user-owned ROM:
@@ -127,7 +130,7 @@ never commits or embeds the ROM or generated pack.
 This produces:
 
 - `build/allstar_port.exe` — CLI test harness, ROM validator, and asset-pack builder.
-- `build/allstar_port_game.exe` — Win32 game executable.
+- `build/allstar_port_game.exe` — SDL 3 game executable.
 
 The current MSVC build succeeds without warnings.
 
